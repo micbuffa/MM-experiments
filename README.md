@@ -1,103 +1,105 @@
-# Marble Madness Web (3D + Émulation Arcade)
+# Marble Madness Web (3D + Arcade Emulation)
 
-Wrapper web 3D pour **Marble Madness (Atari System I, 1984)** : le cœur arcade original (**EmulatorJS 4.2.3 + MAME 2003-Plus**) reste l’unique autorité pour la physique, les règles, le score, le chrono et le son, tandis que **BabylonJS 9.33.2** offre un rendu 3D temps réel fidèle au pixel près en vue arcade, ainsi que des caméras 3D dynamiques, une borne arcade 3D dans un bar explorable et une distribution statique dédiée aux bêta-testeurs.
+Browser-based 3D wrapper for **Marble Madness (Atari System I, 1984)**: the original arcade core (**EmulatorJS 4.2.3 + MAME 2003-Plus**) remains the sole authority for physics, rules, scoring, timers, and audio, while **BabylonJS 9.33.2** drives a pixel-aligned real-time 3D presentation, dynamic 3D cameras, an explorable 3D arcade cabinet/bar scene, and a standalone static beta distribution.
 
----
-
-## Résumé du travail accompli
-
-### 1. Cœur arcade, commandes et confort (Prototype 01)
-
-- Emulation **Atari System I** locale via **EmulatorJS 4.2.3 + MAME 2003-Plus** (WebAssembly, empreintes SHA-256 vérifiées au chargement, ROM `marble.zip` et BIOS `atarisy1.zip` assemblés en mémoire).
-- Commandes trackball relatives au **trackpad / souris** via Pointer Lock, avec boost **Espace** et jeu 2 joueurs (**J1** trackpad/souris, **J2** clavier).
-- Pause propre sur **Échap**, gestion des pertes de focus et purge des entrées.
-
-### 2. Borne 3D Atari System I, bar explorable et son positionnel (Prototypes 02 & 03)
-
-- Reproduction 3D de la borne Atari System I dans un bar explorable en vue première personne (`ZQSD/WASD` + souris), avec commandes cliquables (monnayeur, Start J1/J2, trackballs animées) et transitions de caméra fluides.
-- Écran CRT simulé (scanlines, courbure, vignettage) et **mixage audio spatial WebAudio** selon la position du joueur dans le bar.
-
-### 3. Présentation 3D temps réel des 5 niveaux (Prototype 04)
-
-- **Niveau 1 (_Practice Race_)** : relevé complet, rambardes rouges alignées sur les joints avec coudes sphériques, tours d’entrée, fosses, flèches, drapeaux et marquage `GOAL`.
-- **Niveau 2 (_Beginner / Intermediate Race_)** : pont articulé, tuyaux et tuyau en Y, vagues, cuvette gelée, tours blanches à dôme ogival et joints épais, vers verts et amibes.
-- **Niveau 3 (_Intermediate / Aerial Race_)** : dallage sable, bordures turquoise, vagues animées, arches gothiques d’ouverture, zone `GOAL` et drapeaux alignés.
-- **Niveau 4 (_Aerial Race_)** : ponts à arches, catapulte, marteaux, pistons synchronisés sur la mémoire MAME et aspirateurs avec aspiration animée de la bille.
-- **Niveau 5 (_Silly Race_)** :
-  - Parcours inversé (montant) avec tours, châteaux à 4 quarts de pyramides, mini-billes/vers/amibes écrasables (**`+3 SEC`**), oiseaux volants avec **ombres portées temps réel** et étincelles jaunes de collision murale.
-  - **Fin Escher « à la Monument Valley »** : arche voûtée continue découpée sur la couture isométrique, vue arcade fidèle à l’illusion d’optique originale et marqueur `?` au sol visible dans les autres vues 3D.
-  - **Survol d’introduction 3D** recalé sur la vraie profondeur du départ avec arche d’altitude et dégagement automatique des reliefs, fondu sans coupure dans la vue de jeu.
-- **Caméras 3D & HUD** : 4 caméras (`Arcade`, `Suivi`, `Dessus`, `Poursuite` avec occlusion transparente des murs), zoom `+/-`, HUD natif Score/Chrono/Avis et bascule rapide **Original / Parallèle / 3D** (`V`).
-
-### 4. Distribution statique Bêta (`dist-beta/`)
-
-- Point d’entrée autonome (`beta.html` → `dist-beta/index.html`) en anglais pour les bêta-testeurs :
-  - Écran d’initialisation avec barre de progression, cache HTTP activé et chargement paresseux des checkpoints/entités pour accélérer le démarrage.
-  - Démarrage automatique en **Attract Mode plein écran CRT (scanlines)** avec surimpression semi-transparente des touches (`5` Insert Coin, `1` Start P1, `2` Start P2) et choix du niveau de départ (`1` à `5`).
-  - Passage automatique en **vue parallèle plein écran** (Original CRT à gauche + 3D CRT alignée au pixel près à droite, avec survol d’introduction) et bandeau supérieur (`V` View, `C` Camera, `Space` Boost, `Esc` Pause).
+**Live Beta (GitHub Pages):** https://micbuffa.github.io/MM-experiments/
 
 ---
 
-## Prérequis et installation
+## Summary of Work Accomplished
 
-- **Node.js** `>= 24.0.0` (voir `.nvmrc`) et **npm** (`package-lock.json` fait référence).
+### 1. Arcade Core, Controls & Comfort (Prototype 01)
+
+- Local **Atari System I** emulation via **EmulatorJS 4.2.3 + MAME 2003-Plus** (WebAssembly, SHA-256 verified glue/WASM core, `marble.zip` ROM and `atarisy1.zip` BIOS assembled in memory).
+- Relative trackball input on **trackpad / mouse** via Pointer Lock, with **Space** boost and 2-player support (**P1** trackpad/mouse, **P2** keyboard).
+- Clean pause on **Esc**, focus-loss handling, and automatic input drain.
+
+### 2. 3D Atari System I Cabinet, Explorable Bar & Spatial Audio (Prototypes 02 & 03)
+
+- 3D Atari System I arcade cabinet inside a first-person explorable bar (`WASD/ZQSD` + mouse look), clickable cabinet controls (coin slots, Start P1/P2, animated trackballs), and smooth camera transitions.
+- Simulated CRT screen (scanlines, curvature, vignette) and **WebAudio positional mixing** based on the player’s position in the bar.
+
+### 3. Real-Time 3D Presentation of All 5 Courses (Prototype 04)
+
+- **Level 1 (_Practice Race_)**: full course survey, grid-aligned red guardrails with spherical elbow joints, opening towers, pits, directional arrows, checkered flags, and `GOAL` decal.
+- **Level 2 (_Beginner / Intermediate Race_)**: articulated bridge, chutes and Y-pipe, animated waves, ice basin, ogival domed white towers with bold masonry joints, green worms, and amoebas.
+- **Level 3 (_Intermediate / Aerial Race_)**: sandy paving, turquoise curbs, animated waves, opening Gothic arches, aligned `GOAL` pad and flags.
+- **Level 4 (_Aerial Race_)**: arch bridges, catapult, hammers, MAME-synced pistons, and vacuum cleaners with marble suction animation.
+- **Level 5 (_Silly Race_)**:
+  - Uphill reverse course with towers, 4-quarter-pyramid castles, squashable miniatures (**`+3 SEC`** 3D bonus label), flying birds with **real-time cast shadows**, and yellow wall-collision sparks.
+  - **Escher "Monument Valley" finish**: continuous barrel-vault arch clipped along the isometric seam, faithful optical illusion in `Arcade` view, and a floor `?` marker visible in other 3D views.
+  - **3D intro flyover**: depth-anchored to the true start platform with an elevated scenic arc and automatic terrain clearance, blending seamlessly into gameplay.
+- **3D Cameras & HUD**: 4 camera presets (`Arcade`, `Follow`, `Overhead`, `Chase` with transparent wall occlusion), `+/-` zoom, native Score/Timer/Notice HUD, and instant **Side-by-side / 3D / Original** view cycling (`V`).
+
+### 4. Static Beta Distribution (`dist-beta/` & GitHub Pages)
+
+- Self-contained static entry point (`beta.html` → `dist-beta/index.html`) deployed to `gh-pages`:
+  - Initialization overlay with progress bar, **4.6–8.5 KB Attract Mode boot savestate** (skips the ~4–5 s Atari System 1 POST), **Service Worker Cache-First** (`sw.js`), **IndexedDB ROM cache**, lazy-loaded level checkpoints, and compact zlib-compressed **`rolling-actors.bin` (577 KB vs 6.7 MB JSON)**.
+  - Starts automatically in **full-screen CRT Attract Mode** (scanlines) with a semi-transparent key legend (`5` Insert coins, `1` Start Player 1, `2` Start Player 2) and starting level radio buttons (`1`–`5`).
+  - Automatically switches to **full-screen side-by-side CRT view** (pixel-aligned 4:3 Original on the left, 3D on the right with intro flyover) and a semi-transparent top banner (`V` View, `C` Camera, `Space` Boost, `Esc` Pause).
+
+---
+
+## Prerequisites & Setup
+
+- **Node.js** `>= 24.0.0` (see `.nvmrc`) and **npm** (`package-lock.json` is authoritative).
 
 ```bash
 npm ci
-npm run setup:emulator   # Installe EmulatorJS 4.2.3 + MAME 2003-Plus dans public/vendor/
+npm run setup:emulator   # Installs EmulatorJS 4.2.3 + MAME 2003-Plus into public/vendor/
 ```
 
 ---
 
-## Commandes principales
+## Commands
 
-| Commande                | Description                                                                            |
+| Command                 | Description                                                                            |
 | ----------------------- | -------------------------------------------------------------------------------------- |
-| `npm run dev`           | Lance le serveur de développement Vite sur `http://127.0.0.1:5173/`                    |
-| `npm run build`         | Vérifie TypeScript (`tsc --noEmit`) et génère le build standard dans `dist/`           |
-| `npm run build:beta`    | Génère la **distribution statique bêta autonome** dans `dist-beta/`                    |
-| `npm run preview`       | Prévisualise le build standard (`dist/`)                                               |
-| `npm run preview:beta`  | Prévisualise la distribution statique bêta (`dist-beta/`) sur `http://127.0.0.1:4174/` |
-| `npm test`              | Exécute les tests unitaires Vitest                                                     |
-| `npm run test:watch`    | Exécute Vitest en mode watch                                                           |
-| `npm run test:coverage` | Tests unitaires avec couverture V8 (seuil ≥ 90 % sur les modules métier)               |
-| `npm run lint`          | Analyse ESLint (`--max-warnings 0`)                                                    |
-| `npm run typecheck`     | Vérification TypeScript stricte sans émission                                          |
-| `npm run format`        | Formate le dépôt avec Prettier                                                         |
-| `npm run format:check`  | Vérifie le formatage Prettier                                                          |
-| `npm run check`         | Chaîne complète : `format:check`, `lint`, `typecheck`, `test:coverage`, `build`        |
-| `npm run test:browser`  | Tests navigateur Playwright contre le serveur dev                                      |
-| `npm run test:preview`  | Build + tests Playwright contre `vite preview`                                         |
+| `npm run dev`           | Start Vite dev server at `http://127.0.0.1:5173/`                                      |
+| `npm run build`         | Typecheck (`tsc --noEmit`) and build standard app into `dist/`                         |
+| `npm run build:beta`    | Build standalone **static beta distribution** into `dist-beta/`                        |
+| `npm run preview`       | Preview standard build (`dist/`)                                                       |
+| `npm run preview:beta`  | Preview static beta distribution (`dist-beta/`) at `http://127.0.0.1:4174/`            |
+| `npm test`              | Run Vitest unit test suite                                                             |
+| `npm run test:watch`    | Run Vitest in watch mode                                                               |
+| `npm run test:coverage` | Run unit tests with V8 coverage (≥ 90% threshold on core modules)                      |
+| `npm run lint`          | Run ESLint (`--max-warnings 0`)                                                        |
+| `npm run typecheck`     | Strict TypeScript check without emit                                                   |
+| `npm run format`        | Format repository with Prettier                                                        |
+| `npm run format:check`  | Check Prettier formatting                                                              |
+| `npm run check`         | Full verification chain: `format:check`, `lint`, `typecheck`, `test:coverage`, `build` |
+| `npm run test:browser`  | Run Playwright browser tests against dev server                                        |
+| `npm run test:preview`  | Build and run Playwright tests against `vite preview`                                  |
 
 ---
 
-## Pages et points d’entrée
+## Entry Points & Controls
 
-- **`index.html`** : application complète (banc d’essai, borne 3D / bar, vue 3D moderne, comparatif et diagnostics).
-- **`beta.html`** (ou `dist-beta/index.html`) : version bêta plein écran (attract mode CRT → vue parallèle CRT, sélection niveau 1–5).
-- **`terrain.html`** : studio d’inspection des terrains 3D (niveaux 1 à 5, défilement arcade, superposition de captures de référence).
-- **`scene.html`** : scène BabylonJS isolée.
+- **`index.html`**: full application (workbench, 3D cabinet/bar, live 3D view, side-by-side comparison, diagnostics).
+- **`beta.html`** (`dist-beta/index.html`): beta-tester full-screen build (CRT attract mode → dual CRT comparison, level picker 1–5).
+- **`terrain.html`**: 3D terrain inspection studio (levels 1–5, arcade scroll slider, reference screenshot overlay).
+- **`scene.html`**: standalone BabylonJS scene testbed.
 
-### Raccourcis clavier en jeu
+### In-Game Keyboard Shortcuts
 
-- **`5`** : Insert Coin / Crédit
-- **`1`** / **`2`** : Start Player 1 / Start Player 2
-- **`V`** (ou `Shift+V`) : basculer la vue (Parallèle / 3D seule / Originale seule)
-- **`C`** : changer la caméra 3D (`Arcade` → `Follow` → `Overhead` → `Chase`)
-- **`+` / `-`** : zoom / FOV
-- **`Space`** : boost trackball · **`Esc`** : pause / libérer le pointeur
-- **`F2` à `F5`** (en mode dev sur `index.html`) : saut direct au départ des niveaux 2 à 5
+- **`5`**: Insert coins
+- **`1`** / **`2`**: Start Player 1 / Start Player 2
+- **`V`** (or `Shift+V`): cycle view (`Side-by-side` → `3D Only` → `Original Only`)
+- **`C`**: cycle 3D camera (`Arcade` → `Follow` → `Overhead` → `Chase`)
+- **`+` / `-`**: adjust zoom / FOV
+- **`Space`**: trackball boost · **`Esc`**: pause / release pointer lock
+- **`F2`–`F5`** (dev mode in `index.html`): jump directly to levels 2–5
 
 ---
 
-## Guide pour contributeurs et assistants IA (Claude, Codex, Gemini)
+## Guide for Contributors & AI Assistants (Claude, Codex, Gemini)
 
-Le dépôt est organisé pour permettre une reprise immédiate par un humain ou un agent IA :
+The repository is structured for fast onboarding by both human contributors and AI coding agents:
 
-- [AGENTS.md](AGENTS.md) : consignes communes (référencées par [CLAUDE.md](CLAUDE.md), [GEMINI.md](GEMINI.md) et [.github/copilot-instructions.md](.github/copilot-instructions.md)).
-- [ARCHITECTURE.md](ARCHITECTURE.md) : responsabilités, modules et règles de dépendance.
-- [BABYLONJS_BEST_PRACTICES.md](BABYLONJS_BEST_PRACTICES.md) : conventions BabylonJS (imports ciblés, gestion des ressources, boucles par frame).
-- [HANDOFF.md](HANDOFF.md) : journal détaillé de passation, décisions récentes et état exact du projet.
-- [docs/PROTOTYPE_04.md](docs/PROTOTYPE_04.md), [docs/DECISIONS.md](docs/DECISIONS.md), [docs/VALIDATION.md](docs/VALIDATION.md) : preuves techniques, mémoire MAME et validations.
+- [AGENTS.md](AGENTS.md): shared engineering and testing guidelines (referenced by [CLAUDE.md](CLAUDE.md), [GEMINI.md](GEMINI.md), and [.github/copilot-instructions.md](.github/copilot-instructions.md)).
+- [ARCHITECTURE.md](ARCHITECTURE.md): module responsibilities, data flow, and dependency boundaries.
+- [BABYLONJS_BEST_PRACTICES.md](BABYLONJS_BEST_PRACTICES.md): BabylonJS conventions (targeted ES imports, resource ownership/disposal, zero per-frame allocations).
+- [HANDOFF.md](HANDOFF.md): detailed handoff log, recent decisions, and current project state.
+- [docs/PROTOTYPE_04.md](docs/PROTOTYPE_04.md), [docs/DECISIONS.md](docs/DECISIONS.md), [docs/VALIDATION.md](docs/VALIDATION.md): technical evidence, MAME memory maps, and validation records.
 
-> **Note sur les assets** : `roms/marble.zip`, `roms/atarisy1.zip` ainsi que les relevés de terrains et checkpoints (`local-roms/*.json`, `local-roms/*.state`) sont inclus dans ce dépôt expérimental pour faciliter la contribution. Les archives de référence tierces (ex. _Rolling Madness_) et les binaires générés (`public/vendor/`, `dist/`, `dist-beta/`) restent exclus via `.gitignore`.
+> **Assets note**: `roms/marble.zip`, `roms/atarisy1.zip`, and the surveyed terrain/checkpoint files (`local-roms/*.json`, `local-roms/*.state`) are included in this experimental repository to ease contributor setup. Third-party reference folders (e.g. _Rolling Madness_) and generated binaries (`public/vendor/`, `dist/`, `dist-beta/`) remain excluded via `.gitignore`.

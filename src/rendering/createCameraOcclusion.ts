@@ -73,7 +73,8 @@ export function createCameraOcclusion(scene: Scene) {
       mesh.infiniteDistance ||
       !(mesh.material instanceof StandardMaterial) ||
       mesh.material.name.startsWith('arcade-marble-') ||
-      painted.has(mesh.material)
+      painted.has(mesh.material) ||
+      mesh.material.pluginManager?.getPlugin('marble-occlusion-corridor')
     )
       continue;
     painted.add(mesh.material);

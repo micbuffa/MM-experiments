@@ -91,6 +91,9 @@ test('superpose une capture locale au cadrage arcade et conserve la vue libre', 
 test('charge Intermediate Race et déplace son cadrage arcade', async ({
   page,
 }) => {
+  await page.route('**/__local-roms/intermediate-terrain-pipes.json', (route) =>
+    route.fulfill({ status: 404 }),
+  );
   await page.goto('/terrain.html');
   const rows = Array.from({ length: 130 }, (_, z) =>
     Array.from({ length: 130 }, (_, x) =>
@@ -179,6 +182,9 @@ test('le grand mur jaune garde sa palette ambrée et son ombre arcade', async ({
     Array.from({ length: 130 }, (_, x) =>
       Array<number>(4).fill(x >= 87 && x < 90 && z >= 72 && z < 90 ? 16228 : 0),
     ),
+  );
+  await page.route('**/__local-roms/intermediate-terrain-pipes.json', (route) =>
+    route.fulfill({ status: 404 }),
   );
   await page.route('**/__local-roms/level4-terrain.json', (route) =>
     route.fulfill({ json: { format: 'level4-terrain-v1', rows } }),
@@ -288,6 +294,10 @@ for (const {
             : 0,
         ),
       ),
+    );
+    await page.route(
+      '**/__local-roms/intermediate-terrain-pipes.json',
+      (route) => route.fulfill({ status: 404 }),
     );
     await page.goto('/terrain.html');
     await page.locator('#terrain-file').setInputFiles({

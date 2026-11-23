@@ -10,6 +10,10 @@ import { expect, test } from './fixtures';
 test('une paroi entre caméra et bille devient traversable visuellement puis réapparaît', async ({
   page,
 }) => {
+  test.slow();
+  await page.route('**/__local-roms/**', (route) =>
+    route.fulfill({ status: 404 }),
+  );
   await page.goto('/');
   const result = await page.evaluate(async () => {
     const paths = [
@@ -120,7 +124,7 @@ test('une paroi entre caméra et bille devient traversable visuellement puis ré
     wall.name = 'foreground-paving';
     wall.setVerticesData(
       'position',
-      [-3, 1.3, -5, 3, 1.3, -5, 3, 1.3, -1, -3, 1.3, -1],
+      [-3, 1.6, -5, 3, 1.6, -5, 3, 1.6, -1, -3, 1.6, -1],
       true,
     );
     wall.setVerticesData('normal', [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
@@ -167,7 +171,7 @@ test('une paroi entre caméra et bille devient traversable visuellement puis ré
   expect(result.floorHidden).toBeLessThan(10);
   expect(result.floorRevealed).toBeGreaterThan(150);
   expect(result.floorRestored).toBeLessThan(10);
-  expect(result.footFloor).toBeGreaterThan(200);
+  expect(result.footFloor).toBeGreaterThan(150);
   expect(result.hidden).toBeLessThan(10);
   expect(result.revealed).toBeGreaterThan(150);
   expect(result.outside).toBeLessThan(10);

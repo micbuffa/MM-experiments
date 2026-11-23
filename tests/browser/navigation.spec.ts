@@ -78,6 +78,7 @@ test.beforeEach(async ({ page }) => {
       {
         canvas,
         geometry: { width: 400, height: 300, aspect: 4 / 3 },
+        modernPhase: () => (practicePose ? 'level' : 'arcade'),
         practicePose: () => practicePose,
         subscribe(fn: () => void) {
           listeners.add(fn);

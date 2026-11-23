@@ -1,5 +1,11 @@
 import './beta.css';
+import { unzlibSync } from 'fflate';
 import { createVideoView } from './app/createVideoView';
+import {
+  readCachedArchive,
+  registerBetaServiceWorker,
+  writeCachedArchive,
+} from './beta/betaCache';
 import {
   BETA_VIEW_LABELS,
   betaAssetUrls,
@@ -19,6 +25,7 @@ import {
   parseRollingActors,
   type RollingActors,
 } from './emulation/rollingActors';
+import { decodeRollingActorsBinary } from './emulation/rollingActorsBinary';
 import { assembleRomArchive } from './emulation/romArchive';
 import {
   clampPracticeFov,
@@ -79,6 +86,8 @@ async function loadTerrain(name: string): Promise<PracticeTerrain | undefined> {
 }
 
 async function loadActors(): Promise<RollingActors | undefined> {
+  const binary = await loadBinary('rolling-actors.bin');
+  if (binary) return decodeRollingActorsBinary(binary);
   const response = await fetchFirst('rolling-actors.json');
   if (!response) return undefined;
   return parseRollingActors(await response.text());
@@ -275,30 +284,43 @@ async function bootBeta() {
   }
 
   try {
+    registerBetaServiceWorker(import.meta.env.BASE_URL);
     setProgress(
       15,
       'Loading arcade ROMs & BIOS…',
-      'Reading marble.zip and atarisy1.zip into memory',
+      'Checking local cache & reading marble.zip',
     );
-    const [gameBytes, biosBytes] = await Promise.all([
-      loadBinary('marble.zip'),
-      loadBinary('atarisy1.zip'),
+    const [cachedRom, attractCompressed] = await Promise.all([
+      readCachedArchive('marble-assembled-v1'),
+      loadBinary('attract-web.state'),
     ]);
-    if (!gameBytes) {
-      throw new Error('marble.zip not found in beta-data/ or roms/.');
+    let merged = cachedRom;
+    if (!merged) {
+      const [gameBytes, biosBytes] = await Promise.all([
+        loadBinary('marble.zip'),
+        loadBinary('atarisy1.zip'),
+      ]);
+      if (!gameBytes) {
+        throw new Error('marble.zip not found in beta-data/ or roms/.');
+      }
+      setProgress(35, 'Verifying arcade archive…', 'Checking ROM checksums');
+      merged = await assembleRomArchive(gameBytes, biosBytes);
+      void writeCachedArchive('marble-assembled-v1', merged);
     }
-    setProgress(35, 'Verifying arcade archive…', 'Checking ROM checksums');
-    const merged = await assembleRomArchive(gameBytes, biosBytes);
+    const attractState = attractCompressed
+      ? unzlibSync(attractCompressed)
+      : undefined;
     const archive = new File([merged], 'marble.zip', {
       type: 'application/zip',
     });
 
     setProgress(
-      50,
+      55,
       'Initializing MAME 2003-Plus…',
       'Starting WebAssembly arcade core',
     );
     let unsubscribeVideo: (() => void) | undefined;
+    let attractRestored = false;
     session = await prepareEmulator(
       archive,
       () => {
@@ -306,9 +328,9 @@ async function bootBeta() {
         session.setGain(DEFAULT_GAIN);
         session.setVolume(0.5);
         setProgress(
-          68,
+          82,
           'Preparing 3D renderer & worlds…',
-          'Booting Atari System 1 hardware (self-test)',
+          'Jumping directly to Attract Mode',
         );
         view = createVideoView(
           canvas,
@@ -337,11 +359,21 @@ async function bootBeta() {
           if (t1) view?.setModernTerrain(t1, true);
         });
 
+        if (attractState && session.restoreRawState?.(attractState)) {
+          attractRestored = true;
+        }
+
         unsubscribeVideo = session.video.subscribe(() => {
           const pose = session?.video.practicePose?.() ?? null;
           if (phase === 'loading') {
             bootFrames++;
-            const pct = 68 + Math.min(32, (bootFrames / MAX_POST_FRAMES) * 32);
+            if (attractRestored && bootFrames >= 6) {
+              setProgress(100, 'Ready!', 'Starting Attract Mode');
+              enterAttract();
+              startBackgroundAssets();
+              return;
+            }
+            const pct = 82 + Math.min(18, (bootFrames / MAX_POST_FRAMES) * 18);
             setProgress(
               pct,
               'Booting Atari System 1 hardware…',

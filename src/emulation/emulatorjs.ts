@@ -132,6 +132,7 @@ export interface ProbeSession extends VenueEffects {
     checkpoint: IntermediateCheckpoint,
     level?: CheckpointLevel,
   ): Promise<boolean>;
+  restoreRawState?(state: Uint8Array): boolean;
   dispose(): void;
 }
 
@@ -581,6 +582,18 @@ export async function prepareEmulator(
       return new Promise((resolve) => {
         restoring = { level, remaining: 120, finish: resolve };
       });
+    },
+    restoreRawState(state) {
+      if (
+        disposed ||
+        !instance.started ||
+        !instance.gameManager.supportsStates()
+      )
+        return false;
+      clearInputs();
+      instance.gameManager.loadState(state);
+      if (instance.paused) instance.play();
+      return true;
     },
     dispose() {
       restoring?.finish(false);

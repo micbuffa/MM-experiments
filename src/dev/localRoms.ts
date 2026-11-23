@@ -7,6 +7,7 @@ const MAX_BYTES = 16 * 1024 * 1024;
 const NAMES = ['marble.zip', 'atarisy1.zip'] as const;
 type RomName = (typeof NAMES)[number];
 const STUDY_TYPES = new Map([
+  ['attract-web.state', 'application/octet-stream'],
   ['rolling-actors.json', 'application/json'],
   ['practice-complete-terrain.json', 'application/json'],
   ['intermediate-terrain-pipes.json', 'application/json'],

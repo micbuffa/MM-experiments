@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-beta/
 coverage/
 package-lock.json
 Marble_Madness_Prototype_01_SPEC.md

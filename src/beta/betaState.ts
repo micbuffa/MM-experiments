@@ -14,9 +14,9 @@ export const BETA_LEVEL_LABELS: Readonly<Record<BetaStartLevel, string>> = {
 };
 
 export const BETA_VIEW_LABELS: Readonly<Record<BetaViewMode, string>> = {
-  compare: 'Parallèle (Original + 3D)',
-  modern: '3D seule',
-  direct: 'Originale seule',
+  compare: 'Side-by-side (Original + 3D)',
+  modern: '3D Only',
+  direct: 'Original Only',
 };
 
 export function nextBetaViewMode(

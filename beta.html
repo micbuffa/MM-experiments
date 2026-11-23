@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,55 +10,70 @@
       <div id="beta-loading" class="beta-loading" aria-live="polite">
         <div class="beta-loading-card">
           <h1>Marble Madness 3D</h1>
-          <p id="beta-status">
-            Chargement de l’émulateur arcade et des scènes 3D…
+          <p id="beta-status">Initializing game…</p>
+          <div
+            class="progress-track"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="10"
+          >
+            <div id="beta-progress" class="progress-bar"></div>
+          </div>
+          <p id="beta-substatus" class="beta-substatus">
+            Preparing Atari System 1 arcade hardware &amp; 3D renderer
           </p>
         </div>
       </div>
 
-      <section id="arcade-pane" class="beta-pane crt-screen">
-        <div id="emulator"></div>
-        <div class="crt-overlay" aria-hidden="true"></div>
+      <section id="arcade-pane" class="beta-pane">
+        <div class="viewport-frame crt-screen">
+          <div id="emulator"></div>
+          <div class="crt-overlay" aria-hidden="true"></div>
+        </div>
       </section>
 
       <section id="modern-pane" class="beta-pane">
-        <canvas id="babylon-video"></canvas>
-        <div id="practice-hud" class="practice-hud" hidden>
-          <canvas width="336" height="240" aria-hidden="true"></canvas>
-          <div class="practice-hud-text">
-            <span>Score</span>
-            <span id="practice-score"></span>
+        <div class="viewport-frame crt-screen">
+          <canvas id="babylon-video"></canvas>
+          <div id="practice-hud" class="practice-hud" hidden>
+            <canvas width="336" height="240" aria-hidden="true"></canvas>
+            <div class="practice-hud-text">
+              <span>Score</span>
+              <span id="practice-score"></span>
+            </div>
+            <div
+              id="practice-clock"
+              class="practice-hud-text"
+              role="timer"
+              aria-label="Timer"
+              hidden
+            ></div>
+            <div id="practice-score-2-label" class="practice-hud-text" hidden>
+              <span>Score P2</span>
+              <span id="practice-score-2"></span>
+            </div>
+            <div
+              id="practice-clock-2"
+              class="practice-hud-text"
+              role="timer"
+              aria-label="Timer P2"
+              hidden
+            ></div>
           </div>
-          <div
-            id="practice-clock"
-            class="practice-hud-text"
-            role="timer"
-            aria-label="Chrono"
-            hidden
-          ></div>
-          <div id="practice-score-2-label" class="practice-hud-text" hidden>
-            <span>Score J2</span>
-            <span id="practice-score-2"></span>
-          </div>
-          <div
-            id="practice-clock-2"
-            class="practice-hud-text"
-            role="timer"
-            aria-label="Chrono J2"
-            hidden
-          ></div>
+          <div class="crt-overlay" aria-hidden="true"></div>
         </div>
       </section>
 
       <aside id="attract-overlay" class="attract-overlay" hidden>
         <div class="attract-card">
           <div class="attract-keys">
-            <span class="key-pill"><kbd>5</kbd> Insert Coin / Crédit</span>
+            <span class="key-pill"><kbd>5</kbd> Insert Coin / Credit</span>
             <span class="key-pill"><kbd>1</kbd> Start Player 1</span>
             <span class="key-pill"><kbd>2</kbd> Start Player 2</span>
           </div>
           <fieldset class="level-picker">
-            <legend>Niveau de départ</legend>
+            <legend>Starting Level</legend>
             <label
               ><input type="radio" name="start-level" value="1" checked /> 1 ·
               Practice</label
@@ -81,25 +96,24 @@
             >
           </fieldset>
           <p id="attract-hint" class="attract-hint">
-            Appuyer sur <kbd>5</kbd> puis <kbd>1</kbd> ou <kbd>2</kbd> · Cliquer
-            n’importe où pour activer le son
+            Press <kbd>5</kbd> then <kbd>1</kbd> or <kbd>2</kbd> · Click
+            anywhere to enable sound
           </p>
         </div>
       </aside>
 
       <header id="play-banner" class="play-banner" hidden>
         <span class="banner-item"
-          ><kbd>V</kbd> Vue :
-          <strong id="banner-view">Parallèle (Original + 3D)</strong></span
+          ><kbd>V</kbd> View:
+          <strong id="banner-view">Side-by-side (Original + 3D)</strong></span
         >
         <span class="banner-item"
-          ><kbd>C</kbd> Caméra :
-          <strong id="banner-camera">Arcade</strong></span
+          ><kbd>C</kbd> Camera: <strong id="banner-camera">Arcade</strong></span
         >
-        <span class="banner-item"><kbd>Espace</kbd> Boost</span>
-        <span class="banner-item"><kbd>Échap</kbd> Pause</span>
+        <span class="banner-item"><kbd>Space</kbd> Boost</span>
+        <span class="banner-item"><kbd>Esc</kbd> Pause</span>
         <span id="banner-capture" class="banner-item banner-accent"
-          >Clic pour capturer la souris / trackpad</span
+          >Click to capture mouse / trackpad</span
         >
       </header>
     </main>

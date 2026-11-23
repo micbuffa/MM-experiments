@@ -37,10 +37,13 @@ import { mountPracticeHud } from './ui/practiceHud';
 
 const CAMERA_LABELS: Readonly<Record<PracticeCameraPreset, string>> = {
   arcade: 'Arcade',
-  follow: 'Suivi',
-  overhead: 'Dessus',
-  chase: 'Poursuite',
+  follow: 'Follow',
+  overhead: 'Overhead',
+  chase: 'Chase',
 };
+
+// Atari System 1 POST / self-test runs ~320 frames before the attract title appears.
+const POST_WARMUP_FRAMES = 320;
 
 async function fetchFirst(name: string): Promise<Response | undefined> {
   for (const url of betaAssetUrls(name, import.meta.env.BASE_URL)) {
@@ -85,6 +88,9 @@ async function bootBeta() {
   const stage = document.getElementById('beta-stage')!;
   const loading = document.getElementById('beta-loading')!;
   const status = document.getElementById('beta-status')!;
+  const substatus = document.getElementById('beta-substatus')!;
+  const progressBar = document.getElementById('beta-progress')!;
+  const progressTrack = progressBar.parentElement!;
   const attractOverlay = document.getElementById('attract-overlay')!;
   const attractHint = document.getElementById('attract-hint')!;
   const playBanner = document.getElementById('play-banner')!;
@@ -104,11 +110,21 @@ async function bootBeta() {
   let spaceHeld = false;
   let restoring = false;
   let nullPoseFrames = 0;
+  let bootFrames = 0;
+  let assetsReady = false;
   let audioUnlocked = false;
   let session: ProbeSession | undefined;
   let view: ReturnType<typeof createVideoView> | undefined;
   const controller = new AbortController();
   const signal = controller.signal;
+
+  function setProgress(percent: number, message: string, detail?: string) {
+    const clamped = Math.max(0, Math.min(100, Math.round(percent)));
+    progressBar.style.width = `${clamped}%`;
+    progressTrack.setAttribute('aria-valuenow', String(clamped));
+    status.textContent = message;
+    if (detail !== undefined) substatus.textContent = detail;
+  }
 
   for (const radio of document.querySelectorAll<HTMLInputElement>(
     'input[name="start-level"]',
@@ -133,16 +149,17 @@ async function bootBeta() {
     const locked =
       Boolean(session) && document.pointerLockElement === session?.canvas;
     bannerCapture.textContent = locked
-      ? 'Souris / trackpad capturé'
-      : 'Clic pour capturer la souris / trackpad';
+      ? 'Mouse / trackpad captured'
+      : 'Click to capture mouse / trackpad';
     if (audioUnlocked) {
       attractHint.innerHTML =
-        'Appuyer sur <kbd>5</kbd> puis <kbd>1</kbd> ou <kbd>2</kbd> pour démarrer';
+        'Press <kbd>5</kbd> then <kbd>1</kbd> or <kbd>2</kbd> to start';
     }
     if (view) {
       const wantModern = phase === 'playing' && viewMode !== 'direct';
       view.setPresentation(wantModern ? 'modern' : 'flat');
       view.setEnabled(wantModern);
+      if (wantModern) window.dispatchEvent(new Event('resize'));
     }
   }
 
@@ -155,12 +172,12 @@ async function bootBeta() {
     syncUi();
   }
 
-  function enterPlaying() {
+  function enterPlaying(restartFlyover: boolean) {
     phase = 'playing';
     viewMode = 'compare';
     nullPoseFrames = 0;
     syncUi();
-    view?.restartOpening();
+    if (restartFlyover) view?.restartOpening();
   }
 
   function unlockAudio() {
@@ -213,29 +230,36 @@ async function bootBeta() {
       unlockAudio();
       session.resume();
       const ok = await session.restoreIntermediate?.(state, level);
-      if (ok) enterPlaying();
+      if (ok) enterPlaying(true);
     } finally {
       restoring = false;
     }
   }
 
   try {
-    status.textContent = 'Chargement des archives arcade (marble.zip)…';
+    setProgress(
+      15,
+      'Loading arcade ROMs & BIOS…',
+      'Reading marble.zip and atarisy1.zip into memory',
+    );
     const [gameBytes, biosBytes] = await Promise.all([
       loadBinary('marble.zip'),
       loadBinary('atarisy1.zip'),
     ]);
     if (!gameBytes) {
-      throw new Error(
-        'Archive marble.zip introuvable dans beta-data/ ou roms/.',
-      );
+      throw new Error('marble.zip not found in beta-data/ or roms/.');
     }
+    setProgress(35, 'Verifying arcade archive…', 'Checking ROM checksums');
     const merged = await assembleRomArchive(gameBytes, biosBytes);
     const archive = new File([merged], 'marble.zip', {
       type: 'application/zip',
     });
 
-    status.textContent = 'Initialisation de MAME 2003-Plus…';
+    setProgress(
+      50,
+      'Initializing MAME 2003-Plus…',
+      'Starting WebAssembly arcade core',
+    );
     let unsubscribeVideo: (() => void) | undefined;
     session = await prepareEmulator(
       archive,
@@ -243,6 +267,11 @@ async function bootBeta() {
         if (!session) return;
         session.setGain(DEFAULT_GAIN);
         session.setVolume(0.5);
+        setProgress(
+          68,
+          'Preparing 3D renderer & worlds…',
+          'Booting Atari System 1 hardware (self-test)',
+        );
         view = createVideoView(
           canvas,
           session.video,
@@ -276,13 +305,29 @@ async function bootBeta() {
             if (cp3) checkpoints.set('level3', cp3);
             if (cp4) checkpoints.set('level4', cp4);
             if (cp5) checkpoints.set('level5', cp5);
+            assetsReady = true;
           },
         );
 
         unsubscribeVideo = session.video.subscribe(() => {
           const pose = session?.video.practicePose?.() ?? null;
+          if (phase === 'loading') {
+            bootFrames++;
+            const pct =
+              68 + Math.min(32, (bootFrames / POST_WARMUP_FRAMES) * 32);
+            setProgress(
+              pct,
+              'Booting Atari System 1 hardware…',
+              'Starting Attract Mode',
+            );
+            if (assetsReady && bootFrames >= POST_WARMUP_FRAMES) {
+              enterAttract();
+            }
+            return;
+          }
           if (phase === 'attract' && pose !== null) {
-            enterPlaying();
+            // Level 1 drives its own native pose.opening flyover; no extra reset needed.
+            enterPlaying(false);
             return;
           }
           if (phase === 'playing') {
@@ -294,8 +339,6 @@ async function bootBeta() {
             }
           }
         });
-
-        enterAttract();
       },
       { startOnLoad: true },
     );
@@ -338,7 +381,7 @@ async function bootBeta() {
         if (shortcut) {
           event.preventDefault();
           event.stopImmediatePropagation();
-          if (event.repeat) return;
+          if (event.repeat || phase === 'loading') return;
           unlockAudio();
           session.resume();
           const cp = checkpointForStartLevel(selectedLevel);
@@ -414,7 +457,7 @@ async function bootBeta() {
       { once: true },
     );
   } catch (error) {
-    status.textContent = `Erreur au démarrage : ${String(error)}`;
+    setProgress(100, 'Startup error', String(error));
   }
 }
 

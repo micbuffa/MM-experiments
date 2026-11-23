@@ -368,7 +368,11 @@ async function bootBeta() {
           if (phase === 'loading') {
             bootFrames++;
             if (attractRestored && bootFrames >= 6) {
-              setProgress(100, 'Ready!', 'Starting Attract Mode');
+              setProgress(
+                100,
+                'Ready!',
+                'Starting Attract Mode... can take 20-30 seconds...',
+              );
               enterAttract();
               startBackgroundAssets();
               return;
@@ -377,7 +381,7 @@ async function bootBeta() {
             setProgress(
               pct,
               'Booting Atari System 1 hardware…',
-              'Starting Attract Mode',
+              'Starting Attract Mode... can take 20-30 seconds...',
             );
             const titleVisible =
               bootFrames >= 60 &&

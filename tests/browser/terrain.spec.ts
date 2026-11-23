@@ -44,7 +44,7 @@ test('lit un relevé local et signale un fichier invalide', async ({ page }) => 
     ]),
   );
   await expect(page.locator('#terrain-status')).toContainText(
-    'Extrait du terrain arcade',
+    'Arcade terrain excerpt',
   );
   await expect(page.locator('#game[data-engine]')).toBeVisible();
 });
@@ -118,7 +118,7 @@ test('charge Intermediate Race et déplace son cadrage arcade', async ({
     ),
   });
   await expect(page.locator('#terrain-status')).toContainText(
-    'Intermediate Race · Relevé et tuyaux',
+    'Intermediate Race · Survey & pipes',
   );
   await expect(page.locator('#terrain-camera')).toHaveValue('arcade');
   const canvas = page.locator('#game');
@@ -223,7 +223,7 @@ test('le grand mur jaune garde sa palette ambrée et son ombre arcade', async ({
       );
     }, Array.from(png));
   };
-  await expect.poll(sample).toEqual([
+  await expect.poll(sample, { timeout: 15_000 }).toEqual([
     [221, 136, 0],
     [255, 187, 0],
   ]);

@@ -16,6 +16,7 @@ import { practiceDecalOpacity } from './practiceDecalOpacity';
 import { intermediateGoal } from './intermediateFinish';
 import { level3Goal } from './createLevel3Materials';
 import { level5Goal } from './level5DisplayTerrain';
+import { level6Goal } from './level6DisplayTerrain';
 import { level4Goal } from './createLevel4Materials';
 
 const letters = [
@@ -150,7 +151,7 @@ export function practiceFlagPaint(level?: PracticeTerrain['level']) {
   const light =
     level === 'intermediate'
       ? [16, 181, 235, 255]
-      : level === 'level5'
+      : level === 'level5' || level === 'level6'
         ? [255, 170, 0, 255]
         : [255, 255, 128, 255];
   const squares = new Uint8Array(checkColumns * checkRows * 4);
@@ -217,7 +218,9 @@ export function createPracticeGoalFlags(
           ? level4Goal
           : terrain.level === 'level5'
             ? level5Goal
-            : undefined;
+            : terrain.level === 'level6'
+              ? level6Goal
+              : undefined;
   const flagZ =
     terrain.level === 'level3' && goalRegion ? goalRegion.z - 1 : goalRegion?.z;
   const ground =

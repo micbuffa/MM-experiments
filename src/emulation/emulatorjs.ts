@@ -19,7 +19,11 @@ import type { ArcadeButton, ArcadePlayer } from '../input/buttonPulses';
 import { directionButtons, directionMotion } from '../input/player2Keyboard';
 import type { Direction } from '../input/player2Keyboard';
 import type { VideoSource } from './videoSource';
-import { readPracticePose, readModernPhase } from './practicePose';
+import {
+  PRACTICE_WORK_RAM,
+  readPracticePose,
+  readModernPhase,
+} from './practicePose';
 import {
   matchesRestoredCheckpoint,
   restoreCheckpointPorts,
@@ -131,6 +135,7 @@ export interface ProbeSession extends VenueEffects {
     pressed: boolean,
   ): void;
   setTrackpadPlayer?(player: ArcadePlayer): void;
+  setInfiniteTime?(enabled: boolean): void;
   setGain(value: number): void;
   resetMetrics(): void;
   setVolume(value: number): void;
@@ -162,10 +167,13 @@ function loadScript(url: string): Promise<void> {
 export async function prepareEmulator(
   archive: File,
   onStart: () => void,
-  options: { startOnLoad?: boolean } = {},
+  options: { startOnLoad?: boolean; language?: 'fr' | 'en' } = {},
 ): Promise<ProbeSession> {
+  const language = options.language ?? 'fr';
   const [response] = await Promise.all([
-    fetch(`${EMULATOR_DATA_PATH}localization/af-FR.json`),
+    language === 'fr'
+      ? fetch(`${EMULATOR_DATA_PATH}localization/af-FR.json`)
+      : Promise.resolve(undefined),
     loadScript(`${EMULATOR_DATA_PATH}emulator.min.js`),
   ]);
   const globals = window as unknown as EmulatorGlobals;
@@ -206,18 +214,21 @@ export async function prepareEmulator(
       originalInit.call(this, new TextEncoder().encode(patched), wasm, thread);
     })().catch((error: unknown) => this.startGameError(String(error)));
   };
-  if (!response.ok)
+  if (language === 'fr' && !response?.ok)
     throw new Error(
       'Traduction locale indisponible. Exécuter npm run setup:emulator.',
     );
-  const translation: Record<string, string> = await response.json();
-  const config = createEmulatorConfig(archive);
+  const translation: Record<string, string> = response?.ok
+    ? ((await response.json()) as Record<string, string>)
+    : {};
+  const config = createEmulatorConfig(archive, language);
   if (options.startOnLoad) config.startOnLoad = true;
   config.langJson = { ...translation, ...config.langJson };
   const instance = new globals.EmulatorJS('#emulator', config);
   let captured = false;
   let volume = 0.5;
   let disposed = false;
+  let infiniteTime = false;
   let restoring:
     | {
         level: CheckpointLevel;
@@ -354,7 +365,27 @@ export async function prepareEmulator(
       return;
     }
     instance.Module.marbleBeforeIteration = () => {
-      if (disposed || instance.paused || !captured) return;
+      if (disposed || instance.paused) return;
+      if (infiniteTime) {
+        const heap = instance.Module.HEAPU8;
+        if (heap && heap.byteLength >= PRACTICE_WORK_RAM + 0x400) {
+          const ram = new DataView(
+            heap.buffer,
+            heap.byteOffset + PRACTICE_WORK_RAM,
+            0x400,
+          );
+          if (ram.getUint16(0x390, true) === 0) {
+            if (ram.getUint16(0x6a, true) < 60) ram.setUint16(0x6a, 60, true);
+            if (
+              ram.getUint16(0x396, true) === 2 &&
+              ram.getUint16(0x14c, true) < 60
+            )
+              ram.setUint16(0x14c, 60, true);
+            if (ram.getUint8(0x3a5) < 60) ram.setUint8(0x3a5, 60);
+          }
+        }
+      }
+      if (!captured) return;
       const native = instance.Module.marbleNativeInput;
       if (!native) return;
       const command = boost.next();
@@ -563,6 +594,9 @@ export async function prepareEmulator(
     setTrackpadPlayer(player) {
       if (disposed || !instance.Module) return;
       instance.Module.marbleTrackpadPort = player;
+    },
+    setInfiniteTime(enabled) {
+      infiniteTime = enabled;
     },
     setGain(value) {
       motion.setGain(value);

@@ -4,7 +4,7 @@ import type { TerrainPalette } from '../emulation/terrainPalette';
 import { TerrainPalettePaint, type PaletteSwatch } from './terrainPalettePaint';
 
 export type ArcadePaintLevel =
-  'practice' | 'intermediate' | 'level3' | 'level5';
+  'practice' | 'intermediate' | 'level3' | 'level5' | 'level6';
 type Surface = 'floor' | 'wall' | 'tower' | 'green' | 'wave' | 'ice';
 const defaults = {
   practice: [
@@ -32,6 +32,15 @@ const defaults = {
     [255, 255, 0],
     [170, 170, 0],
     [119, 119, 0],
+    [24, 24, 24],
+  ],
+  level6: [
+    [180, 180, 180],
+    [255, 255, 255],
+    [70, 70, 70],
+    [238, 17, 17],
+    [170, 0, 0],
+    [119, 0, 0],
     [24, 24, 24],
   ],
   level3: [

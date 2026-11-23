@@ -1,4 +1,5 @@
 import { level5FinishDepth } from './level5DisplayTerrain';
+import { setLevel6MazePhase } from './createLevel6Terrain';
 import { createBirdDeath } from './createBirdDeath';
 import { createLevel5Actors } from './createLevel5Actors';
 import { setArcadeTerrainPalette } from './arcadeTerrainPaint';
@@ -49,7 +50,8 @@ export function createLivePracticeView(
   const level3 = terrain.level === 'level3';
   const level4 = terrain.level === 'level4';
   const level5 = terrain.level === 'level5';
-  const extended = intermediate || level3 || level4 || level5;
+  const level6 = terrain.level === 'level6';
+  const extended = intermediate || level3 || level4 || level5 || level6;
   const complete = extended || terrain.lastScroll === practiceFinishScroll;
   const scene = createTerrainStudy(engine, undefined, terrain, true, actors);
   const camera = createLivePracticeCamera(scene, terrain);
@@ -129,15 +131,17 @@ export function createLivePracticeView(
     ? undefined
     : createPracticeStartLift(scene, terrain, shadows);
   const finish = scene.getMeshByName(
-    level5
-      ? 'level5-finish'
-      : intermediate
-        ? 'intermediate-finish'
-        : level3
-          ? 'level3-finish'
-          : level4
-            ? 'level4-finish'
-            : 'practice-finish',
+    level6
+      ? 'level6-finish'
+      : level5
+        ? 'level5-finish'
+        : intermediate
+          ? 'intermediate-finish'
+          : level3
+            ? 'level3-finish'
+            : level4
+              ? 'level4-finish'
+              : 'practice-finish',
   );
   const goalIdle = scene.getMaterialByName(
     extended ? 'practice-goal-intermediate' : 'practice-goal-idle',
@@ -237,7 +241,7 @@ export function createLivePracticeView(
       }
       if (!pose || pose.level !== terrain.level) return clear();
       const scroll =
-        intermediate || level5
+        intermediate || level5 || level6
           ? pose.scroll
           : Math.max(
               practiceOpeningScroll,
@@ -261,6 +265,7 @@ export function createLivePracticeView(
       updateStartLift?.(pose.startLift);
       if (intermediate) setIntermediateBridgeStep(scene, pose.bridgeStep ?? 0);
       if (level3) setLevel3WaveProfile(scene, pose.waveProfile);
+      if (level6) setLevel6MazePhase(scene, pose.level6MazePhase ?? 0);
       if (pose.terrainPalette !== previousPalette) {
         if (level4) setLevel4Palette(scene, pose.terrainPalette);
         else setArcadeTerrainPalette(scene, pose.terrainPalette);

@@ -94,6 +94,10 @@
               ><input type="radio" name="start-level" value="5" /> 5 ·
               Silly</label
             >
+            <label
+              ><input type="radio" name="start-level" value="6" /> 6 ·
+              Ultimate</label
+            >
           </fieldset>
           <fieldset class="control-picker">
             <legend>Player Controls</legend>
@@ -113,6 +117,10 @@
                 <option value="trackpad">Trackpad</option>
               </select>
             </label>
+            <label for="infinite-time">
+              <input id="infinite-time" type="checkbox" />
+              Infinite time (debug)
+            </label>
           </fieldset>
           <p id="attract-hint" class="attract-hint">
             Press <kbd>5</kbd> then <kbd>1</kbd> or <kbd>2</kbd> · Click
@@ -128,6 +136,9 @@
         >
         <span class="banner-item"
           ><kbd>C</kbd> Camera: <strong id="banner-camera">Arcade</strong></span
+        >
+        <span class="banner-item"
+          ><kbd>T</kbd> Timer: <strong id="banner-timer">Normal</strong></span
         >
         <span class="banner-item"><kbd>Space</kbd> Boost</span>
         <span class="banner-item"><kbd>Esc</kbd> Pause</span>

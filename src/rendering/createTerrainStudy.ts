@@ -1,4 +1,5 @@
 import { createLevel5Terrain } from './createLevel5Terrain';
+import { createLevel6Terrain } from './createLevel6Terrain';
 import { level4LandingNormals } from './level4LandingNormals';
 import { splitLevel4LandingWalls } from './level4LandingWalls';
 import {
@@ -49,6 +50,7 @@ import {
   level3OpeningScroll,
   level4OpeningScroll,
   level5OpeningScroll,
+  level6OpeningScroll,
   type PracticeTerrain,
 } from '../game/modern/practiceTerrain';
 import { createIntermediateCliffMaterial } from './createIntermediateCliffMaterial';
@@ -154,6 +156,9 @@ export function createTerrainStudy(
   );
   camera.lowerRadiusLimit = 5;
   camera.upperRadiusLimit = measured ? Math.max(65, surveySize * 2) : 22;
+  camera.panningSensibility = 120;
+  camera.panningInertia = 0.7;
+  camera.wheelPrecision = 2;
   if (canvas) camera.attachControl(canvas, true);
   const fill = new HemisphericLight('sky', Vector3.Up(), scene);
   fill.intensity = measured ? 0.22 : 0.55;
@@ -190,6 +195,18 @@ export function createTerrainStudy(
     );
     fill.intensity = 0.18;
     createLevel5Terrain(scene, measured, actors);
+    return scene;
+  }
+  if (measured?.level === 'level6') {
+    createPracticeCamera(
+      scene,
+      measured.cells[0]!.length,
+      measured.cells.length,
+      measured.origin,
+      level6OpeningScroll,
+    );
+    fill.intensity = 0.22;
+    createLevel6Terrain(scene, measured, live);
     return scene;
   }
   const displayCells = !measured

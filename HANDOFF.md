@@ -1,5 +1,27 @@
 # Passation
 
+## Niveau 6 : Ultimate Race et labyrinthe dynamique à 4 phases — 23 novembre 2026
+
+- **Analyse ROM 68010 et relevé MAME natif** ([scripts/survey-level6.mjs](scripts/survey-level6.mjs), `local-roms/level6-terrain.json`, `local-roms/level6-web.state`) :
+  - Descripteur ROM `0x2e790` (`recordBase = 0x8136a`, `maxDiag = 0xc8`, grille `122 × 122`, départ `scroll = -16168`, `x = 92, z = 132, h = 16384`).
+  - Les **112 slots dynamiques** (`0x40076e..0x40084c`, 317 cellules mutables dans `x = 76..117, z = 78..117`) sont tous pilotés par la table cyclique à **4 phases** en ROM `0x24e2a..0x24e42` :
+    - `0x24e2a` → phase `0` (`0x24e4e`, 112 mots)
+    - `0x24e32` → phase `1` (`0x24f32`, 112 mots)
+    - `0x24e3a` → phase `2` (`0x25016`, 112 mots)
+    - `0x24e42` → phase `3` (`0x250fa`, 112 mots)
+    - Cadence mesurée en jeu réel : **41–42 frames par phase** à 60 Hz (`~0,683 s`, cycle complet `~2,75 s`), bouclée par la sentinelle `0xffffffff` en `0x24e4a` et exposée dans la Work RAM `0x400978`.
+  - Les 9 acteurs du niveau 6 (1 bille noire sur le losange de glace, 4 vers sur les pentes striées, 4 amibes sur les plateaux pêche) sont déjà lus directement par `readIntermediateActors`.
+- **Lecture temps réel et présentation 3D BabylonJS** ([practicePose.ts](src/emulation/practicePose.ts), [practiceTerrain.ts](src/game/modern/practiceTerrain.ts), [level6DisplayTerrain.ts](src/rendering/level6DisplayTerrain.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts), [arcadeTerrainPaint.ts](src/rendering/arcadeTerrainPaint.ts), [createPracticeGoal.ts](src/rendering/createPracticeGoal.ts)) :
+  - `readPracticePose` reconnaît `0x2e790` (`level: 'level6'`) et expose `level6MazePhase` (`0 | 1 | 2 | 3`) lu en direct depuis `0x400978` (synchronisation 100 % verrouillée sur le cœur 68010, aucune dérive).
+  - `createLevel6Terrain` construit les falaises rouge carmin, le plateau de départ ambre moucheté et la rampe blanche lissée, l'îlot carré creux à fond ambre, les 2 tunnels triangulaires orange, les bandes de glace turquoise, les 2 plateaux pêche à losanges, les 2 pentes grises striées, le losange de glace à 4 pyramides grises (`createPracticeTower`), le marquage `GOAL` et ses 2 drapeaux damier orange/noir.
+  - Les 4 phases du labyrinthe (blocs gris foncé, bloc ambre, bloc glace turquoise et leurs falaises rouges + ombres) sont **pré-construites une seule fois** dans `level6-maze-phase-0..3` et basculées en O(1) via `setLevel6MazePhase` sans aucune allocation par frame. En vue d'étude `terrain.html`, un minuteur dédié cycle automatiquement les 4 phases à la cadence arcade exacte (`41 / 60 s`).
+- **Intégration `terrain.html`, `index.html` (`F6`) et `beta.html` (`6 · Ultimate`)** ([terrain.html](terrain.html), [src/terrain.ts](src/terrain.ts), [index.html](index.html), [src/ui/feasibility.ts](src/ui/feasibility.ts), [beta.html](beta.html), [src/beta/betaState.ts](src/beta/betaState.ts), [src/beta.ts](src/beta.ts), [scripts/build-beta.mjs](scripts/build-beta.mjs)).
+- **Validation** :
+  - `npm run check` réussi (format, lint, typecheck, couverture V8, build Vite) + `npm run build:beta` réussi.
+  - Vérification visuelle Chrome WebGL2 sur `terrain.html` : départ/tunnels orange, losange de glace + 4 pyramides, et 2 captures du labyrinthe à 0,75 s d'écart confirmant la bascule fluide des blocs apparaissants/disparaissants et de leurs ombres.
+  - Fix CI inclus : timeout `expect.poll` relevé à `15 000 ms` dans [tests/browser/terrain.spec.ts](tests/browser/terrain.spec.ts).
+  - Prochaine action : test joué complet du niveau 6 en vue parallèle (original vs 3D) dans `beta.html` ou `index.html`, puis commit/push et redéploiement GitHub Pages sur demande.
+
 ## Niveau 5 : fin Escher « à la Monument Valley » (Option 1) — 23 novembre 2026
 
 - **Suppression du viaduc artificiel et du mur jaune sous la bille** ([level5DisplayTerrain.ts](src/rendering/level5DisplayTerrain.ts)) :

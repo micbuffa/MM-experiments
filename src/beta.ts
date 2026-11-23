@@ -62,6 +62,7 @@ const CHECKPOINT_FILES: Readonly<Record<BetaCheckpointLevel, string>> = {
   level3: 'level3-web.state',
   level4: 'level4-web.state',
   level5: 'level5-web.state',
+  level6: 'level6-web.state',
 };
 
 async function fetchFirst(name: string): Promise<Response | undefined> {
@@ -117,6 +118,7 @@ async function bootBeta() {
   const playBanner = document.getElementById('play-banner')!;
   const bannerView = document.getElementById('banner-view')!;
   const bannerCamera = document.getElementById('banner-camera')!;
+  const bannerTimer = document.getElementById('banner-timer')!;
   const bannerCapture = document.getElementById('banner-capture')!;
   const canvas = document.querySelector<HTMLCanvasElement>('#babylon-video')!;
   const hudRoot = document.getElementById('practice-hud')!;
@@ -124,9 +126,12 @@ async function bootBeta() {
     document.querySelector<HTMLSelectElement>('#p1-control')!;
   const p2ControlSelect =
     document.querySelector<HTMLSelectElement>('#p2-control')!;
+  const infiniteTimeCheckbox =
+    document.querySelector<HTMLInputElement>('#infinite-time')!;
   const updateHud = mountPracticeHud(hudRoot);
 
   let selectedLevel: BetaStartLevel = 1;
+  let infiniteTime = false;
   let controls: BetaPlayerControls = { p1: 'trackpad', p2: 'keyboard' };
   const heldP1 = new Map<string, 'up' | 'down' | 'left' | 'right'>();
   const heldP2 = new Map<string, 'up' | 'down' | 'left' | 'right'>();
@@ -227,6 +232,9 @@ async function bootBeta() {
     playBanner.hidden = phase !== 'playing';
     bannerView.textContent = BETA_VIEW_LABELS[viewMode];
     bannerCamera.textContent = CAMERA_LABELS[cameraPreset];
+    bannerTimer.textContent = infiniteTime ? 'Infinite' : 'Normal';
+    infiniteTimeCheckbox.checked = infiniteTime;
+    session?.setInfiniteTime?.(infiniteTime);
     const locked =
       Boolean(session) && document.pointerLockElement === session?.canvas;
     const usesTrackpad =
@@ -305,10 +313,11 @@ async function bootBeta() {
       loadTerrain('level3-terrain.json').catch(() => undefined),
       loadTerrain('level4-terrain.json').catch(() => undefined),
       loadTerrain('level5-terrain.json').catch(() => undefined),
+      loadTerrain('level6-terrain.json').catch(() => undefined),
       loadActors().catch(() => undefined),
-    ]).then(([t2, t3, t4, t5, actors]) => {
+    ]).then(([t2, t3, t4, t5, t6, actors]) => {
       if (actors) view?.setActors(actors);
-      for (const terrain of [t2, t3, t4, t5]) {
+      for (const terrain of [t2, t3, t4, t5, t6]) {
         if (terrain) view?.setModernTerrain(terrain, false);
       }
     });
@@ -461,7 +470,16 @@ async function bootBeta() {
           }
         });
       },
-      { startOnLoad: true },
+      { startOnLoad: true, language: 'en' },
+    );
+
+    infiniteTimeCheckbox.addEventListener(
+      'change',
+      () => {
+        infiniteTime = infiniteTimeCheckbox.checked;
+        syncUi();
+      },
+      { signal },
     );
 
     window.addEventListener(
@@ -556,6 +574,12 @@ async function bootBeta() {
           if (key === 'v') {
             event.preventDefault();
             viewMode = nextBetaViewMode(viewMode, event.shiftKey);
+            syncUi();
+            return;
+          }
+          if (key === 't') {
+            event.preventDefault();
+            infiniteTime = !infiniteTime;
             syncUi();
             return;
           }

@@ -23,6 +23,16 @@ const intermediateDescriptor = 0x2c54c;
 const level3Descriptor = 0x2cd9e;
 const level4Descriptor = 0x2d648;
 const level5Descriptor = 0x2de1e;
+const level6Descriptor = 0x2e790;
+// Level 6 disappearing-block maze 4-phase ROM cycle pointers written to Work RAM 0x400978.
+const level6MazePhasePointers: Readonly<
+  Partial<Record<number, 0 | 1 | 2 | 3>>
+> = {
+  0x24e2a: 0,
+  0x24e32: 1,
+  0x24e3a: 2,
+  0x24e42: 3,
+};
 const scoreAwards = [
   250, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500,
   6000,
@@ -72,9 +82,10 @@ export interface PracticeMarblePose {
 
 export interface PracticePose extends PracticeMarblePose {
   readonly scroll: number;
-  readonly level?: 'intermediate' | 'level3' | 'level4' | 'level5';
+  readonly level?: 'intermediate' | 'level3' | 'level4' | 'level5' | 'level6';
   readonly frame?: number;
   readonly bridgeStep?: number;
+  readonly level6MazePhase?: 0 | 1 | 2 | 3;
   readonly pistons?: readonly Level4PistonPose[];
   readonly catapultFrame?: number;
   readonly hammerFrames?: readonly (number | undefined)[];
@@ -110,6 +121,7 @@ export function readPracticePose(
   const level3 = descriptor === level3Descriptor;
   const level4 = descriptor === level4Descriptor;
   const level5 = descriptor === level5Descriptor;
+  const level6 = descriptor === level6Descriptor;
   const mode = word(0x390);
   const players = word(0x396);
   const scroll = signed(0x97e);
@@ -118,13 +130,14 @@ export function readPracticePose(
     !level3 &&
     !level4 &&
     !level5 &&
+    !level6 &&
     mode === 5 &&
     scroll === practiceOpeningScroll &&
     memory.getUint8(0x31) === 1;
   // The next race is already initialized during its native title countdown.
   // Keep its terrain drawable before the core hands control back to the player.
   const levelIntro =
-    (intermediate || level3 || level4 || level5) &&
+    (intermediate || level3 || level4 || level5 || level6) &&
     mode === 3 &&
     memory.getUint8(0x31) === 1 &&
     memory.getUint8(0x33) === 0;
@@ -135,7 +148,8 @@ export function readPracticePose(
       !intermediate &&
       !level3 &&
       !level4 &&
-      !level5) ||
+      !level5 &&
+      !level6) ||
     (mode !== 0 && !opening && !levelIntro && !gameOver) ||
     (players !== 1 && players !== 2)
   )
@@ -280,6 +294,7 @@ export function readPracticePose(
     !level3 &&
     !level4 &&
     !level5 &&
+    !level6 &&
     word(0x774) === (liftCode | 0x4000)
       ? startLiftPhases[liftCode]
       : undefined;
@@ -294,6 +309,9 @@ export function readPracticePose(
     word(0x774) === 0xf048 + (bridgeA - 0x6fc8)
       ? (bridgeA - 0x6fc8) / 2
       : undefined;
+  const level6MazePhase = level6
+    ? (level6MazePhasePointers[word(0x978) * 0x10000 + word(0x97a)] ?? 0)
+    : undefined;
   // Level 3 animated turquoise wave: 22 triplets at 0x76e..0x7f2 (ROM updater at 0x0d0a0).
   // For tiles 0..20, word +0 steps through 0x9ab4..0x9ad2 (exact height delta 0..30 arcade units;
   // stays at 0x9ab4 = 0 until the marble approaches via the middle walkway).
@@ -320,17 +338,20 @@ export function readPracticePose(
     ...first,
     ...(terrainPalette ? { terrainPalette } : {}),
     ...(frame ? { frame } : {}),
-    ...(intermediate || level3 || level4 || level5
+    ...(intermediate || level3 || level4 || level5 || level6
       ? {
-          level: level5
-            ? ('level5' as const)
-            : intermediate
-              ? ('intermediate' as const)
-              : level3
-                ? ('level3' as const)
-                : ('level4' as const),
+          level: level6
+            ? ('level6' as const)
+            : level5
+              ? ('level5' as const)
+              : intermediate
+                ? ('intermediate' as const)
+                : level3
+                  ? ('level3' as const)
+                  : ('level4' as const),
           frame,
           ...(bridgeStep !== undefined ? { bridgeStep } : {}),
+          ...(level6MazePhase !== undefined ? { level6MazePhase } : {}),
           ...(waveProfile ? { waveProfile } : {}),
           ...(level5
             ? { level5Actors: readLevel5Actors(memory) }
@@ -372,7 +393,8 @@ export function readModernPhase(
     descriptor === intermediateDescriptor ||
     descriptor === level3Descriptor ||
     descriptor === level4Descriptor ||
-    descriptor === level5Descriptor;
+    descriptor === level5Descriptor ||
+    descriptor === level6Descriptor;
   if (supported && (mode === 0 || mode === 3 || mode === 4 || mode === 5))
     return 'level';
   return 'arcade';

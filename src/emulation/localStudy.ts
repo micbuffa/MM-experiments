@@ -81,3 +81,18 @@ export async function loadLevel5Checkpoint(fetcher: typeof fetch = fetch) {
     new Uint8Array(await response.arrayBuffer()),
   );
 }
+
+export async function loadLevel6Terrain(fetcher: typeof fetch = fetch) {
+  const terrain = await loadTerrain('level6-terrain.json', fetcher);
+  return terrain?.level === 'level6' ? terrain : undefined;
+}
+
+export async function loadLevel6Checkpoint(fetcher: typeof fetch = fetch) {
+  const response = await fetcher(root + 'level6-web.state', {
+    cache: 'no-store',
+  });
+  if (!response.ok) return undefined;
+  return decodeIntermediateCheckpoint(
+    new Uint8Array(await response.arrayBuffer()),
+  );
+}

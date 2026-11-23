@@ -1,14 +1,18 @@
 export const EMULATOR_DATA_PATH = `${import.meta.env.BASE_URL}vendor/emulatorjs/4.2.3/data/`;
 
 /** Options vérifiées dans loader.js et emulator.js du tag v4.2.3. */
-export function createEmulatorConfig(archive: File) {
+export function createEmulatorConfig(
+  archive: File,
+  language: 'fr' | 'en' = 'fr',
+) {
   return {
     system: 'mame2003_plus',
     gameUrl: archive,
     gameName: 'marble.zip',
     dataPath: EMULATOR_DATA_PATH,
     startOnLoad: false,
-    startBtnName: 'Démarrer l’émulation',
+    startBtnName:
+      language === 'en' ? 'Start Emulation' : 'Démarrer l’émulation',
     volume: 0.5,
     threads: false,
     noAutoFocus: true,
@@ -45,13 +49,23 @@ export function createEmulatorConfig(archive: File) {
       quickSave: false,
       quickLoad: false,
     },
-    langJson: {
-      'Loading...': 'Chargement…',
-      'Download Game Core': 'Chargement du cœur',
-      'Decompress Game Core': 'Décompression du cœur',
-      'Download Game Data': 'Lecture de l’archive locale',
-      'Failed to start game': 'Échec du lancement : consulter les diagnostics',
-    },
-    language: 'fr',
+    langJson:
+      language === 'en'
+        ? {
+            'Loading...': 'Loading…',
+            'Download Game Core': 'Loading arcade core',
+            'Decompress Game Core': 'Decompressing core',
+            'Download Game Data': 'Loading arcade archive',
+            'Failed to start game': 'Failed to start game',
+          }
+        : {
+            'Loading...': 'Chargement…',
+            'Download Game Core': 'Chargement du cœur',
+            'Decompress Game Core': 'Décompression du cœur',
+            'Download Game Data': 'Lecture de l’archive locale',
+            'Failed to start game':
+              'Échec du lancement : consulter les diagnostics',
+          },
+    language,
   };
 }

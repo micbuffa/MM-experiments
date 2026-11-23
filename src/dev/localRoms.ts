@@ -18,6 +18,16 @@ const STUDY_TYPES = new Map([
   ['level4-web.state', 'application/octet-stream'],
   ['level5-terrain.json', 'application/json'],
   ['level5-web.state', 'application/octet-stream'],
+  ['level6-terrain.json', 'application/json'],
+  ['level6-web.state', 'application/octet-stream'],
+]);
+const LEVEL_PNG_FILES = new Map([
+  ['level-png-1.png', 'MarbleMadness_Level1.png'],
+  ['level-png-2.png', 'MarbleMadness_Level2.png'],
+  ['level-png-3.png', 'MarbleMadness_Level3.png'],
+  ['level-png-4.png', 'MarbleMadness_Level4.png'],
+  ['level-png-5.png', 'MarbleMadness_Level5.png'],
+  ['level-png-6.png', 'MarbleMadness_Level6.png'],
 ]);
 interface RequestInfo {
   url: string;
@@ -66,6 +76,21 @@ export async function handleLocalRoms(
       contentType: 'application/json',
       body: JSON.stringify({ game, bios }),
     };
+  }
+  const levelPng = LEVEL_PNG_FILES.get(name);
+  if (levelPng) {
+    const file = join(root, 'MM_original_levels_full_views', levelPng);
+    if (!(await isAvailable(file)))
+      return text(404, 'Image de niveau indisponible.');
+    try {
+      return {
+        status: 200,
+        contentType: 'image/png',
+        body: await readFile(file),
+      };
+    } catch {
+      return text(404, 'Image de niveau indisponible.');
+    }
   }
   const studyType = STUDY_TYPES.get(name);
   if (!studyType && !NAMES.includes(name as RomName))

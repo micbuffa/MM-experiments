@@ -170,3 +170,53 @@ it('accepts the reverse-scrolling 141-cell Silly Race survey', () => {
     ),
   ).toThrow();
 });
+
+it('parses a 122x122 Level 6 (Ultimate Race) survey with 4 maze phases', () => {
+  const rows = Array.from({ length: 122 }, () =>
+    Array.from({ length: 122 }, () => [0, 0, 0, 0]),
+  );
+  rows[16]![12] = [16384, 16384, 16384, 16384];
+  const parsed = parsePracticeTerrain(
+    JSON.stringify({
+      format: 'level6-terrain-v1',
+      rows,
+      mazePhases: [
+        [[85, 82, 16352, 16352, 16352, 16352]],
+        [[85, 82, 16316, 16316, 16316, 16316]],
+        [[85, 82, 16352, 16352, 16352, 16352]],
+        [[85, 82, 16316, 16316, 16316, 16316]],
+      ],
+    }),
+  );
+  expect(parsed.level).toBe('level6');
+  expect(parsed.cells).toHaveLength(122);
+  expect(parsed.mazePhases).toHaveLength(4);
+  expect(parsed.mazePhases![0]![0]!.x).toBe(85);
+  expect(() =>
+    parsePracticeTerrain(
+      JSON.stringify({
+        format: 'level6-terrain-v1',
+        rows,
+        mazePhases: ['bad'],
+      }),
+    ),
+  ).toThrow();
+  expect(() =>
+    parsePracticeTerrain(
+      JSON.stringify({
+        format: 'level6-terrain-v1',
+        rows,
+        mazePhases: [[[999, 82, 16352, 16352, 16352, 16352]]],
+      }),
+    ),
+  ).toThrow();
+  expect(() =>
+    parsePracticeTerrain(
+      JSON.stringify({
+        format: 'level6-terrain-v1',
+        rows,
+        mazePhases: [[[85, 82]]],
+      }),
+    ),
+  ).toThrow();
+});

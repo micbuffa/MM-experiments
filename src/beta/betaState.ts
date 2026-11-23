@@ -1,4 +1,4 @@
-export type BetaStartLevel = 1 | 2 | 3 | 4 | 5;
+export type BetaStartLevel = 1 | 2 | 3 | 4 | 5 | 6;
 export type BetaViewMode = 'compare' | 'modern' | 'direct';
 export type BetaControlMode = 'trackpad' | 'keyboard';
 export interface BetaPlayerControls {
@@ -6,7 +6,7 @@ export interface BetaPlayerControls {
   readonly p2: BetaControlMode;
 }
 export type BetaCheckpointLevel =
-  'intermediate' | 'level3' | 'level4' | 'level5';
+  'intermediate' | 'level3' | 'level4' | 'level5' | 'level6';
 
 const VIEW_ORDER: readonly BetaViewMode[] = ['compare', 'modern', 'direct'];
 
@@ -16,6 +16,7 @@ export const BETA_LEVEL_LABELS: Readonly<Record<BetaStartLevel, string>> = {
   3: '3 · Intermediate',
   4: '4 · Aerial',
   5: '5 · Silly',
+  6: '6 · Ultimate',
 };
 
 export const BETA_VIEW_LABELS: Readonly<Record<BetaViewMode, string>> = {
@@ -45,6 +46,8 @@ export function checkpointForStartLevel(
       return 'level4';
     case 5:
       return 'level5';
+    case 6:
+      return 'level6';
     default:
       return undefined;
   }
@@ -56,7 +59,8 @@ export function parseBetaStartLevel(value: string): BetaStartLevel {
     value === '2' ||
     value === '3' ||
     value === '4' ||
-    value === '5'
+    value === '5' ||
+    value === '6'
   ) {
     return Number(value) as BetaStartLevel;
   }

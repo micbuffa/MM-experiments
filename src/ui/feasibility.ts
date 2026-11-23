@@ -10,6 +10,8 @@ import {
   loadLevel4Terrain,
   loadLevel5Terrain,
   loadLevel5Checkpoint,
+  loadLevel6Terrain,
+  loadLevel6Checkpoint,
   loadPracticeTerrain,
 } from '../emulation/localStudy';
 import { bindDiagnosticActions } from './diagnosticActions';
@@ -43,6 +45,8 @@ export function mountFeasibility(): () => void {
     document.querySelector<HTMLButtonElement>('#start-level4');
   const level5Button =
     document.querySelector<HTMLButtonElement>('#start-level5');
+  const level6Button =
+    document.querySelector<HTMLButtonElement>('#start-level6');
   let session: ProbeSession | undefined;
   let localRoms: LocalRoms | null = null;
   let disposed = false;
@@ -56,6 +60,7 @@ export function mountFeasibility(): () => void {
   const autoLevel3 = studyParam === 'level3';
   const autoLevel4 = studyParam === 'level4';
   const autoLevel5 = studyParam === 'level5';
+  const autoLevel6 = studyParam === 'level6';
   const studyFiles = import.meta.env.DEV
     ? Promise.all([
         loadIntermediateCheckpoint().catch(() => undefined),
@@ -68,11 +73,13 @@ export function mountFeasibility(): () => void {
         loadLevel4Checkpoint().catch(() => undefined),
         loadLevel5Terrain().catch(() => undefined),
         loadLevel5Checkpoint().catch(() => undefined),
+        loadLevel6Terrain().catch(() => undefined),
+        loadLevel6Checkpoint().catch(() => undefined),
       ])
     : Promise.resolve(undefined);
   let restoring = false;
   async function startCheckpoint(
-    level: 'intermediate' | 'level3' | 'level4' | 'level5',
+    level: 'intermediate' | 'level3' | 'level4' | 'level5' | 'level6',
     pauseAfter: boolean,
   ) {
     if (!session?.started || !comparison || restoring) return;
@@ -80,30 +87,36 @@ export function mountFeasibility(): () => void {
     try {
       const files = await studyFiles;
       const checkpoint =
-        level === 'level5'
-          ? files?.[9]
-          : level === 'level4'
-            ? files?.[7]
-            : level === 'level3'
-              ? files?.[5]
-              : files?.[0];
+        level === 'level6'
+          ? files?.[11]
+          : level === 'level5'
+            ? files?.[9]
+            : level === 'level4'
+              ? files?.[7]
+              : level === 'level3'
+                ? files?.[5]
+                : files?.[0];
       const terrain =
-        level === 'level5'
-          ? files?.[8]
-          : level === 'level4'
-            ? files?.[6]
-            : level === 'level3'
-              ? files?.[4]
-              : files?.[1];
+        level === 'level6'
+          ? files?.[10]
+          : level === 'level5'
+            ? files?.[8]
+            : level === 'level4'
+              ? files?.[6]
+              : level === 'level3'
+                ? files?.[4]
+                : files?.[1];
       if (disposed || !checkpoint || !terrain) return;
       const label =
-        level === 'level5'
-          ? 'du niveau 5'
-          : level === 'level4'
-            ? 'du niveau 4'
-            : level === 'level3'
-              ? 'du niveau 3'
-              : 'd’Intermediate Race';
+        level === 'level6'
+          ? 'du niveau 6'
+          : level === 'level5'
+            ? 'du niveau 5'
+            : level === 'level4'
+              ? 'du niveau 4'
+              : level === 'level3'
+                ? 'du niveau 3'
+                : 'd’Intermediate Race';
       status.textContent = `Restauration du départ ${label}…`;
       if (disposed || !(await session.restoreIntermediate?.(checkpoint, level)))
         throw new Error(`Le cœur n’a pas rétabli le départ ${label}.`);
@@ -111,13 +124,15 @@ export function mountFeasibility(): () => void {
       if (pauseAfter) session.pause();
       comparison.restartOpening();
       status.textContent =
-        level === 'level5'
-          ? 'Niveau 5 · Silly Race prêt. F5 reprend au départ.'
-          : level === 'level4'
-            ? 'Niveau 4 (Aerial Race) prêt. Capturer le trackpad pour jouer. F4 reprend au départ.'
-            : level === 'level3'
-              ? 'Niveau 3 prêt. Capturer le trackpad pour jouer. F3 reprend au départ.'
-              : 'Intermediate Race prêt. Capturer le trackpad pour jouer. F2 reprend au départ.';
+        level === 'level6'
+          ? 'Niveau 6 · Ultimate Race prêt. F6 reprend au départ.'
+          : level === 'level5'
+            ? 'Niveau 5 · Silly Race prêt. F5 reprend au départ.'
+            : level === 'level4'
+              ? 'Niveau 4 (Aerial Race) prêt. Capturer le trackpad pour jouer. F4 reprend au départ.'
+              : level === 'level3'
+                ? 'Niveau 3 prêt. Capturer le trackpad pour jouer. F3 reprend au départ.'
+                : 'Intermediate Race prêt. Capturer le trackpad pour jouer. F2 reprend au départ.';
     } catch (error) {
       if (!disposed) status.textContent = String(error);
     } finally {
@@ -144,10 +159,23 @@ export function mountFeasibility(): () => void {
     () => void startCheckpoint('level5', true),
     options,
   );
+  level6Button?.addEventListener(
+    'click',
+    () => void startCheckpoint('level6', true),
+    options,
+  );
   window.addEventListener(
     'keydown',
     (event) => {
-      if (event.key === 'F5' && level5Button && !level5Button.hidden) {
+      if (event.key === 'F6' && level6Button && !level6Button.hidden) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!event.repeat)
+          void startCheckpoint(
+            'level6',
+            document.pointerLockElement !== session?.canvas,
+          );
+      } else if (event.key === 'F5' && level5Button && !level5Button.hidden) {
         event.preventDefault();
         event.stopImmediatePropagation();
         if (!event.repeat)
@@ -316,7 +344,13 @@ export function mountFeasibility(): () => void {
             if (files?.[4]) await comparison?.setTerrain(files[4], autoLevel3);
             if (files?.[6]) await comparison?.setTerrain(files[6], autoLevel4);
             if (files?.[8]) await comparison?.setTerrain(files[8], autoLevel5);
+            if (files?.[10])
+              await comparison?.setTerrain(files[10], autoLevel6);
             if (disposed) return;
+            if (files?.[11] && files?.[10] && level6Button) {
+              level6Button.hidden = false;
+              if (autoLevel6) void startCheckpoint('level6', true);
+            }
             if (files?.[9] && files?.[8] && level5Button) {
               level5Button.hidden = false;
               if (autoLevel5) void startCheckpoint('level5', true);

@@ -87,6 +87,8 @@ const ASSETS = [
   ['local-roms', 'level4-web.state'],
   ['local-roms', 'level5-terrain.json'],
   ['local-roms', 'level5-web.state'],
+  ['local-roms', 'level6-terrain.json'],
+  ['local-roms', 'level6-web.state'],
 ];
 
 execFileSync(

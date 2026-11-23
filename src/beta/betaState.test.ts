@@ -18,17 +18,19 @@ it('cycles beta views cleanly in both directions', () => {
   expect(nextBetaViewMode('direct', true)).toBe('modern');
 });
 
-it('maps starting levels 1..5 to their native checkpoint keys', () => {
+it('maps starting levels 1..6 to their native checkpoint keys', () => {
   expect(checkpointForStartLevel(1)).toBeUndefined();
   expect(checkpointForStartLevel(2)).toBe('intermediate');
   expect(checkpointForStartLevel(3)).toBe('level3');
   expect(checkpointForStartLevel(4)).toBe('level4');
   expect(checkpointForStartLevel(5)).toBe('level5');
+  expect(checkpointForStartLevel(6)).toBe('level6');
 });
 
 it('parses radio values safely and falls back to level 1', () => {
   expect(parseBetaStartLevel('1')).toBe(1);
   expect(parseBetaStartLevel('5')).toBe(5);
+  expect(parseBetaStartLevel('6')).toBe(6);
   expect(parseBetaStartLevel('9')).toBe(1);
   expect(parseBetaStartLevel('')).toBe(1);
 });

@@ -42,13 +42,20 @@ const CAMERA_LABELS: Readonly<Record<PracticeCameraPreset, string>> = {
   chase: 'Chase',
 };
 
-// Atari System 1 POST / self-test runs ~320 frames before the attract title appears.
-const POST_WARMUP_FRAMES = 320;
+// Fallback cap if pixel probe cannot read the WebGL canvas (e.g. preserveDrawingBuffer=false).
+const MAX_POST_FRAMES = 220;
+
+const CHECKPOINT_FILES: Readonly<Record<BetaCheckpointLevel, string>> = {
+  intermediate: 'intermediate-web.state',
+  level3: 'level3-web.state',
+  level4: 'level4-web.state',
+  level5: 'level5-web.state',
+};
 
 async function fetchFirst(name: string): Promise<Response | undefined> {
   for (const url of betaAssetUrls(name, import.meta.env.BASE_URL)) {
     try {
-      const response = await fetch(url, { cache: 'no-store' });
+      const response = await fetch(url, { cache: 'default' });
       if (response.ok) return response;
     } catch {
       // Try next candidate URL.
@@ -111,12 +118,30 @@ async function bootBeta() {
   let restoring = false;
   let nullPoseFrames = 0;
   let bootFrames = 0;
-  let assetsReady = false;
   let audioUnlocked = false;
   let session: ProbeSession | undefined;
   let view: ReturnType<typeof createVideoView> | undefined;
   const controller = new AbortController();
   const signal = controller.signal;
+  const probeCanvas = document.createElement('canvas');
+  probeCanvas.width = 16;
+  probeCanvas.height = 16;
+  const probeCtx = probeCanvas.getContext('2d', { willReadFrequently: true });
+
+  function hasNonBlackFrame(source: HTMLCanvasElement): boolean {
+    if (!probeCtx || !source.width || !source.height) return false;
+    try {
+      probeCtx.drawImage(source, 0, 0, 16, 16);
+      const data = probeCtx.getImageData(0, 0, 16, 16).data;
+      let lit = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i]! + data[i + 1]! + data[i + 2]! > 36) lit++;
+      }
+      return lit >= 8;
+    } catch {
+      return false;
+    }
+  }
 
   function setProgress(percent: number, message: string, detail?: string) {
     const clamped = Math.max(0, Math.min(100, Math.round(percent)));
@@ -204,28 +229,41 @@ async function bootBeta() {
     syncUi();
   }
 
-  // Preload 3D assets in parallel with ROM assembly.
-  const assetsPromise = Promise.all([
-    loadTerrain('practice-complete-terrain.json').catch(() => undefined),
-    loadTerrain('intermediate-terrain-pipes.json').catch(() => undefined),
-    loadTerrain('level3-terrain.json').catch(() => undefined),
-    loadTerrain('level4-terrain.json').catch(() => undefined),
-    loadTerrain('level5-terrain.json').catch(() => undefined),
-    loadActors().catch(() => undefined),
-    loadCheckpoint('intermediate-web.state').catch(() => undefined),
-    loadCheckpoint('level3-web.state').catch(() => undefined),
-    loadCheckpoint('level4-web.state').catch(() => undefined),
-    loadCheckpoint('level5-web.state').catch(() => undefined),
-  ]);
-
   const checkpoints = new Map<BetaCheckpointLevel, IntermediateCheckpoint>();
+  let backgroundAssetsStarted = false;
+
+  // Load Level 1 terrain immediately; defer heavy 3D actors & levels 2..5 until Attract Mode is live.
+  const level1TerrainPromise = loadTerrain(
+    'practice-complete-terrain.json',
+  ).catch(() => undefined);
+
+  function startBackgroundAssets() {
+    if (backgroundAssetsStarted) return;
+    backgroundAssetsStarted = true;
+    void Promise.all([
+      loadTerrain('intermediate-terrain-pipes.json').catch(() => undefined),
+      loadTerrain('level3-terrain.json').catch(() => undefined),
+      loadTerrain('level4-terrain.json').catch(() => undefined),
+      loadTerrain('level5-terrain.json').catch(() => undefined),
+      loadActors().catch(() => undefined),
+    ]).then(([t2, t3, t4, t5, actors]) => {
+      if (actors) view?.setActors(actors);
+      for (const terrain of [t2, t3, t4, t5]) {
+        if (terrain) view?.setModernTerrain(terrain, false);
+      }
+    });
+  }
 
   async function startSelectedCheckpoint(level: BetaCheckpointLevel) {
     if (!session || restoring) return;
     restoring = true;
     try {
-      await assetsPromise;
-      const state = checkpoints.get(level);
+      startBackgroundAssets();
+      let state = checkpoints.get(level);
+      if (!state) {
+        state = await loadCheckpoint(CHECKPOINT_FILES[level]);
+        if (state) checkpoints.set(level, state);
+      }
       if (!state) return;
       unlockAudio();
       session.resume();
@@ -295,33 +333,28 @@ async function bootBeta() {
         view.setPracticeFov(fov);
         view.setPracticeMarbleShadows(true);
 
-        void assetsPromise.then(
-          ([t1, t2, t3, t4, t5, actors, cp2, cp3, cp4, cp5]) => {
-            if (actors) view?.setActors(actors);
-            for (const terrain of [t1, t2, t3, t4, t5]) {
-              if (terrain) view?.setModernTerrain(terrain, terrain === t1);
-            }
-            if (cp2) checkpoints.set('intermediate', cp2);
-            if (cp3) checkpoints.set('level3', cp3);
-            if (cp4) checkpoints.set('level4', cp4);
-            if (cp5) checkpoints.set('level5', cp5);
-            assetsReady = true;
-          },
-        );
+        void level1TerrainPromise.then((t1) => {
+          if (t1) view?.setModernTerrain(t1, true);
+        });
 
         unsubscribeVideo = session.video.subscribe(() => {
           const pose = session?.video.practicePose?.() ?? null;
           if (phase === 'loading') {
             bootFrames++;
-            const pct =
-              68 + Math.min(32, (bootFrames / POST_WARMUP_FRAMES) * 32);
+            const pct = 68 + Math.min(32, (bootFrames / MAX_POST_FRAMES) * 32);
             setProgress(
               pct,
               'Booting Atari System 1 hardware…',
               'Starting Attract Mode',
             );
-            if (assetsReady && bootFrames >= POST_WARMUP_FRAMES) {
+            const titleVisible =
+              bootFrames >= 60 &&
+              bootFrames % 8 === 0 &&
+              session?.video.canvas !== undefined &&
+              hasNonBlackFrame(session.video.canvas);
+            if (titleVisible || bootFrames >= MAX_POST_FRAMES) {
               enterAttract();
+              startBackgroundAssets();
             }
             return;
           }

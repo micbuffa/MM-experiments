@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Marble Madness 3D · Beta</title>
-    <script type="module" crossorigin src="./assets/beta-B71Tu2LA.js"></script>
+    <script type="module" crossorigin src="./assets/beta-Cz6rk036.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/engineStore-Bn2tApal.js">
     <link rel="modulepreload" crossorigin href="./assets/logger-CuBYPcDK.js">
     <link rel="modulepreload" crossorigin href="./assets/shaderStore-D-XQlhUT.js">
@@ -129,6 +129,14 @@
                 <option value="trackpad">Trackpad</option>
               </select>
             </label>
+            <label for="render-quality">
+              3D Quality
+              <select id="render-quality">
+                <option value="eco">Eco (Low GPU / Battery)</option>
+                <option value="balanced" selected>Balanced</option>
+                <option value="retina">High (Retina)</option>
+              </select>
+            </label>
             <label for="infinite-time">
               <input id="infinite-time" type="checkbox" />
               Infinite time (debug)
@@ -148,6 +156,10 @@
         >
         <span class="banner-item"
           ><kbd>C</kbd> Camera: <strong id="banner-camera">Arcade</strong></span
+        >
+        <span class="banner-item"
+          ><kbd>G</kbd> Quality:
+          <strong id="banner-quality">Balanced</strong></span
         >
         <span class="banner-item"
           ><kbd>T</kbd> Timer: <strong id="banner-timer">Normal</strong></span

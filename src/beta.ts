@@ -8,11 +8,15 @@ import {
 } from './beta/betaCache';
 import {
   arrowKeyDirection,
+  BETA_QUALITY_LABELS,
   BETA_VIEW_LABELS,
   betaAssetUrls,
   checkpointForStartLevel,
+  detectDefaultRenderQuality,
+  nextBetaQuality,
   nextBetaViewMode,
   parseBetaControlMode,
+  parseBetaQuality,
   parseBetaStartLevel,
   resolvePlayerControls,
   wasdKeyDirection,
@@ -21,6 +25,7 @@ import {
   type BetaStartLevel,
   type BetaViewMode,
 } from './beta/betaState';
+import type { RenderQuality } from './game/renderQuality';
 import { prepareEmulator, type ProbeSession } from './emulation/emulatorjs';
 import {
   decodeIntermediateCheckpoint,
@@ -118,6 +123,7 @@ async function bootBeta() {
   const playBanner = document.getElementById('play-banner')!;
   const bannerView = document.getElementById('banner-view')!;
   const bannerCamera = document.getElementById('banner-camera')!;
+  const bannerQuality = document.getElementById('banner-quality')!;
   const bannerTimer = document.getElementById('banner-timer')!;
   const bannerCapture = document.getElementById('banner-capture')!;
   const canvas = document.querySelector<HTMLCanvasElement>('#babylon-video')!;
@@ -126,12 +132,27 @@ async function bootBeta() {
     document.querySelector<HTMLSelectElement>('#p1-control')!;
   const p2ControlSelect =
     document.querySelector<HTMLSelectElement>('#p2-control')!;
+  const qualitySelect =
+    document.querySelector<HTMLSelectElement>('#render-quality')!;
   const infiniteTimeCheckbox =
     document.querySelector<HTMLInputElement>('#infinite-time')!;
   const updateHud = mountPracticeHud(hudRoot);
 
   let selectedLevel: BetaStartLevel = 1;
   let infiniteTime = false;
+  let renderQuality: RenderQuality = (() => {
+    try {
+      const probe = document.createElement('canvas');
+      const gl = probe.getContext('webgl2') ?? probe.getContext('webgl');
+      const ext = gl?.getExtension('WEBGL_debug_renderer_info');
+      const renderer = ext
+        ? String(gl?.getParameter(ext.UNMASKED_RENDERER_WEBGL) ?? '')
+        : '';
+      return detectDefaultRenderQuality(renderer);
+    } catch {
+      return 'balanced';
+    }
+  })();
   let controls: BetaPlayerControls = { p1: 'trackpad', p2: 'keyboard' };
   const heldP1 = new Map<string, 'up' | 'down' | 'left' | 'right'>();
   const heldP2 = new Map<string, 'up' | 'down' | 'left' | 'right'>();
@@ -232,9 +253,12 @@ async function bootBeta() {
     playBanner.hidden = phase !== 'playing';
     bannerView.textContent = BETA_VIEW_LABELS[viewMode];
     bannerCamera.textContent = CAMERA_LABELS[cameraPreset];
+    bannerQuality.textContent = BETA_QUALITY_LABELS[renderQuality];
     bannerTimer.textContent = infiniteTime ? 'Infinite' : 'Normal';
+    qualitySelect.value = renderQuality;
     infiniteTimeCheckbox.checked = infiniteTime;
     session?.setInfiniteTime?.(infiniteTime);
+    view?.setQuality(renderQuality);
     const locked =
       Boolean(session) && document.pointerLockElement === session?.canvas;
     const usesTrackpad =
@@ -473,6 +497,15 @@ async function bootBeta() {
       { startOnLoad: true, language: 'en' },
     );
 
+    qualitySelect.addEventListener(
+      'change',
+      () => {
+        renderQuality = parseBetaQuality(qualitySelect.value);
+        syncUi();
+      },
+      { signal },
+    );
+
     infiniteTimeCheckbox.addEventListener(
       'change',
       () => {
@@ -580,6 +613,12 @@ async function bootBeta() {
           if (key === 't') {
             event.preventDefault();
             infiniteTime = !infiniteTime;
+            syncUi();
+            return;
+          }
+          if (key === 'g') {
+            event.preventDefault();
+            renderQuality = nextBetaQuality(renderQuality);
             syncUi();
             return;
           }

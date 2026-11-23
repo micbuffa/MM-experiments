@@ -1,3 +1,5 @@
+import type { RenderQuality } from '../game/renderQuality';
+
 export type BetaStartLevel = 1 | 2 | 3 | 4 | 5 | 6;
 export type BetaViewMode = 'compare' | 'modern' | 'direct';
 export type BetaControlMode = 'trackpad' | 'keyboard';
@@ -137,4 +139,34 @@ export function wasdKeyDirection(
     default:
       return null;
   }
+}
+
+const QUALITY_ORDER: readonly RenderQuality[] = ['eco', 'balanced', 'retina'];
+
+export const BETA_QUALITY_LABELS: Readonly<Record<RenderQuality, string>> = {
+  eco: 'Eco',
+  balanced: 'Balanced',
+  retina: 'High',
+};
+
+export function nextBetaQuality(current: RenderQuality): RenderQuality {
+  const index = QUALITY_ORDER.indexOf(current);
+  return QUALITY_ORDER[(index + 1) % QUALITY_ORDER.length]!;
+}
+
+export function parseBetaQuality(value: string): RenderQuality {
+  if (value === 'eco' || value === 'retina') return value;
+  return 'balanced';
+}
+
+/** Auto-select Eco mode on integrated Intel HD/UHD or software renderers. */
+export function detectDefaultRenderQuality(
+  rendererName?: string,
+): RenderQuality {
+  if (
+    rendererName &&
+    /intel.*(uhd|hd)\s*graphics|swiftshader|llvmpipe/i.test(rendererName)
+  )
+    return 'eco';
+  return 'balanced';
 }

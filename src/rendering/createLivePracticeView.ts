@@ -12,6 +12,12 @@ import {
 } from './createLevel4Materials';
 import type { AbstractEngine } from '@babylonjs/core/Engines/abstractEngine';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
+import type { RenderQuality } from '../game/renderQuality';
+import {
+  applyPracticeShadowQuality,
+  invalidatePracticeShadows,
+  setPracticeShadowRefresh,
+} from './createPracticeSun';
 import type {
   PracticeMarblePose,
   PracticePose,
@@ -58,6 +64,10 @@ export function createLivePracticeView(
   const occlusion = createCameraOcclusion(scene);
   let previousFrame: number | undefined;
   let previousPalette: PracticePose['terrainPalette'];
+  let previousStartLift: PracticePose['startLift'];
+  let previousBridgeStep: number | undefined;
+  let currentQuality: RenderQuality = 'balanced';
+  const staticShadowLevel = !level4 && !level5;
   const first = createPracticeMarble(scene, 'practice-player', false, actors);
   const second = createPracticeMarble(scene, 'practice-player-2', true, actors);
   const firstSuction = level4
@@ -207,9 +217,32 @@ export function createLivePracticeView(
     return false;
   }
 
+  function syncShadowRefresh() {
+    if (marbleShadows) {
+      setPracticeShadowRefresh(
+        scene,
+        currentQuality === 'eco' ? 'half-rate' : 'every-frame',
+      );
+      return;
+    }
+    setPracticeShadowRefresh(
+      scene,
+      staticShadowLevel
+        ? 'once'
+        : currentQuality === 'eco'
+          ? 'half-rate'
+          : 'every-frame',
+    );
+  }
+
   return {
     scene,
     camera,
+    setQuality(quality: RenderQuality) {
+      currentQuality = quality;
+      applyPracticeShadowQuality(scene, quality);
+      syncShadowRefresh();
+    },
     setMarbleShadows(enabled: boolean) {
       if (!shadows || enabled === marbleShadows) return;
       marbleShadows = enabled;
@@ -217,6 +250,7 @@ export function createLivePracticeView(
         if (enabled) shadows.addShadowCaster(marble, false);
         else shadows.removeShadowCaster(marble, false);
       }
+      syncShadowRefresh();
     },
     update(pose: PracticePose | null) {
       if (
@@ -263,7 +297,18 @@ export function createLivePracticeView(
         return clear();
 
       updateStartLift?.(pose.startLift);
-      if (intermediate) setIntermediateBridgeStep(scene, pose.bridgeStep ?? 0);
+      if (!extended && pose.startLift !== previousStartLift) {
+        previousStartLift = pose.startLift;
+        invalidatePracticeShadows(scene);
+      }
+      if (intermediate) {
+        const step = pose.bridgeStep ?? 0;
+        setIntermediateBridgeStep(scene, step);
+        if (step !== previousBridgeStep) {
+          previousBridgeStep = step;
+          invalidatePracticeShadows(scene);
+        }
+      }
       if (level3) setLevel3WaveProfile(scene, pose.waveProfile);
       if (level6) setLevel6MazePhase(scene, pose.level6MazePhase ?? 0);
       if (pose.terrainPalette !== previousPalette) {

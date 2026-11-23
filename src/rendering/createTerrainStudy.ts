@@ -111,7 +111,10 @@ import {
   practiceCenterArrowMesh,
 } from './createPracticeMarkings';
 
-import { createPracticeSun } from './createPracticeSun';
+import {
+  createPracticeSun,
+  setPracticeShadowRefresh,
+} from './createPracticeSun';
 import { extendPracticeDescentCliffs } from './practiceChannelTerrain';
 import {
   createPracticeNumberSignMaterial,
@@ -207,6 +210,8 @@ export function createTerrainStudy(
     );
     fill.intensity = 0.22;
     createLevel6Terrain(scene, measured, live);
+    setPracticeShadowRefresh(scene, 'once');
+    freezeStaticTerrainMeshes(scene);
     return scene;
   }
   const displayCells = !measured
@@ -518,6 +523,8 @@ export function createTerrainStudy(
         finish.material = createPracticeGoalMaterial(scene, 'intermediate');
         createPracticeGoalFlags(scene, measured);
       }
+      setPracticeShadowRefresh(scene, 'once');
+      freezeStaticTerrainMeshes(scene);
       return scene;
     }
     if (intermediate) {
@@ -655,6 +662,8 @@ export function createTerrainStudy(
           createIntermediateBridge(scene, measured, paving, live),
           false,
         );
+      setPracticeShadowRefresh(scene, 'once');
+      freezeStaticTerrainMeshes(scene);
       return scene;
     }
     let practiceCliffs: Mesh | undefined;
@@ -789,5 +798,34 @@ export function createTerrainStudy(
   }
   floor.material = createPracticeSurfaceMaterial(scene, 'floor');
   floor.receiveShadows = measured !== undefined;
+  if (measured) {
+    setPracticeShadowRefresh(scene, 'once');
+    freezeStaticTerrainMeshes(scene);
+  }
   return scene;
+}
+
+const DYNAMIC_MESH_PREFIXES = [
+  'intermediate-bridge',
+  'level3-wave',
+  'level4-piston',
+  'level4-hammer',
+  'level4-vacuum',
+  'level4-catapult',
+  'level6-maze-phase-',
+  'practice-goal-flag',
+  'intermediate-goal-flag',
+  'level3-goal-flag',
+  'level4-goal-flag',
+  'level5-goal-flag',
+  'level6-goal-flag',
+] as const;
+
+function freezeStaticTerrainMeshes(scene: Scene) {
+  for (const mesh of scene.meshes) {
+    mesh.isPickable = false;
+    if (DYNAMIC_MESH_PREFIXES.some((prefix) => mesh.name.startsWith(prefix)))
+      continue;
+    mesh.freezeWorldMatrix();
+  }
 }

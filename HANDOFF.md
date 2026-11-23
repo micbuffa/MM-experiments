@@ -1,5 +1,17 @@
 # Passation
 
+## Optimisations GPU/CPU (Intel UHD 630 & batterie) et outils d'étude — 23 novembre 2026
+
+- **Cache Shadow Map statique + 2048×2048** ([createPracticeSun.ts](src/rendering/createPracticeSun.ts), [createTerrainStudy.ts](src/rendering/createTerrainStudy.ts), [createLivePracticeView.ts](src/rendering/createLivePracticeView.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts)) :
+  - Shadow map plafonnée à `2048 × 2048` (4× moins de fillrate que `4096 × 4096`).
+  - `REFRESHRATE_RENDER_ONCE` activé sur les niveaux statiques (1, 2, 3, 6) avec invalidation ciblée (`invalidatePracticeShadows`) uniquement quand `startLift`, `bridgeStep` ou `level6MazePhase` change ; mode `half-rate` (1 frame sur 2) en qualité `Eco` pour les niveaux à ombres mobiles (4, 5 ou ombres de bille).
+  - Désactivation du PCF coûteux en mode `Eco` (`applyPracticeShadowQuality`).
+  - Gel des matrices monde (`freezeWorldMatrix`) et `isPickable = false` sur les maillages statiques du terrain.
+- **Découplage du rendu 3D et _frame-skip_ adaptatif** ([createVideoView.ts](src/app/createVideoView.ts)) :
+  - `refreshModern()` ne rend plus BabylonJS synchronement dans `marbleOnVideoFrame` : il planifie un `requestAnimationFrame` dédié (`runModernFrame`) et adapte automatiquement un _frame-skip_ 3D (`0..2`) si une frame dépasse `14 ms`, pour garder MAME, WebAudio et la lecture trackball verrouillés à 60 Hz sans glitches audio ni latence trackpad.
+- **Sélecteur de qualité `Eco / Balanced / High` + détection auto Intel UHD** ([betaState.ts](src/beta/betaState.ts), [beta.html](beta.html), [beta.ts](src/beta.ts)) :
+  - Détection WebGL `UNMASKED_RENDERER_WEBGL` basculant automatiquement en `Eco` sur Intel HD/UHD Graphics ou rendu logiciel, basculable à tout moment via le menu Attract Mode ou la touche **`G`** en jeu.
+
 ## Niveau 6 : Ultimate Race et labyrinthe dynamique à 4 phases — 23 novembre 2026
 
 - **Analyse ROM 68010 et relevé MAME natif** ([scripts/survey-level6.mjs](scripts/survey-level6.mjs), `local-roms/level6-terrain.json`, `local-roms/level6-web.state`) :

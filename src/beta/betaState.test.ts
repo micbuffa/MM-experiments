@@ -3,8 +3,11 @@ import {
   arrowKeyDirection,
   betaAssetUrls,
   checkpointForStartLevel,
+  detectDefaultRenderQuality,
+  nextBetaQuality,
   nextBetaViewMode,
   parseBetaControlMode,
+  parseBetaQuality,
   parseBetaStartLevel,
   resolvePlayerControls,
   wasdKeyDirection,
@@ -67,4 +70,19 @@ it('keeps at most one player assigned to the trackpad while allowing dual keyboa
   expect(arrowKeyDirection('ArrowUp')).toBe('up');
   expect(wasdKeyDirection('z')).toBe('up');
   expect(wasdKeyDirection('d')).toBe('right');
+});
+
+it('cycles render quality and auto-selects Eco on Intel UHD / software GPUs', () => {
+  expect(nextBetaQuality('eco')).toBe('balanced');
+  expect(nextBetaQuality('balanced')).toBe('retina');
+  expect(nextBetaQuality('retina')).toBe('eco');
+  expect(parseBetaQuality('eco')).toBe('eco');
+  expect(parseBetaQuality('retina')).toBe('retina');
+  expect(parseBetaQuality('other')).toBe('balanced');
+  expect(
+    detectDefaultRenderQuality('ANGLE (Intel, Intel(R) UHD Graphics 630)'),
+  ).toBe('eco');
+  expect(detectDefaultRenderQuality('Google SwiftShader')).toBe('eco');
+  expect(detectDefaultRenderQuality('Apple M3 Max')).toBe('balanced');
+  expect(detectDefaultRenderQuality(undefined)).toBe('balanced');
 });

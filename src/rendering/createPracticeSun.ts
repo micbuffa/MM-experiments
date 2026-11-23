@@ -1,7 +1,9 @@
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
+import { RenderTargetTexture } from '@babylonjs/core/Materials/Textures/renderTargetTexture';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
+import type { RenderQuality } from '../game/renderQuality';
 import {
   arcadeCellUnits,
   arcadeHeightScale,
@@ -50,9 +52,10 @@ export function createPracticeSun(
   key.shadowMaxZ = 2.5 * depth;
   key.shadowFrustumSize = 1.2 * depth;
   // The standard import registers the shadow generator scene component.
+  // 2048x2048 gives ~17 shadow texels/tile at 4x lower fillrate than 4096x4096 on integrated GPUs.
   const size =
     intermediate || depth > 60
-      ? Math.min(4096, scene.getEngine().getCaps().maxTextureSize)
+      ? Math.min(2048, scene.getEngine().getCaps().maxTextureSize)
       : 1024;
   const shadows = new ShadowGenerator(size, key);
   shadows.filter = ShadowGenerator.FILTER_NONE;
@@ -60,4 +63,48 @@ export function createPracticeSun(
   shadows.normalBias = intermediate ? 0.011 : 0.01;
   shadows.darkness = 0.025;
   return shadows;
+}
+
+export type ShadowRefreshMode = 'once' | 'every-frame' | 'half-rate';
+
+/** Configure how often the directional sun shadow map re-renders. */
+export function setPracticeShadowRefresh(
+  scene: Scene,
+  mode: ShadowRefreshMode,
+) {
+  const generator = scene.getLightByName('key')?.getShadowGenerator();
+  if (!(generator instanceof ShadowGenerator)) return;
+  const map = generator.getShadowMap();
+  if (!map) return;
+  map.refreshRate =
+    mode === 'once'
+      ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE
+      : mode === 'half-rate'
+        ? 2
+        : RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYFRAME;
+}
+
+/** Trigger a single shadow map re-render on the next frame for static-cached levels. */
+export function invalidatePracticeShadows(scene: Scene) {
+  const generator = scene.getLightByName('key')?.getShadowGenerator();
+  if (!(generator instanceof ShadowGenerator)) return;
+  const map = generator.getShadowMap();
+  if (!map || map.refreshRate !== RenderTargetTexture.REFRESHRATE_RENDER_ONCE)
+    return;
+  map.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+}
+
+/** Disable expensive PCF filtering in Eco mode for integrated GPUs and low-battery laptops. */
+export function applyPracticeShadowQuality(
+  scene: Scene,
+  quality: RenderQuality,
+) {
+  const generator = scene.getLightByName('key')?.getShadowGenerator();
+  if (!(generator instanceof ShadowGenerator)) return;
+  if (quality === 'eco') {
+    generator.usePercentageCloserFiltering = false;
+    generator.filter = ShadowGenerator.FILTER_NONE;
+  } else {
+    generator.usePercentageCloserFiltering = true;
+  }
 }

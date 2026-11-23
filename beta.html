@@ -117,6 +117,14 @@
                 <option value="trackpad">Trackpad</option>
               </select>
             </label>
+            <label for="render-quality">
+              3D Quality
+              <select id="render-quality">
+                <option value="eco">Eco (Low GPU / Battery)</option>
+                <option value="balanced" selected>Balanced</option>
+                <option value="retina">High (Retina)</option>
+              </select>
+            </label>
             <label for="infinite-time">
               <input id="infinite-time" type="checkbox" />
               Infinite time (debug)
@@ -136,6 +144,10 @@
         >
         <span class="banner-item"
           ><kbd>C</kbd> Camera: <strong id="banner-camera">Arcade</strong></span
+        >
+        <span class="banner-item"
+          ><kbd>G</kbd> Quality:
+          <strong id="banner-quality">Balanced</strong></span
         >
         <span class="banner-item"
           ><kbd>T</kbd> Timer: <strong id="banner-timer">Normal</strong></span

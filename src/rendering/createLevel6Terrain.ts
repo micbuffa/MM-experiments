@@ -15,7 +15,10 @@ import {
   arcadeHeightScale,
 } from '../game/modern/practiceProjection';
 import { ArcadeTerrainPaint } from './arcadeTerrainPaint';
-import { createPracticeSun } from './createPracticeSun';
+import {
+  createPracticeSun,
+  invalidatePracticeShadows,
+} from './createPracticeSun';
 import { createPracticeSurfaceMaterial } from './createPracticeSurfaceMaterial';
 import { createPracticeTower } from './createPracticeTower';
 import {
@@ -286,10 +289,18 @@ function createWedgeChute(
 
 /** Toggle the active disappearing-block maze phase in O(1) with zero allocations. */
 export function setLevel6MazePhase(scene: Scene, phase: 0 | 1 | 2 | 3) {
+  let changed = false;
   for (let i = 0; i < PHASE_COUNT; i++) {
     const node = scene.getTransformNodeByName(`${PHASE_PREFIX}${i}`);
-    if (node) node.setEnabled(i === phase);
+    if (node) {
+      const want = i === phase;
+      if (node.isEnabled() !== want) {
+        node.setEnabled(want);
+        changed = true;
+      }
+    }
   }
+  if (changed) invalidatePracticeShadows(scene);
 }
 
 /** Enable or pause the automatic 41-frame study cycle in terrain.html. */

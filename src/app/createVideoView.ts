@@ -60,6 +60,11 @@ export function createVideoView(
   let contextLost = false;
   let contextLosses = 0;
   let animationFrame = 0,
+    modernFrame = 0,
+    modernSkipRemaining = 0,
+    modernTargetSkip = 0,
+    modernSlowStreak = 0,
+    modernFastStreak = 0,
     animationStart = 0,
     transitioning = false,
     lastFrame = 0;
@@ -85,6 +90,8 @@ export function createVideoView(
   function stopLoop() {
     cancelAnimationFrame(animationFrame);
     animationFrame = 0;
+    cancelAnimationFrame(modernFrame);
+    modernFrame = 0;
     lastFrame = 0;
   }
   function stopWalking(notify: boolean, keepLock = false) {
@@ -168,6 +175,7 @@ export function createVideoView(
       next.camera.select(practiceCamera);
       next.camera.restartOpening();
       next.camera.setFov(practiceFov);
+      next.setQuality(quality);
       next.setMarbleShadows(practiceMarbleShadows);
       modern?.scene.dispose();
       modern = next;
@@ -203,6 +211,45 @@ export function createVideoView(
   function resize() {
     if (resizeLayout() && !animationFrame) render();
   }
+  function runModernFrame() {
+    modernFrame = 0;
+    if (
+      !modernSelected ||
+      !enabled ||
+      disposed ||
+      contextLost ||
+      document.hidden
+    )
+      return;
+    if (modernSkipRemaining > 0) {
+      modernSkipRemaining--;
+      return;
+    }
+    const started = performance.now();
+    try {
+      render();
+    } catch (error) {
+      onError(error);
+      return;
+    }
+    const elapsed = performance.now() - started;
+    if (elapsed > 14) {
+      modernSlowStreak++;
+      modernFastStreak = 0;
+      if (modernSlowStreak >= 3) {
+        modernTargetSkip = Math.min(2, modernTargetSkip + 1);
+        modernSlowStreak = 0;
+      }
+    } else if (elapsed < 9) {
+      modernFastStreak++;
+      modernSlowStreak = 0;
+      if (modernFastStreak >= 12) {
+        modernTargetSkip = Math.max(0, modernTargetSkip - 1);
+        modernFastStreak = 0;
+      }
+    }
+    modernSkipRemaining = modernTargetSkip;
+  }
   function refreshModern() {
     if (
       !modernSelected ||
@@ -212,11 +259,8 @@ export function createVideoView(
       document.hidden
     )
       return;
-    try {
-      render();
-    } catch (error) {
-      onError(error);
-    }
+    // Decouple 3D WebGL rendering from MAME's 60 Hz tick so audio and trackpad never starve.
+    if (!modernFrame) modernFrame = requestAnimationFrame(runModernFrame);
   }
   let waitingForScene: typeof view.scene | undefined;
   function readyRender() {
@@ -449,7 +493,10 @@ export function createVideoView(
     },
     setQuality(value: RenderQuality) {
       quality = value;
+      modernTargetSkip = 0;
+      modernSkipRemaining = 0;
       view.setQuality(value);
+      modern?.setQuality(value);
       resize();
       readyRender();
     },

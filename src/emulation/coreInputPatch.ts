@@ -30,7 +30,7 @@ export function isolateTrackpadPort(source: string): string {
  if(typeof original!=="function"||original.length!==10)throw new Error("ABI des ports d’entrée incompatible");
  const adapter=new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array(${JSON.stringify(inputStateTrampoline)})),{
   i:{f:(data,joy,secondary,info,binds,blocked,port,device,index,id)=>
-   device===2&&port!==0?0:original(data,joy,secondary,info,binds,blocked,port,device,index,id)}
+   device===2&&port!==(typeof Module!=="undefined"&&Module.marbleTrackpadPort===1?1:0)?0:original(data,joy,secondary,info,binds,blocked,port,device,index,id)}
  });
  wasmTable.set(490,adapter.exports.f);
 }`,

@@ -1,9 +1,13 @@
 import { expect, it } from 'vitest';
 import {
+  arrowKeyDirection,
   betaAssetUrls,
   checkpointForStartLevel,
   nextBetaViewMode,
+  parseBetaControlMode,
   parseBetaStartLevel,
+  resolvePlayerControls,
+  wasdKeyDirection,
 } from './betaState';
 
 it('cycles beta views cleanly in both directions', () => {
@@ -38,4 +42,27 @@ it('resolves static beta-data URLs with dev loopback fallback', () => {
     '/mm/beta-data/level5-terrain.json',
     '/__local-roms/level5-terrain.json',
   ]);
+});
+
+it('keeps at most one player assigned to the trackpad while allowing dual keyboard', () => {
+  expect(parseBetaControlMode('keyboard')).toBe('keyboard');
+  expect(parseBetaControlMode('trackpad')).toBe('trackpad');
+  const initial = { p1: 'trackpad', p2: 'keyboard' } as const;
+  expect(resolvePlayerControls(initial, 1, 'keyboard')).toEqual({
+    p1: 'keyboard',
+    p2: 'keyboard',
+  });
+  expect(resolvePlayerControls(initial, 2, 'trackpad')).toEqual({
+    p1: 'keyboard',
+    p2: 'trackpad',
+  });
+  expect(
+    resolvePlayerControls({ p1: 'keyboard', p2: 'trackpad' }, 1, 'trackpad'),
+  ).toEqual({
+    p1: 'trackpad',
+    p2: 'keyboard',
+  });
+  expect(arrowKeyDirection('ArrowUp')).toBe('up');
+  expect(wasdKeyDirection('z')).toBe('up');
+  expect(wasdKeyDirection('d')).toBe('right');
 });

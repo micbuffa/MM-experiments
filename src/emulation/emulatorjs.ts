@@ -44,6 +44,7 @@ interface RuntimeModule {
   marbleBeforeIteration?: () => void;
   marbleOnVideoFrame?: () => void;
   marbleAfterIteration?: () => void;
+  marbleTrackpadPort?: 0 | 1;
   marbleNativeInput?: {
     state(): NativeMouseState;
     clear(): void;
@@ -124,6 +125,12 @@ export interface ProbeSession extends VenueEffects {
   setCaptured(value: boolean): void;
   setBoost(value: boolean): void;
   setPlayer2Direction(direction: Direction, pressed: boolean): void;
+  setPlayerDirection?(
+    player: ArcadePlayer,
+    direction: Direction,
+    pressed: boolean,
+  ): void;
+  setTrackpadPlayer?(player: ArcadePlayer): void;
   setGain(value: number): void;
   resetMetrics(): void;
   setVolume(value: number): void;
@@ -544,6 +551,18 @@ export async function prepareEmulator(
         directionButtons[direction],
         Number(pressed),
       );
+    },
+    setPlayerDirection(player, direction, pressed) {
+      if (disposed || !instance.started || instance.paused) return;
+      instance.gameManager.simulateInput(
+        player,
+        directionButtons[direction],
+        Number(pressed),
+      );
+    },
+    setTrackpadPlayer(player) {
+      if (disposed || !instance.Module) return;
+      instance.Module.marbleTrackpadPort = player;
     },
     setGain(value) {
       motion.setGain(value);

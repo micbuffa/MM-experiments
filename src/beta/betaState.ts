@@ -1,5 +1,10 @@
 export type BetaStartLevel = 1 | 2 | 3 | 4 | 5;
 export type BetaViewMode = 'compare' | 'modern' | 'direct';
+export type BetaControlMode = 'trackpad' | 'keyboard';
+export interface BetaPlayerControls {
+  readonly p1: BetaControlMode;
+  readonly p2: BetaControlMode;
+}
 export type BetaCheckpointLevel =
   'intermediate' | 'level3' | 'level4' | 'level5';
 
@@ -64,4 +69,68 @@ export function betaAssetUrls(
 ): readonly string[] {
   const normalized = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   return [`${normalized}beta-data/${name}`, `/__local-roms/${name}`];
+}
+
+export function parseBetaControlMode(value: string): BetaControlMode {
+  return value === 'keyboard' ? 'keyboard' : 'trackpad';
+}
+
+/** At most one player can hold the browser trackpad pointer lock at a time. */
+export function resolvePlayerControls(
+  current: BetaPlayerControls,
+  player: 1 | 2,
+  mode: BetaControlMode,
+): BetaPlayerControls {
+  if (player === 1) {
+    return {
+      p1: mode,
+      p2:
+        mode === 'trackpad' && current.p2 === 'trackpad'
+          ? 'keyboard'
+          : current.p2,
+    };
+  }
+  return {
+    p1:
+      mode === 'trackpad' && current.p1 === 'trackpad'
+        ? 'keyboard'
+        : current.p1,
+    p2: mode,
+  };
+}
+
+export function arrowKeyDirection(
+  key: string,
+): 'up' | 'down' | 'left' | 'right' | null {
+  switch (key) {
+    case 'ArrowUp':
+      return 'up';
+    case 'ArrowDown':
+      return 'down';
+    case 'ArrowLeft':
+      return 'left';
+    case 'ArrowRight':
+      return 'right';
+    default:
+      return null;
+  }
+}
+
+export function wasdKeyDirection(
+  key: string,
+): 'up' | 'down' | 'left' | 'right' | null {
+  switch (key.toLowerCase()) {
+    case 'w':
+    case 'z':
+      return 'up';
+    case 's':
+      return 'down';
+    case 'a':
+    case 'q':
+      return 'left';
+    case 'd':
+      return 'right';
+    default:
+      return null;
+  }
 }

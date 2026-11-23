@@ -7,12 +7,17 @@ import {
   writeCachedArchive,
 } from './beta/betaCache';
 import {
+  arrowKeyDirection,
   BETA_VIEW_LABELS,
   betaAssetUrls,
   checkpointForStartLevel,
   nextBetaViewMode,
+  parseBetaControlMode,
   parseBetaStartLevel,
+  resolvePlayerControls,
+  wasdKeyDirection,
   type BetaCheckpointLevel,
+  type BetaPlayerControls,
   type BetaStartLevel,
   type BetaViewMode,
 } from './beta/betaState';
@@ -115,9 +120,16 @@ async function bootBeta() {
   const bannerCapture = document.getElementById('banner-capture')!;
   const canvas = document.querySelector<HTMLCanvasElement>('#babylon-video')!;
   const hudRoot = document.getElementById('practice-hud')!;
+  const p1ControlSelect =
+    document.querySelector<HTMLSelectElement>('#p1-control')!;
+  const p2ControlSelect =
+    document.querySelector<HTMLSelectElement>('#p2-control')!;
   const updateHud = mountPracticeHud(hudRoot);
 
   let selectedLevel: BetaStartLevel = 1;
+  let controls: BetaPlayerControls = { p1: 'trackpad', p2: 'keyboard' };
+  const heldP1 = new Map<string, 'up' | 'down' | 'left' | 'right'>();
+  const heldP2 = new Map<string, 'up' | 'down' | 'left' | 'right'>();
   let phase: 'loading' | 'attract' | 'playing' = 'loading';
   let viewMode: BetaViewMode = 'direct';
   let cameraPreset: PracticeCameraPreset = 'arcade';
@@ -160,6 +172,41 @@ async function bootBeta() {
     if (detail !== undefined) substatus.textContent = detail;
   }
 
+  function releaseKeyboardDirections() {
+    if (session) {
+      for (const dir of heldP1.values())
+        session.setPlayerDirection?.(0, dir, false);
+      for (const dir of heldP2.values())
+        session.setPlayerDirection?.(1, dir, false);
+    }
+    heldP1.clear();
+    heldP2.clear();
+  }
+
+  function applyControlSelection(player: 1 | 2, value: string) {
+    releaseKeyboardDirections();
+    controls = resolvePlayerControls(
+      controls,
+      player,
+      parseBetaControlMode(value),
+    );
+    p1ControlSelect.value = controls.p1;
+    p2ControlSelect.value = controls.p2;
+    session?.setTrackpadPlayer?.(controls.p2 === 'trackpad' ? 1 : 0);
+    syncUi();
+  }
+
+  p1ControlSelect.addEventListener(
+    'change',
+    () => applyControlSelection(1, p1ControlSelect.value),
+    { signal },
+  );
+  p2ControlSelect.addEventListener(
+    'change',
+    () => applyControlSelection(2, p2ControlSelect.value),
+    { signal },
+  );
+
   for (const radio of document.querySelectorAll<HTMLInputElement>(
     'input[name="start-level"]',
   )) {
@@ -182,9 +229,13 @@ async function bootBeta() {
     bannerCamera.textContent = CAMERA_LABELS[cameraPreset];
     const locked =
       Boolean(session) && document.pointerLockElement === session?.canvas;
-    bannerCapture.textContent = locked
-      ? 'Mouse / trackpad captured'
-      : 'Click to capture mouse / trackpad';
+    const usesTrackpad =
+      controls.p1 === 'trackpad' || controls.p2 === 'trackpad';
+    bannerCapture.textContent = !usesTrackpad
+      ? 'Keyboard active (P1 Arrows · P2 WASD/ZQSD)'
+      : locked
+        ? 'Trackpad captured'
+        : 'Click to capture trackpad';
     if (audioUnlocked) {
       attractHint.innerHTML =
         'Press <kbd>5</kbd> then <kbd>1</kbd> or <kbd>2</kbd> to start';
@@ -327,6 +378,7 @@ async function bootBeta() {
         if (!session) return;
         session.setGain(DEFAULT_GAIN);
         session.setVolume(0.5);
+        session.setTrackpadPlayer?.(controls.p2 === 'trackpad' ? 1 : 0);
         setProgress(
           82,
           'Preparing 3D renderer & worlds…',
@@ -418,8 +470,9 @@ async function bootBeta() {
         unlockAudio();
         if (
           phase === 'playing' &&
+          (controls.p1 === 'trackpad' || controls.p2 === 'trackpad') &&
           event.target instanceof Element &&
-          !event.target.closest('input, button, label, fieldset')
+          !event.target.closest('input, button, label, fieldset, select')
         ) {
           void requestCapture();
         }
@@ -463,6 +516,30 @@ async function bootBeta() {
           return;
         }
         const key = event.key.toLowerCase();
+        if (phase === 'playing') {
+          if (controls.p1 === 'keyboard') {
+            const dir = arrowKeyDirection(event.key);
+            if (dir) {
+              event.preventDefault();
+              if (!event.repeat && !heldP1.has(event.code)) {
+                heldP1.set(event.code, dir);
+                session.setPlayerDirection?.(0, dir, true);
+              }
+              return;
+            }
+          }
+          if (controls.p2 === 'keyboard') {
+            const dir = wasdKeyDirection(event.key);
+            if (dir) {
+              event.preventDefault();
+              if (!event.repeat && !heldP2.has(event.code)) {
+                heldP2.set(event.code, dir);
+                session.setPlayerDirection?.(1, dir, true);
+              }
+              return;
+            }
+          }
+        }
         if (event.code === 'Space' && phase === 'playing') {
           event.preventDefault();
           if (!spaceHeld) {
@@ -507,6 +584,18 @@ async function bootBeta() {
     window.addEventListener(
       'keyup',
       (event) => {
+        if (session) {
+          const p1Dir = heldP1.get(event.code);
+          if (p1Dir) {
+            heldP1.delete(event.code);
+            session.setPlayerDirection?.(0, p1Dir, false);
+          }
+          const p2Dir = heldP2.get(event.code);
+          if (p2Dir) {
+            heldP2.delete(event.code);
+            session.setPlayerDirection?.(1, p2Dir, false);
+          }
+        }
         if (event.code === 'Space' && spaceHeld && session) {
           spaceHeld = false;
           session.setBoost(false);

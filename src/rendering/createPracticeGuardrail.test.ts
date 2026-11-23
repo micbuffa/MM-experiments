@@ -26,8 +26,8 @@ it('builds rail sections with independent materials from the same mounting point
       posts.slice(0, 2),
       blue,
     );
-    expect(corner.getChildMeshes()).toHaveLength(5);
-    expect(straight.getChildMeshes()).toHaveLength(3);
+    expect(corner.getChildMeshes()).toHaveLength(8);
+    expect(straight.getChildMeshes()).toHaveLength(5);
     const beam = scene.getMeshByName('straight-beam-1')!;
     expect(beam.position.asArray()).toEqual([1, 1.5, 0]);
     expect(beam.material).toBe(blue);

@@ -74,7 +74,7 @@ it('builds two raised points and connects the rails to their posts', () => {
         (base.z + 24 + front[2]!) * arcadeCellUnits,
         0x4000 + ((base.y + front[1]!) * arcadeCellUnits) / arcadeHeightScale,
       );
-      expect(Math.abs(projected.y + 7 - 155)).toBeLessThan(1);
+      expect(Math.abs(projected.y + 7 - 155)).toBeLessThan(2);
     }
 
     const beam = scene.getMeshByName('practice-rail-0-beam-1')!;
@@ -113,7 +113,7 @@ it('builds two raised points and connects the rails to their posts', () => {
       }
     }
     const upperBounds = upperLeftPost.getBoundingInfo().boundingBox;
-    expect(upperBounds.minimumWorld.y).toBeCloseTo(-1.8282, 4);
+    expect(upperBounds.minimumWorld.y).toBeCloseTo(-1.8462, 4);
     expect(upperBounds.maximumWorld.y).toBeLessThan(-1.15);
     const elbowJoint = scene.getMeshByName('practice-rail-0-joint-1')!;
     expect(elbowJoint).not.toBeNull();

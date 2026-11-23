@@ -339,6 +339,7 @@ it('builds the Level 3 olive-khaki terrain with copper pipe, animated wave, GOAL
     cells[92]![90] = [-11, -11.5, -11.5, -13];
     cells[92]![99] = [-12, -12, -12, -12];
     cells[100]![92] = [-14, -14, -14, -14];
+    cells[101]![92] = [-14, -14, -14, -14];
     const scene = createTerrainStudy(engine, undefined, {
       cells,
       origin: { x: 0, z: 0 },

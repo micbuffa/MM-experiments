@@ -10,5 +10,6 @@ test-results/
 playwright-report/
 /3D_assets_for_animated_entities/
 
-# Converted SketchUp mesh data
+# Converted SketchUp mesh data and surveyed terrain JSONs
 src/rendering/assets/atariSystem1.json
+local-roms/

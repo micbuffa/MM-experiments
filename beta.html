@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marble Madness 3D · Beta</title>
+  </head>
+  <body>
+    <main id="beta-stage" data-phase="loading" data-mode="direct">
+      <div id="beta-loading" class="beta-loading" aria-live="polite">
+        <div class="beta-loading-card">
+          <h1>Marble Madness 3D</h1>
+          <p id="beta-status">
+            Chargement de l’émulateur arcade et des scènes 3D…
+          </p>
+        </div>
+      </div>
+
+      <section id="arcade-pane" class="beta-pane crt-screen">
+        <div id="emulator"></div>
+        <div class="crt-overlay" aria-hidden="true"></div>
+      </section>
+
+      <section id="modern-pane" class="beta-pane">
+        <canvas id="babylon-video"></canvas>
+        <div id="practice-hud" class="practice-hud" hidden>
+          <canvas width="336" height="240" aria-hidden="true"></canvas>
+          <div class="practice-hud-text">
+            <span>Score</span>
+            <span id="practice-score"></span>
+          </div>
+          <div
+            id="practice-clock"
+            class="practice-hud-text"
+            role="timer"
+            aria-label="Chrono"
+            hidden
+          ></div>
+          <div id="practice-score-2-label" class="practice-hud-text" hidden>
+            <span>Score J2</span>
+            <span id="practice-score-2"></span>
+          </div>
+          <div
+            id="practice-clock-2"
+            class="practice-hud-text"
+            role="timer"
+            aria-label="Chrono J2"
+            hidden
+          ></div>
+        </div>
+      </section>
+
+      <aside id="attract-overlay" class="attract-overlay" hidden>
+        <div class="attract-card">
+          <div class="attract-keys">
+            <span class="key-pill"><kbd>5</kbd> Insert Coin / Crédit</span>
+            <span class="key-pill"><kbd>1</kbd> Start Player 1</span>
+            <span class="key-pill"><kbd>2</kbd> Start Player 2</span>
+          </div>
+          <fieldset class="level-picker">
+            <legend>Niveau de départ</legend>
+            <label
+              ><input type="radio" name="start-level" value="1" checked /> 1 ·
+              Practice</label
+            >
+            <label
+              ><input type="radio" name="start-level" value="2" /> 2 ·
+              Beginner</label
+            >
+            <label
+              ><input type="radio" name="start-level" value="3" /> 3 ·
+              Intermediate</label
+            >
+            <label
+              ><input type="radio" name="start-level" value="4" /> 4 ·
+              Aerial</label
+            >
+            <label
+              ><input type="radio" name="start-level" value="5" /> 5 ·
+              Silly</label
+            >
+          </fieldset>
+          <p id="attract-hint" class="attract-hint">
+            Appuyer sur <kbd>5</kbd> puis <kbd>1</kbd> ou <kbd>2</kbd> · Cliquer
+            n’importe où pour activer le son
+          </p>
+        </div>
+      </aside>
+
+      <header id="play-banner" class="play-banner" hidden>
+        <span class="banner-item"
+          ><kbd>V</kbd> Vue :
+          <strong id="banner-view">Parallèle (Original + 3D)</strong></span
+        >
+        <span class="banner-item"
+          ><kbd>C</kbd> Caméra :
+          <strong id="banner-camera">Arcade</strong></span
+        >
+        <span class="banner-item"><kbd>Espace</kbd> Boost</span>
+        <span class="banner-item"><kbd>Échap</kbd> Pause</span>
+        <span id="banner-capture" class="banner-item banner-accent"
+          >Clic pour capturer la souris / trackpad</span
+        >
+      </header>
+    </main>
+    <script type="module" src="/src/beta.ts"></script>
+  </body>
+</html>

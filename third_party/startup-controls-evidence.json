@@ -1,0 +1,25 @@
+{
+  "method": "Real ROM runtime Chrome; fresh session; no mouse movement before Credit/Start; screenshots examined separately",
+  "browser": "157.0.8103.38",
+  "pausedFrame": 1112,
+  "resumedFrame": 1139,
+  "creditEnabled": true,
+  "startEnabled": true,
+  "errors": [],
+  "date": "2026-11-09",
+  "before": {
+    "copyrightWarningObserved": true,
+    "creditStartDidNotDismissWarning": true,
+    "escapeDisabledButtons": true
+  },
+  "after": {
+    "startupDisclaimerSkipped": true,
+    "attractObservedWithoutMouseMovement": true,
+    "gameStartedWithCreditStartWithoutPriorCapture": true,
+    "pausedCommandsAvailable": true,
+    "explicitCreditResumedBeforePulse": true
+  },
+  "limits": [
+    "Vérification visuelle du démarrage et des transitions, pas confort physique du trackpad ou saut validé."
+  ]
+}

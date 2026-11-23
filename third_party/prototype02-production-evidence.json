@@ -1,0 +1,16 @@
+{
+  "browser": "157.0.8103.40",
+  "method": "Production preview on loopback; local ROM file selection; trusted clicks projected from declared cabinet geometry/camera, no dev harness",
+  "inputs": [
+    [0, 2, 1],
+    [0, 2, 0],
+    [0, 3, 1],
+    [0, 3, 0]
+  ],
+  "trackballCaptured": true,
+  "front": true,
+  "paused": true,
+  "pending": [0, 0],
+  "stageCopies": 64,
+  "errors": []
+}

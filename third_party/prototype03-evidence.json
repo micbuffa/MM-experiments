@@ -1,0 +1,93 @@
+{
+  "method": "Chrome automation with the real local MAME runtime. DPR 2 emulated. Screenshots inspected separately.",
+  "production": {
+    "browser": "157.0.8103.40",
+    "quality": {
+      "eco": {
+        "frames": 7,
+        "cpuMeanMs": 4.814285704067776,
+        "cpuMaxMs": 8.599999904632568,
+        "drawCalls": 115,
+        "gpuStatus": "available",
+        "gpuMeanMs": 2.3987705,
+        "gpuSamples": 2,
+        "width": 1256,
+        "height": 597,
+        "hardwareScaling": 1,
+        "meshes": 157,
+        "materials": 33,
+        "textures": 20
+      },
+      "balanced": {
+        "frames": 9,
+        "cpuMeanMs": 4.399999989403619,
+        "cpuMaxMs": 8.599999904632568,
+        "drawCalls": 116,
+        "gpuStatus": "available",
+        "gpuMeanMs": 2.071972,
+        "gpuSamples": 3,
+        "width": 1884,
+        "height": 895,
+        "hardwareScaling": 0.6666666666666666,
+        "meshes": 157,
+        "materials": 33,
+        "textures": 20
+      },
+      "retina": {
+        "frames": 11,
+        "cpuMeanMs": 4.045454534617337,
+        "cpuMaxMs": 8.599999904632568,
+        "drawCalls": 115,
+        "gpuStatus": "available",
+        "gpuMeanMs": 2.0951975,
+        "gpuSamples": 4,
+        "width": 2512,
+        "height": 1194,
+        "hardwareScaling": 0.5,
+        "meshes": 157,
+        "materials": 33,
+        "textures": 20
+      }
+    },
+    "spatial": {
+      "initial": {
+        "routed": true,
+        "distance": 2.821790211904492,
+        "gain": 0.6541437026587047,
+        "pan": 0,
+        "outputRms": 0.00726,
+        "kind": "distance-and-stereo-pan"
+      },
+      "afterStep": {
+        "routed": true,
+        "distance": 2.902605316883438,
+        "gain": 0.6405977025615447,
+        "pan": -0.23432741476898397,
+        "outputRms": 0.01345,
+        "kind": "distance-and-stereo-pan"
+      },
+      "duringPlay": {
+        "routed": false,
+        "distance": 2.902605316883438,
+        "gain": 0.6405977025615447,
+        "pan": -0.23432741476898397,
+        "outputRms": 0,
+        "kind": "distance-and-stereo-pan"
+      },
+      "audioSources": 1
+    },
+    "nativeSamples": 5,
+    "pausedFrame": 1227,
+    "errors": []
+  },
+  "development": {
+    "browser": "157.0.8103.40",
+    "nativeSamples": 5,
+    "trackballRotationRadians": {
+      "x": 1.8540000000000003,
+      "z": -3.396
+    },
+    "pausedFrame": 1230,
+    "errors": []
+  }
+}

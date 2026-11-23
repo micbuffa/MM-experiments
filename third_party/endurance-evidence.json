@@ -1,0 +1,334 @@
+{
+  "browser": "157.0.8103.40",
+  "method": "Local original runtime, trusted automated input; 10 active minutes plus interruptions, not human comfort or listening validation",
+  "durationSeconds": 600,
+  "shortcuts": [
+    [0, 2, 1],
+    [0, 2, 0],
+    [0, 2, 1],
+    [0, 2, 0],
+    [0, 3, 1],
+    [0, 3, 0],
+    [0, 3, 1],
+    [0, 3, 0],
+    [1, 3, 1],
+    [1, 3, 0],
+    [1, 3, 1],
+    [1, 3, 0]
+  ],
+  "samples": [
+    {
+      "minute": 1,
+      "activeSeconds": 60.000798917,
+      "startFrame": 768,
+      "pausedFrame": 4369,
+      "video": {
+        "mode": "stage",
+        "cameraPreset": "perspective",
+        "enabled": true,
+        "copies": 3665,
+        "sourceWidth": 1416,
+        "sourceHeight": 899,
+        "copyAndRenderMeanMs": 0.177,
+        "copyAndRenderMaxMs": 10.2,
+        "timing": "CPU submission; GPU completion not measured"
+      },
+      "audioState": "suspended",
+      "audioSources": 1,
+      "audioRms": 0.00565,
+      "gain": 1.7,
+      "memory": {
+        "Documents": 1,
+        "JSEventListeners": 718,
+        "Nodes": 4584,
+        "JSHeapUsedSize": 20882492,
+        "JSHeapTotalSize": 23592960
+      },
+      "pending": [0, 0],
+      "held": [],
+      "heldPlayer2": []
+    },
+    {
+      "minute": 2,
+      "activeSeconds": 120.00191645800001,
+      "startFrame": 4369,
+      "pausedFrame": 7969,
+      "video": {
+        "mode": "stage",
+        "cameraPreset": "front",
+        "enabled": true,
+        "copies": 7265,
+        "sourceWidth": 1416,
+        "sourceHeight": 899,
+        "copyAndRenderMeanMs": 0.163,
+        "copyAndRenderMaxMs": 10.2,
+        "timing": "CPU submission; GPU completion not measured"
+      },
+      "audioState": "suspended",
+      "audioSources": 1,
+      "audioRms": 0,
+      "gain": 1.7,
+      "memory": {
+        "Documents": 1,
+        "JSEventListeners": 718,
+        "Nodes": 4606,
+        "JSHeapUsedSize": 21088000,
+        "JSHeapTotalSize": 23068672
+      },
+      "pending": [0, 0],
+      "held": [],
+      "heldPlayer2": []
+    },
+    {
+      "minute": 3,
+      "activeSeconds": 180.00270612500003,
+      "startFrame": 7969,
+      "pausedFrame": 11570,
+      "video": {
+        "mode": "stage",
+        "cameraPreset": "perspective",
+        "enabled": true,
+        "copies": 10866,
+        "sourceWidth": 1416,
+        "sourceHeight": 899,
+        "copyAndRenderMeanMs": 0.154,
+        "copyAndRenderMaxMs": 10.2,
+        "timing": "CPU submission; GPU completion not measured"
+      },
+      "audioState": "suspended",
+      "audioSources": 1,
+      "audioRms": 0,
+      "gain": 1.7,
+      "memory": {
+        "Documents": 1,
+        "JSEventListeners": 718,
+        "Nodes": 4626,
+        "JSHeapUsedSize": 21524768,
+        "JSHeapTotalSize": 23592960
+      },
+      "pending": [0, 0],
+      "held": [],
+      "heldPlayer2": []
+    },
+    {
+      "minute": 4,
+      "activeSeconds": 240.19834337500004,
+      "startFrame": 11570,
+      "pausedFrame": 15182,
+      "video": {
+        "mode": "stage",
+        "cameraPreset": "front",
+        "enabled": true,
+        "copies": 14478,
+        "sourceWidth": 1416,
+        "sourceHeight": 899,
+        "copyAndRenderMeanMs": 0.151,
+        "copyAndRenderMaxMs": 10.2,
+        "timing": "CPU submission; GPU completion not measured"
+      },
+      "audioState": "suspended",
+      "audioSources": 1,
+      "audioRms": 0,
+      "gain": 1.7,
+      "memory": {
+        "Documents": 1,
+        "JSEventListeners": 718,
+        "Nodes": 4582,
+        "JSHeapUsedSize": 20687252,
+        "JSHeapTotalSize": 22986752
+      },
+      "pending": [0, 0],
+      "held": [],
+      "heldPlayer2": []
+    },
+    {
+      "minute": 5,
+      "activeSeconds": 300.19876616600004,
+      "startFrame": 15182,
+      "pausedFrame": 18782,
+      "video": {
+        "mode": "stage",
+        "cameraPreset": "perspective",
+        "enabled": true,
+        "copies": 18078,
+        "sourceWidth": 1416,
+        "sourceHeight": 899,
+        "copyAndRenderMeanMs": 0.148,
+        "copyAndRenderMaxMs": 10.2,
+        "timing": "CPU submission; GPU completion not measured"
+      },
+      "audioState": "suspended",
+      "audioSources": 1,
+      "audioRms": 0,
+      "gain": 1.7,
+      "memory": {
+        "Documents": 1,
+        "JSEventListeners": 718,
+        "Nodes": 4603,
+        "JSHeapUsedSize": 21434364,
+        "JSHeapTotalSize": 23773184
+      },
+      "pending": [0, 0],
+      "held": [],
+      "heldPlayer2": []
+    },
+    {
+      "minute": 6,
+      "activeSeconds": 360.393334166,
+      "startFrame": 18782,
+      "pausedFrame": 22394,
+      "video": {
+        "mode": "stage",
+        "cameraPreset": "front",
+        "enabled": true,
+        "copies": 21690,
+        "sourceWidth": 1076,
+        "sourceHeight": 699,
+        "copyAndRenderMeanMs": 0.151,
+        "copyAndRenderMaxMs": 10.2,
+        "timing": "CPU submission; GPU completion not measured"
+      },
+      "audioState": "suspended",
+      "audioSources": 1,
+      "audioRms": 0,
+      "gain": 1.7,
+      "memory": {
+        "Documents": 1,
+        "JSEventListeners": 718,
+        "Nodes": 4625,
+        "JSHeapUsedSize": 21163820,
+        "JSHeapTotalSize": 23248896
+      },
+      "pending": [0, 0],
+      "held": [],
+      "heldPlayer2": []
+    },
+    {
+      "minute": 7,
+      "activeSeconds": 420.39375970799995,
+      "startFrame": 22394,
+      "pausedFrame": 25994,
+      "video": {
+        "mode": "stage",
+        "cameraPreset": "perspective",
+        "enabled": true,
+        "copies": 25290,
+        "sourceWidth": 1076,
+        "sourceHeight": 699,
+        "copyAndRenderMeanMs": 0.15,
+        "copyAndRenderMaxMs": 10.2,
+        "timing": "CPU submission; GPU completion not measured"
+      },
+      "audioState": "suspended",
+      "audioSources": 1,
+      "audioRms": 0,
+      "gain": 1.7,
+      "memory": {
+        "Documents": 1,
+        "JSEventListeners": 718,
+        "Nodes": 4592,
+        "JSHeapUsedSize": 21455740,
+        "JSHeapTotalSize": 24395776
+      },
+      "pending": [0, 0],
+      "held": [],
+      "heldPlayer2": []
+    },
+    {
+      "minute": 8,
+      "activeSeconds": 480.395018791,
+      "startFrame": 25994,
+      "pausedFrame": 29594,
+      "video": {
+        "mode": "stage",
+        "cameraPreset": "front",
+        "enabled": true,
+        "copies": 28890,
+        "sourceWidth": 1416,
+        "sourceHeight": 899,
+        "copyAndRenderMeanMs": 0.147,
+        "copyAndRenderMaxMs": 10.2,
+        "timing": "CPU submission; GPU completion not measured"
+      },
+      "audioState": "suspended",
+      "audioSources": 1,
+      "audioRms": 0,
+      "gain": 1.7,
+      "memory": {
+        "Documents": 1,
+        "JSEventListeners": 718,
+        "Nodes": 4619,
+        "JSHeapUsedSize": 21693888,
+        "JSHeapTotalSize": 24920064
+      },
+      "pending": [0, 0],
+      "held": [],
+      "heldPlayer2": []
+    },
+    {
+      "minute": 9,
+      "activeSeconds": 540.395390374,
+      "startFrame": 29594,
+      "pausedFrame": 33194,
+      "video": {
+        "mode": "stage",
+        "cameraPreset": "perspective",
+        "enabled": true,
+        "copies": 32490,
+        "sourceWidth": 1416,
+        "sourceHeight": 899,
+        "copyAndRenderMeanMs": 0.146,
+        "copyAndRenderMaxMs": 10.2,
+        "timing": "CPU submission; GPU completion not measured"
+      },
+      "audioState": "suspended",
+      "audioSources": 1,
+      "audioRms": 0,
+      "gain": 1.7,
+      "memory": {
+        "Documents": 1,
+        "JSEventListeners": 718,
+        "Nodes": 4629,
+        "JSHeapUsedSize": 22262024,
+        "JSHeapTotalSize": 24657920
+      },
+      "pending": [0, 0],
+      "held": [],
+      "heldPlayer2": []
+    },
+    {
+      "minute": 10,
+      "activeSeconds": 600.3966788320001,
+      "startFrame": 33194,
+      "pausedFrame": 36794,
+      "video": {
+        "mode": "stage",
+        "cameraPreset": "front",
+        "enabled": true,
+        "copies": 36090,
+        "sourceWidth": 1416,
+        "sourceHeight": 899,
+        "copyAndRenderMeanMs": 0.144,
+        "copyAndRenderMaxMs": 10.2,
+        "timing": "CPU submission; GPU completion not measured"
+      },
+      "audioState": "suspended",
+      "audioSources": 1,
+      "audioRms": 0,
+      "gain": 1.7,
+      "memory": {
+        "Documents": 1,
+        "JSEventListeners": 718,
+        "Nodes": 4645,
+        "JSHeapUsedSize": 22628468,
+        "JSHeapTotalSize": 24657920
+      },
+      "pending": [0, 0],
+      "held": [],
+      "heldPlayer2": []
+    }
+  ],
+  "errors": [],
+  "requestsOutsideLoopback": [],
+  "complete": true
+}

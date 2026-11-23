@@ -1,0 +1,22 @@
+node_modules/
+dist/
+dist-beta/
+coverage/
+.env
+.env.*
+!.env.example
+*.local
+.DS_Store
+*.log
+
+# Dépendances externes générées et dossiers de référence hors dépôt
+public/vendor/
+test-results/
+playwright-report/
+cfg/
+snap/
+Rolling Madness 3D 2005/
+/3D_assets_for_animated_entities/
+local-roms/rolling-actors.json
+local-roms/*.png
+MM_original_levels_full_views/

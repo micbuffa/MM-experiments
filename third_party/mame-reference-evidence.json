@@ -1,0 +1,806 @@
+{
+  "date": "2026-11-09T09:26:10.202Z",
+  "version": "0.271",
+  "bios": "ttl",
+  "binarySha256": "8a6cf7131934f7d8dcfed60daeeb75276cca62e91ef734e1e713de263f15553d",
+  "sourceWasmSha256": "368c682fb15296cb8003fa771d9e5cc25616624747d3dc7ec7eab29f060dc9b7",
+  "method": "Rejeu des octets des quatre ports, phase fixe par série ; aucune modification de ROM ou de physique.",
+  "phases": [-1, 0, 1, 2],
+  "trials": [
+    {
+      "amplitude": 0,
+      "phaseShift": -1,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        }
+      ],
+      "referenceDelta": [0, 0],
+      "webDeltaNativePixels": [0, 0],
+      "absoluteDifference": [0, 0]
+    },
+    {
+      "amplitude": 64,
+      "phaseShift": -1,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        }
+      ],
+      "referenceDelta": [0.9499274309999919, -1.1331640060000012],
+      "webDeltaNativePixels": [0.8872742938703645, -1.1699598328034928],
+      "absoluteDifference": [0.06265313712962739, 0.03679582680349158]
+    },
+    {
+      "amplitude": 256,
+      "phaseShift": -1,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 161.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [156, 41, 169, 54]
+        }
+      ],
+      "referenceDelta": [2.949927430999992, -1.1331640060000012],
+      "webDeltaNativePixels": [2.9448053467741446, -1.121230262189197],
+      "absoluteDifference": [0.0051220842258472565, 0.011933743810804254]
+    },
+    {
+      "amplitude": 416,
+      "phaseShift": -1,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 155.841584158,
+          "y": 46.97029703,
+          "pixels": 101,
+          "bounds": [150, 41, 163, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 151.87,
+          "y": 46.99,
+          "pixels": 100,
+          "bounds": [146, 41, 159, 54]
+        }
+      ],
+      "referenceDelta": [-7.0262264149999965, -1.0854716979999992],
+      "webDeltaNativePixels": [-7.02677873730992, -1.072454853113628],
+      "absoluteDifference": [0.0005523223099235253, 0.013016844886371226]
+    },
+    {
+      "amplitude": 768,
+      "phaseShift": -1,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 157.841584158,
+          "y": 46.97029703,
+          "pixels": 101,
+          "bounds": [152, 41, 165, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 155.841584158,
+          "y": 46.97029703,
+          "pixels": 101,
+          "bounds": [150, 41, 163, 54]
+        }
+      ],
+      "referenceDelta": [-3.054642257000012, -1.1051746680000036],
+      "webDeltaNativePixels": [-3.069139213571081, -1.132073008858393],
+      "absoluteDifference": [0.014496956571069308, 0.02689834085838938]
+    },
+    {
+      "amplitude": 0,
+      "phaseShift": 0,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        }
+      ],
+      "referenceDelta": [0, 0],
+      "webDeltaNativePixels": [0, 0],
+      "absoluteDifference": [0, 0]
+    },
+    {
+      "amplitude": 64,
+      "phaseShift": 0,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        }
+      ],
+      "referenceDelta": [0.9499274309999919, -1.1331640060000012],
+      "webDeltaNativePixels": [0.8872742938703645, -1.1699598328034928],
+      "absoluteDifference": [0.06265313712962739, 0.03679582680349158]
+    },
+    {
+      "amplitude": 256,
+      "phaseShift": 0,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        }
+      ],
+      "referenceDelta": [0.9499274309999919, -1.1331640060000012],
+      "webDeltaNativePixels": [2.9448053467741446, -1.121230262189197],
+      "absoluteDifference": [1.9948779157741527, 0.011933743810804254]
+    },
+    {
+      "amplitude": 416,
+      "phaseShift": 0,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        }
+      ],
+      "referenceDelta": [0.9499274309999919, -1.1331640060000012],
+      "webDeltaNativePixels": [-7.02677873730992, -1.072454853113628],
+      "absoluteDifference": [7.976706168309912, 0.06070915288637324]
+    },
+    {
+      "amplitude": 768,
+      "phaseShift": 0,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        }
+      ],
+      "referenceDelta": [0.9499274309999919, -1.1331640060000012],
+      "webDeltaNativePixels": [-3.069139213571081, -1.132073008858393],
+      "absoluteDifference": [4.0190666445710725, 0.0010909971416082076]
+    },
+    {
+      "amplitude": 0,
+      "phaseShift": 1,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        }
+      ],
+      "referenceDelta": [0, 0],
+      "webDeltaNativePixels": [0, 0],
+      "absoluteDifference": [0, 0]
+    },
+    {
+      "amplitude": 64,
+      "phaseShift": 1,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        }
+      ],
+      "referenceDelta": [0.9499274309999919, -1.1331640060000012],
+      "webDeltaNativePixels": [0.8872742938703645, -1.1699598328034928],
+      "absoluteDifference": [0.06265313712962739, 0.03679582680349158]
+    },
+    {
+      "amplitude": 256,
+      "phaseShift": 1,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 161.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [156, 41, 169, 54]
+        }
+      ],
+      "referenceDelta": [2.949927430999992, -1.1331640060000012],
+      "webDeltaNativePixels": [2.9448053467741446, -1.121230262189197],
+      "absoluteDifference": [0.0051220842258472565, 0.011933743810804254]
+    },
+    {
+      "amplitude": 416,
+      "phaseShift": 1,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 157.841584158,
+          "y": 46.97029703,
+          "pixels": 101,
+          "bounds": [152, 41, 165, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 153.87,
+          "y": 46.99,
+          "pixels": 100,
+          "bounds": [148, 41, 161, 54]
+        }
+      ],
+      "referenceDelta": [-5.0262264149999965, -1.0854716979999992],
+      "webDeltaNativePixels": [-7.02677873730992, -1.072454853113628],
+      "absoluteDifference": [2.0005523223099235, 0.013016844886371226]
+    },
+    {
+      "amplitude": 768,
+      "phaseShift": 1,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 157.841584158,
+          "y": 46.97029703,
+          "pixels": 101,
+          "bounds": [152, 41, 165, 54]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 155.841584158,
+          "y": 46.97029703,
+          "pixels": 101,
+          "bounds": [150, 41, 163, 54]
+        }
+      ],
+      "referenceDelta": [-3.054642257000012, -1.1051746680000036],
+      "webDeltaNativePixels": [-3.069139213571081, -1.132073008858393],
+      "absoluteDifference": [0.014496956571069308, 0.02689834085838938]
+    },
+    {
+      "amplitude": 0,
+      "phaseShift": 2,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        }
+      ],
+      "referenceDelta": [0, 0],
+      "webDeltaNativePixels": [0, 0],
+      "absoluteDifference": [0, 0]
+    },
+    {
+      "amplitude": 64,
+      "phaseShift": 2,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        }
+      ],
+      "referenceDelta": [0.9499274309999919, -1.1331640060000012],
+      "webDeltaNativePixels": [0.8872742938703645, -1.1699598328034928],
+      "absoluteDifference": [0.06265313712962739, 0.03679582680349158]
+    },
+    {
+      "amplitude": 256,
+      "phaseShift": 2,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        }
+      ],
+      "referenceDelta": [0.9499274309999919, -1.1331640060000012],
+      "webDeltaNativePixels": [2.9448053467741446, -1.121230262189197],
+      "absoluteDifference": [1.9948779157741527, 0.011933743810804254]
+    },
+    {
+      "amplitude": 416,
+      "phaseShift": 2,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        }
+      ],
+      "referenceDelta": [0.9499274309999919, -1.1331640060000012],
+      "webDeltaNativePixels": [-7.02677873730992, -1.072454853113628],
+      "absoluteDifference": [7.976706168309912, 0.06070915288637324]
+    },
+    {
+      "amplitude": 768,
+      "phaseShift": 2,
+      "samples": [
+        {
+          "frame": 1199,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1206,
+          "width": 336,
+          "height": 240,
+          "x": 158.896226415,
+          "y": 48.075471698,
+          "pixels": 106,
+          "bounds": [153, 42, 166, 55]
+        },
+        {
+          "frame": 1212,
+          "width": 336,
+          "height": 240,
+          "x": 159.846153846,
+          "y": 46.942307692,
+          "pixels": 104,
+          "bounds": [154, 41, 167, 54]
+        }
+      ],
+      "referenceDelta": [0.9499274309999919, -1.1331640060000012],
+      "webDeltaNativePixels": [-3.069139213571081, -1.132073008858393],
+      "absoluteDifference": [4.0190666445710725, 0.0010909971416082076]
+    }
+  ],
+  "conclusion": "Concordance au décalage fixe -1 pour toutes les amplitudes ; forte dépendance de phase. Aucun défaut propre au cœur Web démontré, saut non validé.",
+  "limits": [
+    "Comparaison des ports et images, sans égalité des états internes.",
+    "Horloge vidéo native distincte ; minuteur initial environ une seconde différent.",
+    "Localisation optique à tolérance un pixel natif, pas coordonnées physiques.",
+    "Test au départ du niveau 1, aucune trajectoire de saut.",
+    "MAME 0.271 est une référence disponible, pas la dernière version."
+  ],
+  "sources": [
+    "https://raw.githubusercontent.com/mamedev/mame/mame0271/src/mame/atari/atarisy1.cpp",
+    "https://raw.githubusercontent.com/mamedev/mame/mame0271/src/frontend/mame/luaengine_mem.cpp"
+  ],
+  "exploratoryWebReplayControl": {
+    "method": "Document/runtime frais ; pending natif nul ; retours de ports enregistrés substitués au handler réel. Sonde ponctuelle hors script conservé.",
+    "browser": "157.0.8103.38",
+    "trials": [
+      {
+        "amplitude": 64,
+        "canvas": [1110, 832],
+        "initial": {
+          "x": 525.4938474159147,
+          "y": 168.01558654634945,
+          "pixels": 1219,
+          "bounds": [505, 146, 550, 193]
+        },
+        "final": {
+          "x": 528.4250214224508,
+          "y": 163.95972579263068,
+          "pixels": 1167,
+          "bounds": [508, 142, 553, 190]
+        },
+        "dx": 2.9311740065360254,
+        "dy": -4.055860753718775,
+        "nativePendingAlwaysZero": true
+      },
+      {
+        "amplitude": 256,
+        "canvas": [1110, 832],
+        "initial": {
+          "x": 525.4938474159147,
+          "y": 168.01558654634945,
+          "pixels": 1219,
+          "bounds": [505, 146, 550, 193]
+        },
+        "final": {
+          "x": 535.2222222222222,
+          "y": 164.12865497076024,
+          "pixels": 1197,
+          "bounds": [515, 142, 560, 190]
+        },
+        "dx": 9.728374806307443,
+        "dy": -3.886931575589216,
+        "nativePendingAlwaysZero": true
+      },
+      {
+        "amplitude": 416,
+        "canvas": [1110, 832],
+        "initial": {
+          "x": 525.4938474159147,
+          "y": 168.01558654634945,
+          "pixels": 1219,
+          "bounds": [505, 146, 550, 193]
+        },
+        "final": {
+          "x": 502.28038194444446,
+          "y": 164.29774305555554,
+          "pixels": 1152,
+          "bounds": [482, 142, 527, 190]
+        },
+        "dx": -23.213465471470272,
+        "dy": -3.7178434907939106,
+        "nativePendingAlwaysZero": true
+      }
+    ]
+  }
+}

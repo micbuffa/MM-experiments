@@ -1,0 +1,100 @@
+  // The native launch starts at the cup. Place the axle back along the track.
+  const catX = 63;
+  const cupZ = 70;
+  const reach = 1.25;
+  const catY = mechanismHeight(cells, catX + 0.5, cupZ - 0.5);
+  if (catY !== undefined) {
+    const root = new TransformNode('level4-catapult', scene);
+    root.position.set(catX - xOff, catY, cupZ - reach - zOff);
+    root.rotation.y = -Math.PI / 2;
+    const stone = scene.getMaterialByName('level4-floor') ?? mountMat;
+    const foundation = CreateBox(
+      'level4-catapult-foundation',
+      { width: 1.22, height: 0.15, depth: 1.16 },
+      scene,
+    );
+    foundation.position.y = 0.075;
+    foundation.material = mountMat;
+    foundation.receiveShadows = true;
+    foundation.parent = root;
+    casters.push(foundation);
+    for (const x of [-0.3, 0.3]) {
+      for (const z of [-0.285, 0.285]) {
+        const tile = CreateBox(
+          `level4-catapult-paving-${x}-${z}`,
+          { width: 0.57, height: 0.06, depth: 0.53 },
+          scene,
+        );
+        tile.position.set(x, 0.177, z);
+        tile.parent = root;
+        tile.material = stone;
+        tile.receiveShadows = true;
+      }
+    }
+    for (const side of [-1, 1]) {
+      const support = CreateBox(
+        `level4-catapult-support-${side}`,
+        { width: 0.74, height: 0.5, depth: 0.19 },
+        scene,
+      );
+      support.position.set(0, 0.38, side * 0.44);
+      support.material = stone;
+      support.parent = root;
+      casters.push(support);
+    }
+    const axle = CreateCylinder(
+      'level4-catapult-bearing',
+      { diameter: 0.31, height: 0.92, tessellation: 12 },
+      scene,
+    );
+    axle.rotation.x = Math.PI / 2;
+    axle.position.y = 0.54;
+    axle.material = chromeMat;
+    axle.parent = root;
+    const pivot = new TransformNode('level4-catapult-axle', scene);
+    pivot.position.y = 0.54;
+    pivot.parent = root;
+    const arm = CreateBox(
+      'level4-catapult-arm',
+      { width: 1.05, height: 0.11, depth: 0.25 },
+      scene,
+    );
+    arm.position.set(0.44, -0.24, 0);
+    arm.rotation.z = -0.53;
+    arm.material = redMat;
+    arm.parent = pivot;
+    const cup = CreateLathe(
+      'level4-catapult-cup',
+      {
+        shape: [
+          [0, 0],
+          [0.36, 0],
+          [0.53, 0.09],
+          [0.66, 0.23],
+          [0.65, 0.28],
+          [0.57, 0.28],
+          [0.44, 0.12],
+          [0, 0.1],
+        ].map(([r, y]) => new Vector3(r, y, 0)),
+        tessellation: 28,
+        sideOrientation: Mesh.DOUBLESIDE,
+      },
+      scene,
+    );
+    cup.position.set(reach, -0.56, 0);
+    cup.material = redMat;
+    cup.parent = pivot;
+    casters.push(axle, arm, cup);
+
+    scene.metadata ??= {};
+    Object.assign(scene.metadata, {
+      setLevel4CatapultFrame(frame: number | undefined) {
+        // Lift promptly, hold briefly, then follow the native return frames.
+        pivot.rotation.z =
+          frame === undefined
+            ? 0
+            : Math.max(0, Math.min(frame / 3, (18 - frame) / 5, 1)) * 0.95;
+      },
+    });
+  }
+

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+Marble_Madness_Prototype_01_SPEC.md
+public/vendor/
+third_party/LICENSE.*.txt
+test-results/
+playwright-report/
+/3D_assets_for_animated_entities/
+
+# Converted SketchUp mesh data
+src/rendering/assets/atariSystem1.json

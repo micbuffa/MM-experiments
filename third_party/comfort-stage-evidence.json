@@ -1,0 +1,62 @@
+{
+  "browser": "157.0.8103.38",
+  "method": "Real runtime, original local ROMs, automated trusted input; not physical comfort validation",
+  "gain": 1.7,
+  "boostedIterations": 24,
+  "nativePackets": [
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0],
+    [128, 0]
+  ],
+  "releaseLast": [
+    [0, 0],
+    [0, 0],
+    [0, 0]
+  ],
+  "boost": {
+    "mode": "held-directional-trackball",
+    "held": false,
+    "active": false,
+    "countsPerIterationL1": 128,
+    "direction": null,
+    "iterations": 9,
+    "sentX": 1152,
+    "sentY": 0
+  },
+  "generatedCommands": 9,
+  "pauseFrame": 1138,
+  "stageCopies": 90,
+  "spaceDoesNotResume": true,
+  "errors": [],
+  "date": "2026-11-09",
+  "humanFeedback": {
+    "gain0_5": "Rejeté : contrôle normal insuffisant et pas d’accélération ressentie",
+    "requestedChange": "Boost Espace et progression des tâches 3D"
+  },
+  "limits": [
+    "Automated trusted keyboard and mouse input, not physical trackpad comfort validation.",
+    "Arcade physics and jump success remain owned by the original game.",
+    "Perspective presentation of live video, not reconstructed level meshes."
+  ]
+}

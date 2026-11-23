@@ -1,0 +1,51 @@
+{
+  "frontend": "4.2.3",
+  "frontendCommit": "e150dc0491ae747028919fb82d6598954976ede6",
+  "core": "mame2003_plus",
+  "wrapperVersion": "2.0.2",
+  "buildStart": "2025-06-14T19:09:40+00:00",
+  "assets": [
+    {
+      "path": "emulator.min.js",
+      "url": "https://cdn.emulatorjs.org/4.2.3/data/emulator.min.js",
+      "sha256": "6aec3fd7bb2721255801b0a6af02e47e78b05e28a1822b1f213aacbd348abaee",
+      "bytes": 426343
+    },
+    {
+      "path": "emulator.min.css",
+      "url": "https://cdn.emulatorjs.org/4.2.3/data/emulator.min.css",
+      "sha256": "16406c60b2dc3b04ae9b115e308613e6f567a0cc7068e21d9d0c1e5030fb395e",
+      "bytes": 25630
+    },
+    {
+      "path": "version.json",
+      "url": "https://cdn.emulatorjs.org/4.2.3/data/version.json",
+      "sha256": "d8991427000a96fb97daefdb62178071e9bbff911760706148e584ae8d69f9e7",
+      "bytes": 126
+    },
+    {
+      "path": "compression/extract7z.js",
+      "url": "https://cdn.emulatorjs.org/4.2.3/data/compression/extract7z.js",
+      "sha256": "4ac9933b995a516cb6b3ca4027db860278372a20c21c405d93ceb1998498853a",
+      "bytes": 280155
+    },
+    {
+      "path": "cores/mame2003_plus-wasm.data",
+      "url": "https://cdn.emulatorjs.org/4.2.3/data/cores/mame2003_plus-wasm.data",
+      "sha256": "cb6d9c80a88b65d1579d16d02128a678f8d1cd3f51de1479e647cea27b13247b",
+      "bytes": 5391355
+    },
+    {
+      "path": "cores/reports/mame2003_plus.json",
+      "url": "https://cdn.emulatorjs.org/4.2.3/data/cores/reports/mame2003_plus.json",
+      "sha256": "bda548626942b8878beb6de3487043eea80e633bd53dd69e7bae7457373a48a1",
+      "bytes": 127
+    },
+    {
+      "path": "localization/af-FR.json",
+      "url": "https://raw.githubusercontent.com/EmulatorJS/EmulatorJS/e150dc0491ae747028919fb82d6598954976ede6/data/localization/af-FR.json",
+      "sha256": "98c0a0748b8a79c4888b756cc032721203bd07ab1e01c82ceb78bf507531bae9",
+      "bytes": 10847
+    }
+  ]
+}

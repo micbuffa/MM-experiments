@@ -1,0 +1,58 @@
+{
+  "fbneo": {
+    "archiveSha256": "315a25e0bcd61d58ee0d9e8b1dbf3740b9e0ca4b7d0726f848ce1068de73437c",
+    "wasmSha256": "b8dd796759baa6df66801602ca5fc55d3389c9da34408246d306c63f55283516",
+    "wasmBytes": 43095367,
+    "coreMetadata": {
+      "name": "fbneo",
+      "extensions": ["zip", "7z"],
+      "makeoptions": {
+        "arguments": [],
+        "buildpath": "./src/burner/libretro",
+        "makescript": "Makefile"
+      },
+      "options": {},
+      "save": false,
+      "license": "src/license.txt",
+      "repo": "https://github.com/EmulatorJS/FBNeo"
+    },
+    "build": {
+      "minimumEJSVersion": "4.2.2",
+      "version": "2.0.2"
+    },
+    "strings": {
+      "Marble Madness (set 1)": -1,
+      "136033.623": -1,
+      "136032.205": -1,
+      "atarisy1": -1
+    }
+  },
+  "mame2003_plus": {
+    "archiveSha256": "cb6d9c80a88b65d1579d16d02128a678f8d1cd3f51de1479e647cea27b13247b",
+    "wasmSha256": "368c682fb15296cb8003fa771d9e5cc25616624747d3dc7ec7eab29f060dc9b7",
+    "wasmBytes": 27858472,
+    "coreMetadata": {
+      "name": "mame2003_plus",
+      "extensions": ["zip"],
+      "makeoptions": {
+        "arguments": [],
+        "buildpath": "./",
+        "makescript": "Makefile"
+      },
+      "options": {},
+      "save": false,
+      "license": "LICENSE.md",
+      "repo": "https://github.com/EmulatorJS/mame2003-plus-libretro"
+    },
+    "build": {
+      "minimumEJSVersion": "4.2.2",
+      "version": "2.0.2"
+    },
+    "strings": {
+      "Marble Madness (set 1)": 17534013,
+      "136033.623": 17192144,
+      "136032.205": 17152523,
+      "atarisy1": 17003449
+    }
+  }
+}

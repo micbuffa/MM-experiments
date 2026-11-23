@@ -1,0 +1,49 @@
+{
+  "name": "marble-madness-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:beta": "tsc --noEmit && node scripts/build-beta.mjs",
+    "preview": "vite preview",
+    "preview:beta": "vite preview --config vite.beta.config.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run build",
+    "setup:emulator": "node scripts/setup-emulator.mjs",
+    "test:browser": "playwright test",
+    "test:preview": "npm run build && playwright test --config=playwright.preview.config.ts",
+    "measure:impulses": "node scripts/measure-impulses.mjs",
+    "measure:ports": "node scripts/measure-impulses.mjs --ports",
+    "measure:reference": "node scripts/compare-reference.mjs",
+    "measure:profiles": "node scripts/measure-impulses.mjs --profiles",
+    "measure:calibration": "node scripts/measure-impulses.mjs --calibration",
+    "measure:endurance": "node scripts/measure-endurance.mjs"
+  },
+  "dependencies": {
+    "@babylonjs/core": "9.33.2",
+    "fflate": "0.8.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.1",
+    "@types/node": "26.6.6",
+    "@vitest/coverage-v8": "5.1.0",
+    "eslint": "10.14.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1",
+    "vite": "8.3.5",
+    "vitest": "5.1.0"
+  }
+}

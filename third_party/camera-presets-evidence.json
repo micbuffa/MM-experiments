@@ -1,0 +1,13 @@
+{
+  "browser": "157.0.8103.40",
+  "method": "Real local arcade runtime and automated trusted input; visual screenshots examined separately",
+  "pausedFrame": 1062,
+  "stableFrame": 1062,
+  "runningFrameAdvanced": true,
+  "presetRetained": "front",
+  "stageCopies": 360,
+  "paused": true,
+  "gain": 1.7,
+  "pending": [0, 0],
+  "errors": []
+}

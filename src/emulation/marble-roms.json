@@ -1,0 +1,188 @@
+{
+  "set": "marble",
+  "description": "Marble Madness (set 1)",
+  "source": "https://github.com/EmulatorJS/mame2003-plus-libretro/blob/3a72dae33dfae65871158f03dbc1e849d74b4060/src/drivers/atarisy1.c",
+  "sourceNote": "R\u00e9vision annonc\u00e9e par le c\u0153ur r\u00e9ellement lanc\u00e9 dans Chrome (Git Version 3a72dae) ; 30 dumps recoup\u00e9s avec le pilote.",
+  "roms": [
+    {
+      "name": "136032.205",
+      "size": 16384,
+      "crc32": "88d0be26",
+      "sha1": "d124045eccc562ff0423b23a240e27ad740fa0c9"
+    },
+    {
+      "name": "136032.206",
+      "size": 16384,
+      "crc32": "3c79ef05",
+      "sha1": "20fdca7131478e1ee12691bdafd2d5bb74cbd16f"
+    },
+    {
+      "name": "136033.623",
+      "size": 16384,
+      "crc32": "284ed2e9",
+      "sha1": "a24d2fd587dffcc8536ef28fcbcf5c964a6b67a9"
+    },
+    {
+      "name": "136033.624",
+      "size": 16384,
+      "crc32": "d541b021",
+      "sha1": "978b1565da746f7389eaf7646604990fb28d47ed"
+    },
+    {
+      "name": "136033.625",
+      "size": 16384,
+      "crc32": "563755c7",
+      "sha1": "a444b72ff4cdecee3b9dd7e636d658c31ecc186c"
+    },
+    {
+      "name": "136033.626",
+      "size": 16384,
+      "crc32": "860feeb3",
+      "sha1": "d6059c1fe13f28ada27f6586215a16e2117e3ecd"
+    },
+    {
+      "name": "136033.627",
+      "size": 16384,
+      "crc32": "d1dbd439",
+      "sha1": "cefc0fa9c71512c961272fcf0f9c069f1396468e"
+    },
+    {
+      "name": "136033.628",
+      "size": 16384,
+      "crc32": "957d6801",
+      "sha1": "b007d9e45a1442ab1c9ec1463f9f46ea85fb0659"
+    },
+    {
+      "name": "136033.229",
+      "size": 16384,
+      "crc32": "c81d5c14",
+      "sha1": "0464ea183685de83e797b9d946b4acc409f4c451"
+    },
+    {
+      "name": "136033.630",
+      "size": 16384,
+      "crc32": "687a09f7",
+      "sha1": "95e31acf29cd8d51beefa9b0e4acd92b81980c2f"
+    },
+    {
+      "name": "136033.107",
+      "size": 16384,
+      "crc32": "f3b8745b",
+      "sha1": "4754eac5e6d8547b3ee00f3f48eaa560eb403862"
+    },
+    {
+      "name": "136033.108",
+      "size": 16384,
+      "crc32": "e51eecaa",
+      "sha1": "37d51a9e9cb33d1156d02a312ac8e202a18d7c20"
+    },
+    {
+      "name": "136033.421",
+      "size": 16384,
+      "crc32": "78153dc3",
+      "sha1": "d4e68226b87df8834dc3d6daa9d683f17896c32e"
+    },
+    {
+      "name": "136033.422",
+      "size": 16384,
+      "crc32": "2e66300e",
+      "sha1": "49acb9443c5d2c1016cde7f489deab2575dd82ca"
+    },
+    {
+      "name": "136032.107",
+      "size": 8192,
+      "crc32": "7a29dc07",
+      "sha1": "72ba464da01bd6d3a91b8d9997d5ac14b6f47aad"
+    },
+    {
+      "name": "136033.137",
+      "size": 16384,
+      "crc32": "7a45f5c1",
+      "sha1": "b826a178660ff2e278558e4779586737751dca5e"
+    },
+    {
+      "name": "136033.138",
+      "size": 16384,
+      "crc32": "7e954a88",
+      "sha1": "238a913529781f424a6f49c3fba1524684d0cbcf"
+    },
+    {
+      "name": "136033.139",
+      "size": 16384,
+      "crc32": "1eb1bb5f",
+      "sha1": "987a8289fd4be06b6899bb8c620ddfa4c4b966b0"
+    },
+    {
+      "name": "136033.140",
+      "size": 16384,
+      "crc32": "8a82467b",
+      "sha1": "25538e98e5fdadfa6de3bd57ee8658c7add0169d"
+    },
+    {
+      "name": "136033.141",
+      "size": 16384,
+      "crc32": "52448965",
+      "sha1": "e2ce22f89304b2d6858d0c61040d8ff2ee33347f"
+    },
+    {
+      "name": "136033.142",
+      "size": 16384,
+      "crc32": "b4a70e4f",
+      "sha1": "d8e4d6dbbef3be86558ab23646c77400793a5eb1"
+    },
+    {
+      "name": "136033.143",
+      "size": 16384,
+      "crc32": "7156e449",
+      "sha1": "361e024e1173299d0e6b776a7c1be10767cfab0d"
+    },
+    {
+      "name": "136033.144",
+      "size": 16384,
+      "crc32": "4c3e4c79",
+      "sha1": "642e469ce10067502ce3a920066184a9c73a44c5"
+    },
+    {
+      "name": "136033.145",
+      "size": 16384,
+      "crc32": "9062be7f",
+      "sha1": "ae372433da441b69345d67f5e838b8479557517b"
+    },
+    {
+      "name": "136033.146",
+      "size": 16384,
+      "crc32": "14566dca",
+      "sha1": "7134c233daba3b2510d1c08d9efde79c0eec6c20"
+    },
+    {
+      "name": "136033.149",
+      "size": 16384,
+      "crc32": "b6658f06",
+      "sha1": "e719d956f4f9d703a12e2c5520cac0a2f47ea058"
+    },
+    {
+      "name": "136033.151",
+      "size": 16384,
+      "crc32": "84ee1c80",
+      "sha1": "5192c0a2887f46b616d130bdbfffbbd5e394e9a3"
+    },
+    {
+      "name": "136033.153",
+      "size": 16384,
+      "crc32": "daa02926",
+      "sha1": "33c7a38c66fb4d67a6ee88ef2da2bba091439e0c"
+    },
+    {
+      "name": "136033.118",
+      "size": 512,
+      "crc32": "2101b0ed",
+      "sha1": "e4fb8dfa80ed78847c697f9de2bd8540b0c04889"
+    },
+    {
+      "name": "136033.119",
+      "size": 512,
+      "crc32": "19f6e767",
+      "sha1": "041f24cc03c9043c31c3294c9565dfda9bdada74"
+    }
+  ]
+}

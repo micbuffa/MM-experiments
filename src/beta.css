@@ -1,0 +1,375 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #050608;
+  color: #f3f6fb;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  user-select: none;
+}
+
+#beta-stage {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  background: #040507;
+  overflow: hidden;
+}
+
+.beta-pane {
+  position: relative;
+  flex: 1 1 50%;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #000;
+}
+
+#beta-stage[data-mode='direct'] #modern-pane {
+  display: none;
+}
+
+#beta-stage[data-mode='direct'] #arcade-pane {
+  flex: 1 1 100%;
+}
+
+#beta-stage[data-mode='modern'] #arcade-pane {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#beta-stage[data-mode='modern'] #modern-pane {
+  flex: 1 1 100%;
+}
+
+#beta-stage[data-mode='compare'] #arcade-pane {
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+#emulator {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+#emulator > div,
+#emulator .ejs_parent,
+#emulator .ejs_game {
+  position: relative;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#emulator .ejs_menu_bar,
+#emulator .ejs_context_menu,
+#emulator .ejs_virtualGamepad_parent,
+#emulator .ejs_settings_parent,
+#emulator .ejs_popup_box,
+#emulator button,
+#emulator input {
+  display: none !important;
+}
+
+#emulator canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+/* Simulated CRT with scanlines, subtle RGB aperture grille and vignette */
+.crt-screen {
+  position: relative;
+  background: radial-gradient(circle at center, #0e1118 0%, #020305 100%);
+}
+
+.crt-screen #emulator canvas {
+  filter: contrast(1.08) saturate(1.12) brightness(1.04);
+}
+
+.crt-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0) 0px,
+      rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0.34) 2px,
+      rgba(0, 0, 0, 0.34) 4px
+    ),
+    repeating-linear-gradient(
+      to right,
+      rgba(255, 40, 40, 0.035) 0px,
+      rgba(40, 255, 80, 0.035) 1px,
+      rgba(40, 120, 255, 0.035) 2px,
+      rgba(0, 0, 0, 0) 3px
+    ),
+    radial-gradient(
+      ellipse at center,
+      rgba(0, 0, 0, 0) 58%,
+      rgba(0, 0, 0, 0.48) 100%
+    );
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.72);
+}
+
+#babylon-video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+}
+
+.practice-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.practice-hud[hidden] {
+  display: none;
+}
+
+.practice-hud canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.practice-hud-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* Loading screen */
+.beta-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 7, 12, 0.92);
+}
+
+.beta-loading[hidden] {
+  display: none;
+}
+
+.beta-loading-card {
+  padding: 1.5rem 2.25rem;
+  border-radius: 14px;
+  border: 1px solid rgba(140, 180, 255, 0.25);
+  background: rgba(14, 19, 30, 0.88);
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.beta-loading-card h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7cc4ff;
+}
+
+.beta-loading-card p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #cbd5e1;
+}
+
+/* Semi-transparent Attract Mode overlay */
+.attract-overlay {
+  position: absolute;
+  left: 50%;
+  bottom: 1.4rem;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: min(94vw, 760px);
+  pointer-events: none;
+}
+
+.attract-overlay[hidden] {
+  display: none;
+}
+
+.attract-card {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.95rem 1.35rem;
+  border-radius: 14px;
+  border: 1px solid rgba(130, 190, 255, 0.3);
+  background: rgba(8, 12, 22, 0.62);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+}
+
+.attract-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.8rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.key-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #f8fafc;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.55em;
+  padding: 0.14rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+  font-weight: 700;
+  text-align: center;
+}
+
+.level-picker {
+  margin: 0;
+  padding: 0.45rem 0.9rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+}
+
+.level-picker legend {
+  padding: 0 0.45rem;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.level-picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.level-picker input[type='radio'] {
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.attract-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(226, 232, 240, 0.82);
+  text-align: center;
+}
+
+/* Semi-transparent top banner during gameplay */
+.play-banner {
+  position: absolute;
+  top: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem 1rem;
+  max-width: 96vw;
+  padding: 0.4rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 197, 255, 0.26);
+  background: rgba(8, 12, 22, 0.6);
+  backdrop-filter: blur(6px);
+  font-size: 0.82rem;
+  color: #e2e8f0;
+  pointer-events: none;
+}
+
+.play-banner[hidden] {
+  display: none;
+}
+
+.banner-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.banner-item strong {
+  color: #7dd3fc;
+  font-weight: 600;
+}
+
+.banner-accent {
+  color: #fde68a;
+}
+
+/* Practice HUD typography (matching src/styles.css) */
+.practice-hud-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.6rem 1.2rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+}

@@ -1,0 +1,17 @@
+{
+  "browser": "157.0.8103.40",
+  "method": "Real local arcade runtime, trusted 3D mesh clicks and Pointer Lock; visuals inspected separately",
+  "creditAndStartFromMeshes": true,
+  "trackballCaptures": true,
+  "barTransitionPreservesPause": true,
+  "stableFrame": 1115,
+  "stageCopies": 402,
+  "cameraPreset": "front",
+  "paused": true,
+  "boostHeld": false,
+  "pending": [0, 0],
+  "held": [],
+  "heldPlayer2": [],
+  "audioSources": 1,
+  "errors": []
+}

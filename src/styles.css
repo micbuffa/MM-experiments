@@ -1,0 +1,427 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #e9efff;
+  background: #121827;
+}
+
+body {
+  margin: 0;
+}
+main {
+  position: relative;
+  height: 100dvh;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+aside {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  pointer-events: none;
+  line-height: 1.6;
+}
+
+.probe {
+  max-width: 72rem;
+  height: auto;
+  padding: 2rem;
+  margin: auto;
+  line-height: 1.6;
+}
+.probe h1 {
+  line-height: 1.2;
+}
+.eyebrow {
+  color: #f8c479;
+}
+.probe section,
+.probe details {
+  margin-block: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid #455675;
+  border-radius: 0.5rem;
+}
+.probe label,
+.probe input {
+  display: block;
+  margin-block: 0.5rem;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.probe button {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+.probe button:disabled {
+  cursor: default;
+}
+.probe a {
+  color: #a9d5ff;
+}
+.probe pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.probe summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+#status {
+  padding: 0.75rem;
+  background: #213048;
+  border-left: 3px solid #f8c479;
+}
+.emulator-frame {
+  position: relative;
+  width: 100%;
+  height: min(70vh, 36rem);
+  min-height: 20rem;
+  background: #000;
+}
+#emulator {
+  width: 100%;
+  height: 100%;
+}
+#video-stage {
+  position: relative;
+}
+#game-help:not([hidden]) {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+#game-help > div {
+  max-width: calc(100% - 1rem);
+  padding: 0.65rem 0.9rem;
+  background: #111827e6;
+  color: #f4f7ff;
+  border: 1px solid #74809a;
+  border-radius: 0.45rem;
+  font-size: clamp(0.68rem, 2vw, 0.95rem);
+}
+#game-help h3 {
+  margin: 0 0 0.45rem;
+  font-size: 1em;
+}
+#game-help dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.7rem;
+  margin: 0;
+}
+#game-help dt {
+  font-weight: 650;
+}
+#game-help dd {
+  margin: 0;
+}
+#video-stage .babylon-view {
+  display: none;
+}
+#video-stage:is([data-mode='compare'], [data-mode='modern-compare']) {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+#video-stage[data-mode='compare'] .babylon-view,
+#video-stage[data-mode='modern-compare'] .babylon-view,
+#video-stage[data-mode='babylon'] .babylon-view,
+#video-stage[data-mode='stage'] .babylon-view {
+  display: block;
+}
+#video-stage[data-mode='babylon'] .source-view,
+#video-stage[data-mode='stage'] .source-view {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.source-view,
+.babylon-view {
+  min-width: 0;
+}
+.video-frame {
+  height: min(70vh, 36rem);
+  min-height: 20rem;
+  background: #12141a;
+}
+.video-frame canvas {
+  width: 100%;
+  height: 100%;
+}
+#video-mode,
+#game-video-mode,
+#camera-view,
+#game-camera {
+  font: inherit;
+  max-width: 100%;
+  padding: 0.5rem;
+}
+@media (max-width: 640px) {
+  #video-stage:is([data-mode='compare'], [data-mode='modern-compare']) {
+    grid-template-columns: 1fr;
+  }
+  .probe {
+    padding: 1rem;
+  }
+}
+
+/* Les deux surfaces adoptent l'aspect annoncé par le cœur, sans étirer la vidéo. */
+#video-stage .emulator-frame,
+#video-stage .video-frame {
+  position: relative;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: var(--arcade-aspect, 4 / 3);
+}
+#video-stage .video-frame canvas {
+  position: absolute;
+  inset: 0;
+}
+#practice-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  container-type: size;
+}
+#video-stage .video-frame #practice-hud canvas {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: min(100cqw, 100cqh * 4 / 3);
+  height: min(100cqh, 100cqw * 3 / 4);
+  transform: translate(-50%, -50%);
+  image-rendering: pixelated;
+}
+.practice-hud-text {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+}
+#modern-unavailable {
+  display: none;
+}
+#video-stage[data-mode='modern-compare'][data-modern-ready='false']
+  #babylon-video {
+  visibility: hidden;
+}
+#video-stage[data-mode='modern-compare'][data-modern-ready='false']
+  #modern-unavailable {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+}
+
+.game-hud {
+  display: none;
+}
+#game-player[data-playing='true'] {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  width: 100%;
+  height: 100dvh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: #080e18;
+  padding: max(0.5rem, env(safe-area-inset-top))
+    max(0.75rem, env(safe-area-inset-right))
+    max(0.5rem, env(safe-area-inset-bottom))
+    max(0.75rem, env(safe-area-inset-left));
+  overflow: auto;
+}
+#game-player[data-playing='true'] .game-hud {
+  display: block;
+  flex: 0 0 auto;
+}
+.game-hud-title,
+.game-hud-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.game-hud-title {
+  justify-content: space-between;
+}
+.game-hud button {
+  font: inherit;
+  padding: 0.35rem 0.7rem;
+}
+.game-hud p {
+  margin: 0.3rem 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+#game-control-status {
+  color: #bad9e7;
+}
+#game-player[data-playing='true'] #video-stage {
+  flex: 1 1 auto;
+  min-height: 12rem;
+}
+#game-player[data-playing='true'] .source-view,
+#game-player[data-playing='true'] .babylon-view {
+  height: 100%;
+}
+#game-player[data-playing='true'] .babylon-view > p,
+#game-player[data-playing='true'] .source-view > p {
+  display: none;
+}
+#game-player[data-playing='true'] #video-stage .video-frame,
+#game-player[data-playing='true'] #video-stage .emulator-frame {
+  height: 100%;
+  aspect-ratio: auto;
+}
+#game-player[data-playing='true'] #video-stage[data-mode='modern-compare'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 0;
+}
+#game-player[data-playing='true']
+  [data-mode='modern-compare']
+  :is(.source-view, .babylon-view) {
+  position: relative;
+}
+#game-player[data-playing='true']
+  [data-mode='modern-compare']
+  :is(.source-view, .babylon-view)
+  > p {
+  display: block;
+  position: absolute;
+  inset: auto 0.35rem 0.35rem auto;
+  z-index: 1;
+  margin: 0;
+  padding: 0.2rem 0.4rem;
+  background: #080e18dc;
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+body:has(#game-player[data-playing='true']) {
+  overflow: hidden;
+}
+
+.game-hud .game-camera-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+}
+#game-camera {
+  padding: 0.2rem 0.4rem;
+}
+
+#explore-reticle {
+  display: none;
+}
+#video-stage[data-exploring='true'] #explore-reticle {
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  color: #fff8cd;
+  pointer-events: none;
+  text-shadow: 0 0 3px #000;
+  font-size: 1.5rem;
+}
+.game-hud-actions label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.8rem;
+}
+.game-hud-actions select {
+  font: inherit;
+  padding: 0.3rem;
+}
+.game-hud-actions input[type='checkbox'],
+.probe input[type='checkbox'] {
+  display: inline-block;
+}
+#crt-options {
+  margin-block: 1rem;
+  border: 1px solid #455675;
+  border-radius: 0.5rem;
+}
+#crt-options input[type='range'] {
+  width: min(100%, 18rem);
+}
+#render-quality {
+  font: inherit;
+  padding: 0.5rem;
+  max-width: 100%;
+}
+
+#game-player:has(#video-stage[data-exploring='true']) .arcade-hint,
+#game-player:has(#video-stage[data-exploring='true'])
+  [data-command]:not([data-command='pause']) {
+  display: none;
+}
+
+.terrain-controls {
+  position: absolute;
+  inset: 1rem auto auto 1rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: #121827;
+}
+.terrain-controls label,
+.terrain-controls input {
+  display: block;
+}
+.terrain-controls p {
+  margin: 0.45rem 0 0;
+}
+
+#terrain-reference {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(100vw, 133.333333dvh);
+  height: min(75vw, 100dvh);
+  transform: translate(-50%, -50%);
+  opacity: 0.5;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+
+#terrain-player {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+#terrain-return {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 2;
+  padding: 0.5rem 0.75rem;
+  background: #121827;
+  border-radius: 0.35rem;
+}

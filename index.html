@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' blob: 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: ws://localhost:* ws://127.0.0.1:*; img-src 'self' blob: data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+    />
+    <link
+      rel="stylesheet"
+      href="%BASE_URL%vendor/emulatorjs/4.2.3/data/emulator.min.css"
+    />
+    <title>Marble Madness — Arcade Lounge</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <main class="probe">
+      <header>
+        <p class="eyebrow">
+          Prototype 03 · Bar explorable et audio positionnel
+        </p>
+        <h1>Marble Madness — Arcade Lounge</h1>
+        <p>
+          EmulatorJS 4.2.3 · candidat MAME 2003-Plus. Crédit, Start et capture
+          disponibles. Le confort du trackpad et l’écoute restent à valider.
+        </p>
+      </header>
+      <section aria-labelledby="files-title">
+        <h2 id="files-title">1. Choisir votre archive locale</h2>
+        <p>
+          Jeu <strong>marble</strong> et BIOS Atari System 1 facultatif : les 30
+          fichiers attendus peuvent être répartis entre les deux ZIP. Les
+          fichiers restent locaux, sans upload ni stockage persistant dans le
+          navigateur.
+        </p>
+        <p id="local-rom-status" aria-live="polite" hidden></p>
+        <label for="archive">Jeu — marble.zip (16 Mio maximum)</label>
+        <input type="file" id="archive" accept=".zip" />
+        <label for="bios"
+          >BIOS facultatif — atarisy1.zip (16 Mio maximum)</label
+        >
+        <input type="file" id="bios" accept=".zip" />
+        <div class="actions">
+          <button id="prepare" type="button">Vérifier et préparer</button>
+          <button id="new-session" type="button">Nouvelle session</button>
+          <button id="pause" type="button" disabled>
+            Suspendre et couper le son
+          </button>
+        </div>
+        <p id="status" role="status" aria-live="polite">
+          En attente de votre archive. Sans ROM, le lancement du jeu ne peut pas
+          être vérifié.
+        </p>
+      </section>
+      <section aria-labelledby="emulator-title">
+        <h2 id="emulator-title">2. Lancer le cœur et observer le jeu</h2>
+        <p>
+          Après vérification, un bouton de démarrage apparaît dans le cadre.
+          Vérifier le mode attract et l’audio. Utiliser ensuite Crédit, Start
+          joueur 1, puis Capturer le trackpad. Le confort des commandes doit
+          être essayé par Michel.
+        </p>
+        <div class="actions" aria-label="Commandes de jeu">
+          <button id="credit" type="button" disabled>Crédit</button>
+          <button id="start-intermediate" type="button" hidden>
+            Niveau 2 · F2
+          </button>
+          <button id="start-level3" type="button" hidden>Niveau 3 · F3</button>
+          <button id="start-level4" type="button" hidden>Niveau 4 · F4</button>
+          <button id="start-level5" type="button" hidden>Niveau 5 · F5</button>
+          <button id="start-player" type="button" disabled>
+            Start joueur 1
+          </button>
+          <button id="start-player2" type="button" disabled>
+            Start joueur 2
+          </button>
+          <button id="capture" type="button" disabled>
+            Capturer le trackpad
+          </button>
+          <button id="resume" type="button" disabled>
+            Reprendre / activer le son
+          </button>
+        </div>
+        <label for="gain"
+          >Sensibilité X/Y (expérimentale)
+          <output id="gain-value">1,70×</output></label
+        >
+        <input
+          id="gain"
+          type="range"
+          min="0.25"
+          max="4"
+          step="0.05"
+          value="1.7"
+          disabled
+        />
+        <button id="gain-reset" type="button" disabled>
+          Contrôle normal (1,70×)
+        </button>
+        <p id="boost-status" aria-live="polite">
+          Boost prêt : maintenir Espace et guider au trackpad pendant le jeu.
+          Relâcher Espace rend le contrôle normal. Échap met en pause.
+        </p>
+        <fieldset id="player-inputs" disabled>
+          <legend>Périphériques de jeu</legend>
+          <p>Joueur 1 · Trackpad ou souris</p>
+          <label for="player2-layout">Joueur 2</label>
+          <select id="player2-layout">
+            <option value="azerty">Clavier AZERTY · ZQSD</option>
+            <option value="qwerty">Clavier QWERTY · WASD</option>
+            <option value="arrows">Flèches</option>
+            <option value="custom">Touches personnalisées</option>
+            <option value="off">Désactivé</option>
+          </select>
+          <div class="actions">
+            <button type="button" data-direction="up">Haut · Z</button>
+            <button type="button" data-direction="left">Gauche · Q</button>
+            <button type="button" data-direction="down">Bas · S</button>
+            <button type="button" data-direction="right">Droite · D</button>
+          </div>
+          <output aria-live="polite"></output>
+        </fieldset>
+        <label for="volume"
+          >Volume <output id="volume-value">50 %</output></label
+        >
+        <input
+          id="volume"
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value="0.5"
+          disabled
+        />
+        <p id="control-status" role="note" aria-live="polite">
+          Commandes disponibles après démarrage du cœur. Échap libère le
+          pointeur et met en pause.
+        </p>
+        <label for="video-mode">Affichage de la même session</label>
+        <select id="video-mode" disabled>
+          <option value="direct">Jeu original</option>
+          <option value="compare">Comparer la vidéo arcade et le plan</option>
+          <option value="babylon">Plan BabylonJS seul</option>
+          <option value="stage">Borne et bar 3D</option>
+          <option value="modern" disabled>3D moderne · Terrain</option>
+          <option value="modern-compare" disabled>
+            Comparer original et 3D moderne
+          </option>
+        </select>
+        <button
+          id="toggle-game-help"
+          type="button"
+          aria-controls="game-help"
+          aria-expanded="false"
+          disabled
+        >
+          Raccourcis (H)
+        </button>
+        <label for="live-terrain-file"
+          >Relevé local pour la vue 3D moderne</label
+        >
+        <input
+          id="live-terrain-file"
+          type="file"
+          accept=".json,application/json"
+          disabled
+        />
+        <p id="live-terrain-status" role="status"></p>
+        <label for="camera-view">Caméra de la borne</label>
+        <select id="camera-view" disabled>
+          <option value="front">Frontale · priorité au jeu</option>
+          <option value="monitor">Moniteur incliné</option>
+          <option value="controls">Écran et commandes</option>
+          <option value="perspective" selected>Borne · perspective</option>
+          <option value="bar">Vue du bar</option>
+        </select>
+        <div id="practice-camera-controls" hidden>
+          <label for="practice-view"
+            >Caméra du parcours
+            <select id="practice-view">
+              <option value="arcade">Cadrage arcade</option>
+              <option value="follow">Suivi de la bille</option>
+              <option value="overhead">Vue du dessus</option>
+              <option value="chase">Derrière la bille</option>
+            </select>
+          </label>
+          <label for="practice-fov"
+            >Champ de vision / zoom
+            <input type="range" id="practice-fov" />
+          </label>
+          <label
+            ><input type="checkbox" id="practice-marble-shadows" />Ombre des
+            billes</label
+          >
+          <p class="arcade-hint">
+            En capture, C change la caméra et + / − élargissent ou resserrent le
+            cadrage.
+          </p>
+        </div>
+        <div class="actions">
+          <button id="explore-bar" type="button" disabled>
+            Explorer le bar
+          </button>
+          <button id="leave-cabinet" type="button" disabled>
+            Quitter la borne
+          </button>
+        </div>
+        <label for="render-quality">Qualité 3D</label>
+        <select id="render-quality" disabled>
+          <option value="eco">Éco · résolution 1×, sans ombres</option>
+          <option value="balanced" selected>Équilibrée · jusqu’à 1,5×</option>
+          <option value="retina">Retina · jusqu’à 2×</option>
+        </select>
+        <fieldset id="crt-options" disabled>
+          <legend>Écran cathodique</legend>
+          <label><input type="checkbox" id="render-crt" />Effet CRT</label>
+          <label for="crt-curvature">Courbure</label>
+          <input type="range" id="crt-curvature" min="0" max="100" value="65" />
+          <label for="crt-scanlines">Lignes de balayage</label>
+          <input type="range" id="crt-scanlines" min="0" max="100" value="55" />
+          <label for="crt-interference">Parasites horizontaux</label>
+          <input
+            type="range"
+            id="crt-interference"
+            min="0"
+            max="100"
+            value="0"
+          />
+        </fieldset>
+        <label
+          ><input type="checkbox" id="spatial-audio" checked disabled />Son
+          positionnel pendant l’exploration</label
+        >
+        <p id="venue-status" role="status"></p>
+        <p id="video-status" role="status">
+          Comparaison disponible après démarrage du cœur.
+        </p>
+        <button id="enter-game" type="button" disabled>
+          Jouer en plein écran 3D
+        </button>
+        <div
+          id="game-player"
+          data-playing="false"
+          role="region"
+          aria-label="Jeu et commandes compactes"
+        >
+          <div class="game-hud">
+            <div class="game-hud-title">
+              <strong>Marble Madness</strong
+              ><button id="leave-game" type="button">Retour à la page</button>
+            </div>
+            <div class="game-hud-actions" aria-label="Commandes compactes">
+              <button type="button" data-command="credit" disabled>
+                Crédit
+              </button>
+              <button type="button" data-command="start-player" disabled>
+                Start
+              </button>
+              <button type="button" data-command="start-player2" disabled>
+                Start J2
+              </button>
+              <button type="button" data-command="capture" disabled>
+                Capturer
+              </button>
+              <button type="button" data-command="pause" disabled>Pause</button>
+              <button type="button" data-command="resume" disabled>
+                Reprendre / son
+              </button>
+            </div>
+            <label class="game-camera-label" for="game-video-mode"
+              >Affichage
+              <select id="game-video-mode" disabled></select>
+            </label>
+            <label class="game-camera-label" for="game-camera"
+              >Caméra de la borne
+              <select id="game-camera" disabled>
+                <option value="front">Frontale</option>
+                <option value="monitor">Moniteur incliné</option>
+                <option value="controls">Écran et commandes</option>
+                <option value="perspective" selected>Borne</option>
+                <option value="bar">Bar</option>
+              </select>
+            </label>
+            <div id="game-practice-camera-controls" hidden>
+              <div class="game-hud-actions">
+                <label for="game-practice-view"
+                  >Caméra du parcours
+                  <select id="game-practice-view"></select>
+                </label>
+                <label for="game-practice-fov"
+                  >Champ / zoom
+                  <input type="range" id="game-practice-fov" />
+                </label>
+                <label
+                  ><input
+                    type="checkbox"
+                    id="game-practice-marble-shadows"
+                  />Ombre des billes</label
+                >
+              </div>
+              <p class="arcade-hint">
+                C change la caméra · + / − règlent le cadrage.
+              </p>
+            </div>
+            <div class="game-hud-actions">
+              <button id="game-explore" type="button" disabled>
+                Explorer le bar
+              </button>
+              <button id="game-leave-cabinet" type="button" disabled>
+                Quitter la borne
+              </button>
+              <label for="game-quality"
+                >Qualité
+                <select id="game-quality" disabled>
+                  <option value="eco">Éco</option>
+                  <option value="balanced" selected>Équilibrée</option>
+                  <option value="retina">Retina</option>
+                </select></label
+              >
+              <label
+                ><input type="checkbox" id="game-crt" disabled />Effet
+                CRT</label
+              >
+              <label
+                ><input
+                  type="checkbox"
+                  id="game-spatial-audio"
+                  checked
+                  disabled
+                />Son positionnel</label
+              >
+            </div>
+            <p id="game-venue-status" role="status"></p>
+            <p id="game-note" class="arcade-hint"></p>
+            <p class="arcade-hint">
+              En capture : 5 ou ( = Crédit · 1 ou &amp; = Start J1 · 2 ou é =
+              Start J2 · V = 3D / comparaison / arcade · H = Aide.
+            </p>
+            <p class="arcade-hint">
+              Borne 3D : cliquer sur Crédit, Start, l’écran ou le trackball pour
+              jouer. Échap pour libérer le pointeur.
+            </p>
+            <p
+              class="arcade-hint"
+              id="game-control-status"
+              role="status"
+              aria-live="polite"
+            ></p>
+          </div>
+          <div id="video-stage" data-mode="direct">
+            <span id="explore-reticle" aria-hidden="true">+</span>
+            <section id="game-help" aria-label="Raccourcis clavier" hidden>
+              <div>
+                <h3>Raccourcis clavier</h3>
+                <dl>
+                  <dt>Clic sur l’image 2D / 3D</dt>
+                  <dd>Reprendre et capturer le trackpad</dd>
+                  <dt>Trackpad / souris</dt>
+                  <dd>Déplacer la bille J1</dd>
+                  <dt id="game-help-player2"></dt>
+                  <dd>Déplacer la bille J2</dd>
+                  <dt>Espace</dt>
+                  <dd>Maintenir pour le boost J1</dd>
+                  <dt>5 ou (</dt>
+                  <dd>Insérer un crédit</dd>
+                  <dt>1 ou &amp; · 2 ou é</dt>
+                  <dd>Start J1 · Start J2</dd>
+                  <dt>V</dt>
+                  <dd>3D → comparaison → arcade</dd>
+                  <dt>C</dt>
+                  <dd>Changer de caméra en 3D</dd>
+                  <dt>+ / −</dt>
+                  <dd>Champ de vision ou zoom en 3D moderne</dd>
+                  <dt>Échap</dt>
+                  <dd>Pause et libération du pointeur</dd>
+                  <dt>H</dt>
+                  <dd>Afficher ou masquer cette aide</dd>
+                </dl>
+              </div>
+            </section>
+            <div class="source-view">
+              <p>Jeu original</p>
+              <div class="emulator-frame"><div id="emulator"></div></div>
+            </div>
+            <div class="babylon-view">
+              <p id="babylon-view-label">Vidéo arcade · BabylonJS</p>
+              <div class="video-frame">
+                <canvas
+                  id="babylon-video"
+                  aria-label="Vidéo du jeu dans la scène BabylonJS"
+                ></canvas>
+                <div id="practice-hud" hidden>
+                  <canvas width="336" height="240" aria-hidden="true"></canvas>
+                  <div class="practice-hud-text">
+                    <span>Score</span>
+                    <span id="practice-score"></span>
+                  </div>
+                  <div
+                    id="practice-clock"
+                    class="practice-hud-text"
+                    role="timer"
+                    aria-label="Chrono"
+                    hidden
+                  ></div>
+                  <div
+                    id="practice-score-2-label"
+                    class="practice-hud-text"
+                    hidden
+                  >
+                    <span>Score J2</span>
+                    <span id="practice-score-2"></span>
+                  </div>
+                  <div
+                    id="practice-clock-2"
+                    class="practice-hud-text"
+                    role="timer"
+                    aria-label="Chrono J2"
+                    hidden
+                  ></div>
+                </div>
+                <p id="modern-unavailable" role="status">
+                  Le rendu 3D apparaît pendant Practice Race, dans la zone du
+                  relevé chargé.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p>
+          Pause : perte de focus ou bouton ci-dessus. La reprise nécessite un
+          clic explicite : Reprendre, Crédit, Start ou Capturer. Crédit et Start
+          restent accessibles après Échap. Pour changer d’archive ou
+          recommencer, utiliser « Nouvelle session », qui recharge entièrement
+          la page.
+        </p>
+      </section>
+      <details open>
+        <summary>Diagnostics de faisabilité</summary>
+        <div class="actions">
+          <button id="reset-metrics" type="button" disabled>
+            Nouvel essai
+          </button>
+          <button id="copy-diagnostics" type="button">
+            Copier les diagnostics
+          </button>
+        </div>
+        <p id="diagnostic-action-status" aria-live="polite"></p>
+        <p>
+          Capturer → faire une accélération → Échap → Copier les diagnostics. Le
+          relevé conserve le mouvement le plus fort, même si tu as bougé un peu
+          avant.
+        </p>
+        <p id="motion-measure-status" aria-live="polite"></p>
+        <p>
+          Pour comparer gestes lents et rapides : <code>peakRaw</code> est le
+          plus grand delta reçu, <code>peakSent</code> le plus grand delta après
+          gain, <code>peakPending</code> le pic accumulé avant lecture du cœur.
+          <code>saturated</code> signale un écrêtage dans notre raccord. Ces
+          mesures portent sur les commandes, pas sur la vitesse de la bille.
+          <code>nativeSampling</code> conserve les extrema signés
+          (<code>minX/maxX/minY/maxY</code>) du dernier poll natif observé après
+          chaque itération de l'émulateur. <code>reversalsX/Y</code> compte les
+          inversions observées par axe, utiles pour examiner les gestes de
+          freinage. Cet échantillonnage n'est pas un relevé exhaustif de toutes
+          les lectures du cœur. Les mesures restent disponibles après Échap.
+        </p>
+        <pre id="diagnostics"></pre>
+      </details>
+      <details>
+        <summary>Fichiers attendus dans marble.zip</summary>
+        <p>
+          Tailles et SHA-1 sont vérifiés sur les données décompressées. Les
+          archives FBNeo et MAME ne sont pas interchangeables par simple
+          renommage. Les fichiers système peuvent être fournis dans le ZIP du
+          jeu ou dans le champ BIOS séparé. Les noms Atari comme 136032.205.l13
+          sont reconnus après vérification des empreintes. Un ZIP compatible est
+          assemblé uniquement en mémoire ; tes archives originales restent
+          inchangées.
+        </p>
+        <pre id="rom-list"></pre>
+      </details>
+      <footer>
+        <a href="./scene.html">Scène BabylonJS de référence</a>
+        <p>
+          Cette ancienne scène technique est indépendante. Pour la vidéo du jeu,
+          utiliser le sélecteur d’affichage ci-dessus.
+        </p>
+      </footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

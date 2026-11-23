@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-05",
+  "browser": "Chrome 157.0.8103.38 headless macOS",
+  "driver": "emulatorjs (RetroArch 6dd4353)",
+  "core": "MAME 2003-Plus 3a72dae",
+  "coreGlueSha256": "ffe2f31c70f81b8c0793d6e6b0a686a759b642e8c3c8c2deeb3bb3a2e597aa0f",
+  "coreWasmSha256": "368c682fb15296cb8003fa771d9e5cc25616624747d3dc7ec7eab29f060dc9b7",
+  "nativePolledDeltaExample": {
+    "x": 4,
+    "y": -2
+  },
+  "gainOneReceivedAndSentX": 304,
+  "saturationObserved": 0,
+  "audioRmsNonzeroExample": 0.06412,
+  "pause": {
+    "frameAtFirstRead": 1131,
+    "frame350msLater": 1131,
+    "audioContext": "suspended",
+    "pendingX": 0,
+    "pendingY": 0,
+    "polledX": 0,
+    "polledY": 0,
+    "buttons": 0
+  },
+  "humanTrackpadComfortValidated": false,
+  "audioListenedByAgent": false
+}

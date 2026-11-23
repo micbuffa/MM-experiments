@@ -1,0 +1,1748 @@
+{
+  "date": "2026-11-09",
+  "browser": "157.0.8103.38",
+  "method": "Equal-total integer profiles; fresh document; credit700/start710; input1200; images1199/1206/1212/1224/1236; direct native pending diagnostic",
+  "coreWasmSha256": "368c682fb15296cb8003fa771d9e5cc25616624747d3dc7ec7eab29f060dc9b7",
+  "limits": [
+    "Profils synthétiques et positions écran, pas un geste physique de Michel ni un saut.",
+    "Départ du niveau 1 ; aucun remodelage du contrôle joueur.",
+    "Les dernières images sont postérieures à la fin de chaque profil, mais la durée du mouvement moteur peut différer."
+  ],
+  "trials": [
+    {
+      "total": 0,
+      "duration": 1,
+      "profile": [0],
+      "canvas": [1110, 832],
+      "samples": [
+        {
+          "frame": 1199,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1206,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1212,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1224,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1236,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        }
+      ],
+      "dx1212": 0.0,
+      "dx1236": 0.0,
+      "nonzeroPolls": [],
+      "errors": []
+    },
+    {
+      "total": 1536,
+      "duration": 1,
+      "profile": [1536],
+      "canvas": [1110, 832],
+      "samples": [
+        {
+          "frame": 1199,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1206,
+          "position": {
+            "x": 515.3547267996531,
+            "y": 164.09106678230702,
+            "pixels": 1153,
+            "bounds": [495, 142, 540, 190]
+          }
+        },
+        {
+          "frame": 1212,
+          "position": {
+            "x": 508.77155555555555,
+            "y": 164.19466666666668,
+            "pixels": 1125,
+            "bounds": [488, 142, 534, 190]
+          }
+        },
+        {
+          "frame": 1224,
+          "position": {
+            "x": 489.14018691588785,
+            "y": 164.15632965165676,
+            "pixels": 1177,
+            "bounds": [469, 142, 514, 190]
+          }
+        },
+        {
+          "frame": 1236,
+          "position": {
+            "x": 472.3707592891761,
+            "y": 163.9854604200323,
+            "pixels": 1238,
+            "bounds": [452, 142, 497, 190]
+          }
+        }
+      ],
+      "dx1212": -16.722291860359178,
+      "dx1236": -53.12308812673865,
+      "nonzeroPolls": [
+        {
+          "frame": 1200,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 1536,
+          "polledY": 0,
+          "buttons": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "total": 1536,
+      "duration": 2,
+      "profile": [768, 768],
+      "canvas": [1110, 832],
+      "samples": [
+        {
+          "frame": 1199,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1206,
+          "position": {
+            "x": 522.2747440273038,
+            "y": 164.16894197952217,
+            "pixels": 1172,
+            "bounds": [502, 142, 547, 190]
+          }
+        },
+        {
+          "frame": 1212,
+          "position": {
+            "x": 522.2747440273038,
+            "y": 164.16894197952217,
+            "pixels": 1172,
+            "bounds": [502, 142, 547, 190]
+          }
+        },
+        {
+          "frame": 1224,
+          "position": {
+            "x": 515.3547267996531,
+            "y": 164.09106678230702,
+            "pixels": 1153,
+            "bounds": [495, 142, 540, 190]
+          }
+        },
+        {
+          "frame": 1236,
+          "position": {
+            "x": 515.5725126475548,
+            "y": 164.141652613828,
+            "pixels": 1186,
+            "bounds": [495, 142, 540, 190]
+          }
+        }
+      ],
+      "dx1212": -3.219103388610961,
+      "dx1236": -9.921334768359884,
+      "nonzeroPolls": [
+        {
+          "frame": 1200,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 768,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1201,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 768,
+          "polledY": 0,
+          "buttons": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "total": 1536,
+      "duration": 4,
+      "profile": [384, 384, 384, 384],
+      "canvas": [1110, 832],
+      "samples": [
+        {
+          "frame": 1199,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1206,
+          "position": {
+            "x": 508.77155555555555,
+            "y": 164.19466666666668,
+            "pixels": 1125,
+            "bounds": [488, 142, 534, 190]
+          }
+        },
+        {
+          "frame": 1212,
+          "position": {
+            "x": 489.14018691588785,
+            "y": 164.15632965165676,
+            "pixels": 1177,
+            "bounds": [469, 142, 514, 190]
+          }
+        },
+        {
+          "frame": 1224,
+          "position": {
+            "x": 449.4006384676776,
+            "y": 164.03990422984836,
+            "pixels": 1253,
+            "bounds": [429, 142, 474, 190]
+          }
+        },
+        {
+          "frame": 1236,
+          "position": {
+            "x": 413.27521367521365,
+            "y": 167.78119658119658,
+            "pixels": 1170,
+            "bounds": [393, 146, 438, 193]
+          }
+        }
+      ],
+      "dx1212": -36.353660500026876,
+      "dx1236": -112.21863374070108,
+      "nonzeroPolls": [
+        {
+          "frame": 1200,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 384,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1201,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 384,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1202,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 384,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1203,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 384,
+          "polledY": 0,
+          "buttons": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "total": 1536,
+      "duration": 6,
+      "profile": [256, 256, 256, 256, 256, 256],
+      "canvas": [1110, 832],
+      "samples": [
+        {
+          "frame": 1199,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1206,
+          "position": {
+            "x": 535.2222222222222,
+            "y": 164.12865497076024,
+            "pixels": 1197,
+            "bounds": [515, 142, 560, 190]
+          }
+        },
+        {
+          "frame": 1212,
+          "position": {
+            "x": 555.1584564860427,
+            "y": 164.20607553366173,
+            "pixels": 1218,
+            "bounds": [535, 142, 580, 190]
+          }
+        },
+        {
+          "frame": 1224,
+          "position": {
+            "x": 594.4269466316711,
+            "y": 164.21609798775154,
+            "pixels": 1143,
+            "bounds": [574, 142, 620, 190]
+          }
+        },
+        {
+          "frame": 1236,
+          "position": {
+            "x": 631.2043551088777,
+            "y": 167.72278056951424,
+            "pixels": 1194,
+            "bounds": [611, 146, 656, 193]
+          }
+        }
+      ],
+      "dx1212": 29.664609070127995,
+      "dx1236": 105.710507692963,
+      "nonzeroPolls": [
+        {
+          "frame": 1200,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 256,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1201,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 256,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1202,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 256,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1203,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 256,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1204,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 256,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1205,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 256,
+          "polledY": 0,
+          "buttons": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "total": 1536,
+      "duration": 12,
+      "profile": [128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128],
+      "canvas": [1110, 832],
+      "samples": [
+        {
+          "frame": 1199,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1206,
+          "position": {
+            "x": 528.4250214224508,
+            "y": 164.0197086546701,
+            "pixels": 1167,
+            "bounds": [508, 142, 553, 190]
+          }
+        },
+        {
+          "frame": 1212,
+          "position": {
+            "x": 541.799835931091,
+            "y": 164.03035274815423,
+            "pixels": 1219,
+            "bounds": [521, 142, 567, 190]
+          }
+        },
+        {
+          "frame": 1224,
+          "position": {
+            "x": 588.000884173298,
+            "y": 164.210433244916,
+            "pixels": 1131,
+            "bounds": [568, 142, 613, 190]
+          }
+        },
+        {
+          "frame": 1236,
+          "position": {
+            "x": 621.2793867120954,
+            "y": 164.19505962521293,
+            "pixels": 1174,
+            "bounds": [601, 142, 646, 190]
+          }
+        }
+      ],
+      "dx1212": 16.305988515176296,
+      "dx1236": 95.78553929618067,
+      "nonzeroPolls": [
+        {
+          "frame": 1200,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1201,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1202,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1203,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1204,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1205,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1206,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1207,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1208,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1209,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1210,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1211,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 128,
+          "polledY": 0,
+          "buttons": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "total": 416,
+      "duration": 1,
+      "profile": [416],
+      "canvas": [1110, 832],
+      "samples": [
+        {
+          "frame": 1199,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1206,
+          "position": {
+            "x": 515.3547267996531,
+            "y": 164.09106678230702,
+            "pixels": 1153,
+            "bounds": [495, 142, 540, 190]
+          }
+        },
+        {
+          "frame": 1212,
+          "position": {
+            "x": 502.28038194444446,
+            "y": 164.29774305555554,
+            "pixels": 1152,
+            "bounds": [482, 142, 527, 190]
+          }
+        },
+        {
+          "frame": 1224,
+          "position": {
+            "x": 482.5027799841144,
+            "y": 164.25734710087372,
+            "pixels": 1259,
+            "bounds": [462, 142, 507, 190]
+          }
+        },
+        {
+          "frame": 1236,
+          "position": {
+            "x": 462.4572147651007,
+            "y": 164,
+            "pixels": 1192,
+            "bounds": [442, 142, 487, 190]
+          }
+        }
+      ],
+      "dx1212": -23.213465471470272,
+      "dx1236": -63.036632650814056,
+      "nonzeroPolls": [
+        {
+          "frame": 1200,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 416,
+          "polledY": 0,
+          "buttons": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "total": 416,
+      "duration": 2,
+      "profile": [208, 208],
+      "canvas": [1110, 832],
+      "samples": [
+        {
+          "frame": 1199,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1206,
+          "position": {
+            "x": 528.4250214224508,
+            "y": 164.0197086546701,
+            "pixels": 1167,
+            "bounds": [508, 142, 553, 190]
+          }
+        },
+        {
+          "frame": 1212,
+          "position": {
+            "x": 535.2222222222222,
+            "y": 164.12865497076024,
+            "pixels": 1197,
+            "bounds": [515, 142, 560, 190]
+          }
+        },
+        {
+          "frame": 1224,
+          "position": {
+            "x": 548.4922952149229,
+            "y": 164.0243309002433,
+            "pixels": 1233,
+            "bounds": [528, 142, 573, 190]
+          }
+        },
+        {
+          "frame": 1236,
+          "position": {
+            "x": 555.1584564860427,
+            "y": 164.20607553366173,
+            "pixels": 1218,
+            "bounds": [535, 142, 580, 190]
+          }
+        }
+      ],
+      "dx1212": 9.728374806307443,
+      "dx1236": 29.664609070127995,
+      "nonzeroPolls": [
+        {
+          "frame": 1200,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 208,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1201,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 208,
+          "polledY": 0,
+          "buttons": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "total": 416,
+      "duration": 4,
+      "profile": [104, 104, 104, 104],
+      "canvas": [1110, 832],
+      "samples": [
+        {
+          "frame": 1199,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1206,
+          "position": {
+            "x": 528.4250214224508,
+            "y": 163.95972579263068,
+            "pixels": 1167,
+            "bounds": [508, 142, 553, 190]
+          }
+        },
+        {
+          "frame": 1212,
+          "position": {
+            "x": 535.2222222222222,
+            "y": 164.12865497076024,
+            "pixels": 1197,
+            "bounds": [515, 142, 560, 190]
+          }
+        },
+        {
+          "frame": 1224,
+          "position": {
+            "x": 545.3325223033253,
+            "y": 164.1873479318735,
+            "pixels": 1233,
+            "bounds": [525, 142, 570, 190]
+          }
+        },
+        {
+          "frame": 1236,
+          "position": {
+            "x": 555.1584564860427,
+            "y": 164.20607553366173,
+            "pixels": 1218,
+            "bounds": [535, 142, 580, 190]
+          }
+        }
+      ],
+      "dx1212": 9.728374806307443,
+      "dx1236": 29.664609070127995,
+      "nonzeroPolls": [
+        {
+          "frame": 1200,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 104,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1201,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 104,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1202,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 104,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1203,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 104,
+          "polledY": 0,
+          "buttons": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "total": 416,
+      "duration": 8,
+      "profile": [52, 52, 52, 52, 52, 52, 52, 52],
+      "canvas": [1110, 832],
+      "samples": [
+        {
+          "frame": 1199,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1206,
+          "position": {
+            "x": 528.4250214224508,
+            "y": 164.0197086546701,
+            "pixels": 1167,
+            "bounds": [508, 142, 553, 190]
+          }
+        },
+        {
+          "frame": 1212,
+          "position": {
+            "x": 535.2222222222222,
+            "y": 164.12865497076024,
+            "pixels": 1197,
+            "bounds": [515, 142, 560, 190]
+          }
+        },
+        {
+          "frame": 1224,
+          "position": {
+            "x": 541.799835931091,
+            "y": 164.03035274815423,
+            "pixels": 1219,
+            "bounds": [521, 142, 567, 190]
+          }
+        },
+        {
+          "frame": 1236,
+          "position": {
+            "x": 551.6460905349794,
+            "y": 164.10864197530864,
+            "pixels": 1215,
+            "bounds": [531, 142, 577, 190]
+          }
+        }
+      ],
+      "dx1212": 9.728374806307443,
+      "dx1236": 26.15224311906468,
+      "nonzeroPolls": [
+        {
+          "frame": 1200,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 52,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1201,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 52,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1202,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 52,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1203,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 52,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1204,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 52,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1205,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 52,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1206,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 52,
+          "polledY": 0,
+          "buttons": 0
+        },
+        {
+          "frame": 1207,
+          "pendingX": 0,
+          "pendingY": 0,
+          "polledX": 52,
+          "polledY": 0,
+          "buttons": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "total": 0,
+      "duration": 1,
+      "profile": [0],
+      "canvas": [1110, 832],
+      "samples": [
+        {
+          "frame": 1199,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1206,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1212,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1224,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        },
+        {
+          "frame": 1236,
+          "position": {
+            "x": 525.4938474159147,
+            "y": 168.01558654634945,
+            "pixels": 1219,
+            "bounds": [505, 146, 550, 193]
+          }
+        }
+      ],
+      "dx1212": 0.0,
+      "dx1236": 0.0,
+      "nonzeroPolls": [],
+      "errors": []
+    }
+  ],
+  "runtimeWiringControl": {
+    "method": "Chrome CDP trusted relative mouse events, real runtime; NOT physical trackpad evidence",
+    "errors": [],
+    "trace": {
+      "status": "complete",
+      "reason": "quiet",
+      "gain": 1,
+      "mode": "event-batches-and-last-poll-after-iteration",
+      "limits": {
+        "rows": 128,
+        "seconds": 2,
+        "quietSeconds": 0.18
+      },
+      "summary": {
+        "eventDurationSeconds": 0.03299999999999992,
+        "events": 3,
+        "nonzeroNativeSamples": 3,
+        "nativeSpanIterations": 3,
+        "peakNativeL1": 813
+      },
+      "unsampledEvents": {
+        "events": 0,
+        "firstEventSeconds": null,
+        "lastEventSeconds": null,
+        "rawX": 0,
+        "rawY": 0,
+        "sentX": 0,
+        "sentY": 0
+      },
+      "rows": [
+        {
+          "frame": 6,
+          "seconds": 0.0012000000476837247,
+          "events": 1,
+          "firstEventSeconds": 0,
+          "lastEventSeconds": 0,
+          "rawX": -363,
+          "rawY": -450,
+          "sentX": -363,
+          "sentY": -450,
+          "polledX": -363,
+          "polledY": -450
+        },
+        {
+          "frame": 7,
+          "seconds": 0.01750000000000007,
+          "events": 1,
+          "firstEventSeconds": 0.01630000001192089,
+          "lastEventSeconds": 0.01630000001192089,
+          "rawX": 100,
+          "rawY": 0,
+          "sentX": 100,
+          "sentY": 0,
+          "polledX": 100,
+          "polledY": 0
+        },
+        {
+          "frame": 8,
+          "seconds": 0.03410000002384184,
+          "events": 1,
+          "firstEventSeconds": 0.03299999999999992,
+          "lastEventSeconds": 0.03299999999999992,
+          "rawX": 100,
+          "rawY": 0,
+          "sentX": 100,
+          "sentY": 0,
+          "polledX": 100,
+          "polledY": 0
+        },
+        {
+          "frame": 9,
+          "seconds": 0.05049999999999999,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 10,
+          "seconds": 0.0679000000357628,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 11,
+          "seconds": 0.083800000011921,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 12,
+          "seconds": 0.10120000004768381,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 13,
+          "seconds": 0.11730000001192087,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 14,
+          "seconds": 0.13460000002384187,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 15,
+          "seconds": 0.1513000000119209,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 16,
+          "seconds": 0.16710000002384184,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 17,
+          "seconds": 0.1845000000000001,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 18,
+          "seconds": 0.20040000003576286,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 19,
+          "seconds": 0.2172000000476837,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        }
+      ]
+    }
+  },
+  "terrainControl": {
+    "region": [100, 300, 1000, 700],
+    "pixelsPerComparison": 360000,
+    "method": "Six trials, 24 non-initial image comparisons, exact RGBA equality; two neutrals and 1536 over 1/4/6/12 iterations.",
+    "trials": [
+      {
+        "total": 0,
+        "duration": 1,
+        "samples": [
+          {
+            "frame": 1199,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1206,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1212,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1224,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1236,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          }
+        ],
+        "errors": []
+      },
+      {
+        "total": 1536,
+        "duration": 1,
+        "samples": [
+          {
+            "frame": 1199,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1206,
+            "position": {
+              "x": 515.3547267996531,
+              "y": 164.09106678230702,
+              "pixels": 1153,
+              "bounds": [495, 142, 540, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1212,
+            "position": {
+              "x": 508.77155555555555,
+              "y": 164.19466666666668,
+              "pixels": 1125,
+              "bounds": [488, 142, 534, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1224,
+            "position": {
+              "x": 489.14018691588785,
+              "y": 164.15632965165676,
+              "pixels": 1177,
+              "bounds": [469, 142, 514, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1236,
+            "position": {
+              "x": 472.3707592891761,
+              "y": 163.9854604200323,
+              "pixels": 1238,
+              "bounds": [452, 142, 497, 190]
+            },
+            "terrainChangedPixels": 0
+          }
+        ],
+        "errors": []
+      },
+      {
+        "total": 1536,
+        "duration": 4,
+        "samples": [
+          {
+            "frame": 1199,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1206,
+            "position": {
+              "x": 508.77155555555555,
+              "y": 164.19466666666668,
+              "pixels": 1125,
+              "bounds": [488, 142, 534, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1212,
+            "position": {
+              "x": 489.14018691588785,
+              "y": 164.15632965165676,
+              "pixels": 1177,
+              "bounds": [469, 142, 514, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1224,
+            "position": {
+              "x": 449.4006384676776,
+              "y": 164.03990422984836,
+              "pixels": 1253,
+              "bounds": [429, 142, 474, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1236,
+            "position": {
+              "x": 413.27521367521365,
+              "y": 167.78119658119658,
+              "pixels": 1170,
+              "bounds": [393, 146, 438, 193]
+            },
+            "terrainChangedPixels": 0
+          }
+        ],
+        "errors": []
+      },
+      {
+        "total": 1536,
+        "duration": 6,
+        "samples": [
+          {
+            "frame": 1199,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1206,
+            "position": {
+              "x": 535.2222222222222,
+              "y": 164.12865497076024,
+              "pixels": 1197,
+              "bounds": [515, 142, 560, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1212,
+            "position": {
+              "x": 555.1584564860427,
+              "y": 164.20607553366173,
+              "pixels": 1218,
+              "bounds": [535, 142, 580, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1224,
+            "position": {
+              "x": 594.4269466316711,
+              "y": 164.21609798775154,
+              "pixels": 1143,
+              "bounds": [574, 142, 620, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1236,
+            "position": {
+              "x": 631.2043551088777,
+              "y": 167.72278056951424,
+              "pixels": 1194,
+              "bounds": [611, 146, 656, 193]
+            },
+            "terrainChangedPixels": 0
+          }
+        ],
+        "errors": []
+      },
+      {
+        "total": 1536,
+        "duration": 12,
+        "samples": [
+          {
+            "frame": 1199,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1206,
+            "position": {
+              "x": 528.4250214224508,
+              "y": 164.0197086546701,
+              "pixels": 1167,
+              "bounds": [508, 142, 553, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1212,
+            "position": {
+              "x": 541.799835931091,
+              "y": 164.03035274815423,
+              "pixels": 1219,
+              "bounds": [521, 142, 567, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1224,
+            "position": {
+              "x": 588.000884173298,
+              "y": 164.210433244916,
+              "pixels": 1131,
+              "bounds": [568, 142, 613, 190]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1236,
+            "position": {
+              "x": 621.2793867120954,
+              "y": 164.19505962521293,
+              "pixels": 1174,
+              "bounds": [601, 142, 646, 190]
+            },
+            "terrainChangedPixels": 0
+          }
+        ],
+        "errors": []
+      },
+      {
+        "total": 0,
+        "duration": 1,
+        "samples": [
+          {
+            "frame": 1199,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1206,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1212,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1224,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          },
+          {
+            "frame": 1236,
+            "position": {
+              "x": 525.4938474159147,
+              "y": 168.01558654634945,
+              "pixels": 1219,
+              "bounds": [505, 146, 550, 193]
+            },
+            "terrainChangedPixels": 0
+          }
+        ],
+        "errors": []
+      }
+    ]
+  },
+  "runtimeWiringControlAfterRearmFix": {
+    "method": "Chrome automated trusted mouse events; NOT physical trackpad",
+    "errors": [],
+    "trace": {
+      "status": "complete",
+      "reason": "quiet",
+      "gain": 1,
+      "mode": "event-batches-and-last-poll-after-iteration",
+      "limits": {
+        "rows": 128,
+        "seconds": 2,
+        "quietSeconds": 0.18
+      },
+      "summary": {
+        "eventDurationSeconds": 0.033500000000000085,
+        "events": 3,
+        "nonzeroNativeSamples": 3,
+        "nativeSpanIterations": 3,
+        "peakNativeL1": 813
+      },
+      "unsampledEvents": {
+        "events": 0,
+        "firstEventSeconds": null,
+        "lastEventSeconds": null,
+        "rawX": 0,
+        "rawY": 0,
+        "sentX": 0,
+        "sentY": 0
+      },
+      "rows": [
+        {
+          "frame": 6,
+          "seconds": 0.001000000000000112,
+          "events": 1,
+          "firstEventSeconds": 0,
+          "lastEventSeconds": 0,
+          "rawX": -363,
+          "rawY": -450,
+          "sentX": -363,
+          "sentY": -450,
+          "polledX": -363,
+          "polledY": -450
+        },
+        {
+          "frame": 7,
+          "seconds": 0.018000000000000016,
+          "events": 1,
+          "firstEventSeconds": 0.01669999998807903,
+          "lastEventSeconds": 0.01669999998807903,
+          "rawX": 100,
+          "rawY": 0,
+          "sentX": 100,
+          "sentY": 0,
+          "polledX": 100,
+          "polledY": 0
+        },
+        {
+          "frame": 8,
+          "seconds": 0.034699999988079044,
+          "events": 1,
+          "firstEventSeconds": 0.033500000000000085,
+          "lastEventSeconds": 0.033500000000000085,
+          "rawX": 100,
+          "rawY": 0,
+          "sentX": 100,
+          "sentY": 0,
+          "polledX": 100,
+          "polledY": 0
+        },
+        {
+          "frame": 9,
+          "seconds": 0.051299999952316266,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 10,
+          "seconds": 0.06789999997615825,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 11,
+          "seconds": 0.08379999995231624,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 12,
+          "seconds": 0.10050000000000003,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 13,
+          "seconds": 0.11729999995231633,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 14,
+          "seconds": 0.13429999995231623,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 15,
+          "seconds": 0.1511999999880791,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 16,
+          "seconds": 0.1670999999642373,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 17,
+          "seconds": 0.18429999995231627,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 18,
+          "seconds": 0.20109999996423733,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        },
+        {
+          "frame": 19,
+          "seconds": 0.2175999999642373,
+          "events": 0,
+          "firstEventSeconds": null,
+          "lastEventSeconds": null,
+          "rawX": 0,
+          "rawY": 0,
+          "sentX": 0,
+          "sentY": 0,
+          "polledX": 0,
+          "polledY": 0
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marble Madness — Étude du terrain 3D</title>
+  </head>
+  <body>
+    <main>
+      <canvas id="game" aria-label="Terrain de Marble Madness en 3D"></canvas>
+      <img id="terrain-reference" alt="Capture du jeu arcade" hidden />
+      <div class="terrain-controls">
+        <label for="terrain-file">Charger un relevé du terrain</label>
+        <input id="terrain-file" type="file" accept=".json,application/json" />
+        <button id="terrain-play" type="button" hidden>
+          Jouer au niveau 2 · F2
+        </button>
+        <button id="terrain-load-level3" type="button" hidden>
+          Voir le niveau 3 (étude)
+        </button>
+        <button id="terrain-load-level4" type="button" hidden>
+          Voir le niveau 4 (étude)
+        </button>
+        <button id="terrain-load-level5" type="button" hidden>
+          Voir le niveau 5 (étude)
+        </button>
+        <p id="terrain-status" role="status">Géométrie de test</p>
+        <label for="terrain-camera">Caméra</label>
+        <select id="terrain-camera" disabled>
+          <option value="orbit">Vue libre</option>
+          <option value="arcade">Cadrage arcade</option>
+          <option value="bridge" hidden disabled>Pont articulé</option>
+          <option value="pipes" hidden disabled>Tuyaux et rampes</option>
+          <option value="ice" hidden disabled>Glace et arrivée</option>
+        </select>
+        <div id="terrain-scroll-control" hidden>
+          <label for="terrain-scroll">Défilement arcade</label>
+          <input id="terrain-scroll" type="range" value="0" />
+          <output id="terrain-scroll-value" for="terrain-scroll">0 px</output>
+        </div>
+        <label for="terrain-reference-file">Capture arcade (facultatif)</label>
+        <input
+          id="terrain-reference-file"
+          type="file"
+          accept="image/png"
+          disabled
+        />
+        <label for="terrain-opacity">Opacité de la capture</label>
+        <input
+          id="terrain-opacity"
+          type="range"
+          min="0"
+          max="100"
+          value="50"
+          disabled
+        />
+        <p id="reference-status" role="status"></p>
+        <p id="terrain-orbit-help">
+          Glisser pour tourner · Molette pour zoomer
+        </p>
+      </div>
+    </main>
+    <iframe
+      id="terrain-player"
+      title="Jouer à Intermediate Race"
+      allow="fullscreen"
+      hidden
+    ></iframe>
+    <a id="terrain-return" href="./terrain.html" hidden>Retour à l’étude</a>
+    <script type="module" src="/src/terrain.ts"></script>
+  </body>
+</html>

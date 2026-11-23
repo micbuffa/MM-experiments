@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marble Madness 3D · Beta</title>
+    <script type="module" crossorigin src="./assets/beta-B9jQafoC.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/engineStore-Bn2tApal.js">
+    <link rel="modulepreload" crossorigin href="./assets/logger-CuBYPcDK.js">
+    <link rel="modulepreload" crossorigin href="./assets/shaderStore-D-XQlhUT.js">
+    <link rel="modulepreload" crossorigin href="./assets/precisionDate-DgO8bWsc.js">
+    <link rel="modulepreload" crossorigin href="./assets/performanceConfigurator-UtxC_Odd.js">
+    <link rel="modulepreload" crossorigin href="./assets/internalTexture-B3djGrls.js">
+    <link rel="modulepreload" crossorigin href="./assets/thinEngine.pure-C-ezXnsA.js">
+    <link rel="modulepreload" crossorigin href="./assets/math.scalar.functions-Bcxiuh2E.js">
+    <link rel="modulepreload" crossorigin href="./assets/halfFloat-Cfx5m4ll.js">
+    <link rel="modulepreload" crossorigin href="./assets/math.color.pure-DLMyD1Sf.js">
+    <link rel="stylesheet" crossorigin href="./assets/beta-CB80cxI2.css">
+  </head>
+  <body>
+    <main id="beta-stage" data-phase="loading" data-mode="direct">
+      <div id="beta-loading" class="beta-loading" aria-live="polite">
+        <div class="beta-loading-card">
+          <h1>Marble Madness 3D</h1>
+          <p id="beta-status">Initializing game…</p>
+          <div
+            class="progress-track"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="10"
+          >
+            <div id="beta-progress" class="progress-bar"></div>
+          </div>
+          <p id="beta-substatus" class="beta-substatus">
+            Preparing Atari System 1 arcade hardware &amp; 3D renderer
+          </p>
+        </div>
+      </div>
+
+      <section id="arcade-pane" class="beta-pane">
+        <div class="viewport-frame crt-screen">
+          <div id="emulator"></div>
+          <div class="crt-overlay" aria-hidden="true"></div>
+        </div>
+      </section>
+
+      <section id="modern-pane" class="beta-pane">
+        <div class="viewport-frame crt-screen">
+          <canvas id="babylon-video"></canvas>
+          <div id="practice-hud" class="practice-hud" hidden>
+            <canvas width="336" height="240" aria-hidden="true"></canvas>
+            <div class="practice-hud-text">
+              <span>Score</span>
+              <span id="practice-score"></span>
+            </div>
+            <div
+              id="practice-clock"
+              class="practice-hud-text"
+              role="timer"
+              aria-label="Timer"
+              hidden
+            ></div>
+            <div id="practice-score-2-label" class="practice-hud-text" hidden>
+              <span>Score P2</span>
+              <span id="practice-score-2"></span>
+            </div>
+            <div
+              id="practice-clock-2"
+              class="practice-hud-text"
+              role="timer"
+              aria-label="Timer P2"
+              hidden
+            ></div>
+          </div>
+          <div class="crt-overlay" aria-hidden="true"></div>
+        </div>
+      </section>
+
+      <aside id="attract-overlay" class="attract-overlay" hidden>
+        <div class="attract-card">
+          <div class="attract-keys">
+            <span class="key-pill"><kbd>5</kbd> Insert coins</span>
+            <span class="key-pill"><kbd>1</kbd> Start Player 1</span>
+            <span class="key-pill"><kbd>2</kbd> Start Player 2</span>
+          </div>
+          <fieldset class="level-picker">
+            <legend>Starting Level</legend>
+            <label
+              ><input type="radio" name="start-level" value="1" checked /> 1 ·
+              Practice</label
+            >
+            <label
+              ><input type="radio" name="start-level" value="2" /> 2 ·
+              Beginner</label
+            >
+            <label
+              ><input type="radio" name="start-level" value="3" /> 3 ·
+              Intermediate</label
+            >
+            <label
+              ><input type="radio" name="start-level" value="4" /> 4 ·
+              Aerial</label
+            >
+            <label
+              ><input type="radio" name="start-level" value="5" /> 5 ·
+              Silly</label
+            >
+          </fieldset>
+          <fieldset class="control-picker">
+            <legend>Player Controls</legend>
+            <label for="p1-control">
+              Player 1
+              <select id="p1-control">
+                <option value="trackpad" selected>Trackpad</option>
+                <option value="keyboard">Keyboard (Arrows)</option>
+              </select>
+            </label>
+            <label for="p2-control">
+              Player 2
+              <select id="p2-control">
+                <option value="keyboard" selected>
+                  Keyboard (WASD / ZQSD)
+                </option>
+                <option value="trackpad">Trackpad</option>
+              </select>
+            </label>
+          </fieldset>
+          <p id="attract-hint" class="attract-hint">
+            Press <kbd>5</kbd> then <kbd>1</kbd> or <kbd>2</kbd> · Click
+            anywhere to enable sound
+          </p>
+        </div>
+      </aside>
+
+      <header id="play-banner" class="play-banner" hidden>
+        <span class="banner-item"
+          ><kbd>V</kbd> View:
+          <strong id="banner-view">Side-by-side (Original + 3D)</strong></span
+        >
+        <span class="banner-item"
+          ><kbd>C</kbd> Camera: <strong id="banner-camera">Arcade</strong></span
+        >
+        <span class="banner-item"><kbd>Space</kbd> Boost</span>
+        <span class="banner-item"><kbd>Esc</kbd> Pause</span>
+        <span id="banner-capture" class="banner-item banner-accent"
+          >Click to capture mouse / trackpad</span
+        >
+      </header>
+    </main>
+  </body>
+</html>

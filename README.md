@@ -102,4 +102,4 @@ The repository is structured for fast onboarding by both human contributors and 
 - [HANDOFF.md](HANDOFF.md): detailed handoff log, recent decisions, and current project state.
 - [docs/PROTOTYPE_04.md](docs/PROTOTYPE_04.md), [docs/DECISIONS.md](docs/DECISIONS.md), [docs/VALIDATION.md](docs/VALIDATION.md): technical evidence, MAME memory maps, and validation records.
 
-> **Assets note**: `roms/marble.zip`, `roms/atarisy1.zip`, and the surveyed terrain/checkpoint files (`local-roms/*.json`, `local-roms/*.state`) are included in this experimental repository to ease contributor setup. Third-party reference folders (e.g. _Rolling Madness_) and generated binaries (`public/vendor/`, `dist/`, `dist-beta/`) remain excluded via `.gitignore`.
+> **Assets note**: `roms/marble.zip`, `roms/atarisy1.zip`, and the surveyed terrain/checkpoint files (`local-roms/*.json`, `local-roms/*.state`) are included in this experimental repository to ease contributor setup.

@@ -511,13 +511,15 @@ test('V bascule en capture et la comparaison garde les deux rendus sur une seule
   const modernCamera = page.locator('#game-practice-view');
   const modernFov = page.locator('#game-practice-fov');
   await sample({ ...pose, opening: 0.25 });
-  expect(await practiceCamera()).toMatchObject({
+  await expect.poll(practiceCamera).toMatchObject({
     active: 'opening',
     opening: 0.25,
   });
   await page.keyboard.press('c');
   await expect(modernCamera).toHaveValue('follow');
-  expect(await practiceCamera()).toMatchObject({ active: 'follow', fov: 55 });
+  await expect
+    .poll(practiceCamera)
+    .toMatchObject({ active: 'follow', fov: 55 });
   await page.keyboard.press('=');
   await expect(modernFov).toHaveValue('60');
   await page.keyboard.press('-');
@@ -525,13 +527,13 @@ test('V bascule en capture et la comparaison garde les deux rendus sur une seule
   await page.keyboard.press('c');
   await expect(modernCamera).toHaveValue('overhead');
   await sample(pose);
-  expect(await practiceCamera()).toMatchObject({
+  await expect.poll(practiceCamera).toMatchObject({
     active: 'overhead',
     opening: null,
   });
   await page.keyboard.press('c');
   await expect(modernCamera).toHaveValue('chase');
-  expect(await practiceCamera()).toMatchObject({ active: 'chase' });
+  await expect.poll(practiceCamera).toMatchObject({ active: 'chase' });
   await page.keyboard.press('v');
   await expect(hud).toHaveValue('modern-compare');
   await page.keyboard.press('v');
@@ -550,7 +552,7 @@ test('V bascule en capture et la comparaison garde les deux rendus sur une seule
   await expect(canvas).toBeVisible();
   await expect(modernCamera).toHaveValue('chase');
   await modernCamera.selectOption('arcade');
-  expect(await practiceCamera()).toMatchObject({ active: 'arcade' });
+  await expect.poll(practiceCamera).toMatchObject({ active: 'arcade' });
   await expect(page.locator('#practice-view')).toHaveValue('arcade');
   const shadows = page.locator('#game-practice-marble-shadows');
   await expect(shadows).not.toBeChecked();

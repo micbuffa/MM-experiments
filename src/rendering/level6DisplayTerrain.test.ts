@@ -105,7 +105,7 @@ describe('level6DisplayTerrain', () => {
     expect(
       level6SurfaceKind(level6Goal.x + 1, level6Goal.z + 1, flatMazeTop),
     ).toBe('amber');
-    expect(level6SurfaceKind(84, 89, flatMazeTop)).toBe('amber');
+    expect(level6SurfaceKind(84, 89, flatMazeTop)).toBe('peach');
     expect(level6SurfaceKind(84, 93, flatMazeTop)).toBe('ice');
     expect(level6SurfaceKind(92, 104, flatMazeTop)).toBe('ice');
     expect(level6SurfaceKind(103, 106, flatMazeTop)).toBe('stone');
@@ -130,7 +130,8 @@ describe('level6DisplayTerrain', () => {
   it('assigns authentic Level 6 end-maze materials per cell and slope', () => {
     const elevated = [0, 0, 0, 0] as const;
     const sloped = [0, 0, -0.5, -0.5] as const;
-    expect(level6SurfaceKind(86, 88, elevated)).toBe('amber');
+    expect(level6SurfaceKind(84, 88, elevated)).toBe('peach');
+    expect(level6SurfaceKind(86, 88, elevated)).toBe('peach');
     expect(level6SurfaceKind(84, 92, elevated)).toBe('amber');
     expect(level6SurfaceKind(84, 95, elevated)).toBe('ice');
     expect(level6SurfaceKind(84, 97, elevated)).toBe('amber');

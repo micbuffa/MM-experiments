@@ -79,21 +79,21 @@ function buildPatternTexture(
   return texture;
 }
 
-/** Live Playfield Bank 1 (0xb00420..0xb0042c, indices 16..22) color-cycling shader for Level 6 plateaus. */
+/** Live Playfield Bank 3 (0xb00470..0xb0047e, indices 56..63) color-cycling shader for Level 6 peach plateaus & maze cap. */
 class Level6ShimmerPaint extends TerrainPalettePaint {
   constructor(material: StandardMaterial) {
     super(
       material,
       'arcade-terrain-paint',
       [
-        ['l6Shim0', 16, 204, 102, 0],
-        ['l6Shim1', 17, 238, 136, 17],
-        ['l6Shim2', 18, 255, 170, 34],
-        ['l6Shim3', 19, 255, 204, 34],
-        ['l6Shim4', 20, 255, 221, 51],
-        ['l6Shim5', 21, 255, 238, 102],
-        ['l6Shim6', 22, 255, 255, 153],
-        ['l6Joint', 1, 70, 42, 10],
+        ['l6Shim0', 57, 221, 170, 0],
+        ['l6Shim1', 58, 255, 153, 119],
+        ['l6Shim2', 59, 255, 153, 119],
+        ['l6Shim3', 60, 255, 187, 51],
+        ['l6Shim4', 61, 238, 204, 85],
+        ['l6Shim5', 62, 255, 221, 0],
+        ['l6Shim6', 63, 255, 187, 51],
+        ['l6Joint', 56, 204, 136, 0],
       ],
       'MM_LEVEL6_SHIMMER',
     );
@@ -116,7 +116,7 @@ class Level6ShimmerPaint extends TerrainPalettePaint {
           : l6Band < 5.5 ? l6Shim4
           : l6Band < 6.5 ? l6Shim5
           : l6Shim6;
-        color.rgb = mix(l6Col * 0.42, l6Col, l6Sun);
+        color.rgb = mix(l6Col * 0.72, l6Col, l6Sun);
       `,
         }
       : null;

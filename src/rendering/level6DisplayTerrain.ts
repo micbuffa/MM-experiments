@@ -244,10 +244,10 @@ export function level6SurfaceKind(
       z < level6Goal.z + level6Goal.length
     )
       return 'amber';
-    // 2x2 golden-amber bridge under the GOAL flags connecting GOAL to the right strip (x=86..87, z=88..89)
-    if (x >= 86 && x <= 87 && z >= 88 && z <= 89) return 'amber';
-    // Strip behind-right of GOAL (x=84..85, z=88..104): amber -> cyan ice -> amber -> ribbed
-    if (x >= 84 && x <= 85 && z >= 88 && z <= 104) {
+    // 4x2 shimmering yellow-peach cap & bridge under the GOAL flags (x=84..87, z=88..89, Playfield Bank 3 indices 56..63)
+    if (x >= 84 && x <= 87 && z >= 88 && z <= 89) return 'peach';
+    // Strip behind-right of GOAL (x=84..85, z=90..104): amber -> cyan ice -> amber -> ribbed
+    if (x >= 84 && x <= 85 && z >= 90 && z <= 104) {
       if (z <= 92) return 'amber';
       if (z <= 95) return 'ice';
       if (z <= 98) return 'amber';

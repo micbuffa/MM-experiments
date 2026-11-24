@@ -234,8 +234,9 @@ export function level6SurfaceKind(
   if (x >= 77 && z >= 79) {
     const elevated = maxY > lowerMazeFloorY + 0.5;
     if (!elevated) return 'stone';
-    // Static entry platform stays stone; GOAL pad is golden-amber (matching the arcade GOAL decal).
+    // Static entry platform & far-left upper maze cap stay grey stone; GOAL pad is golden-amber.
     if (x <= 82 && z <= 84) return 'stone';
+    if (x >= 99 && x <= 102 && z >= 81 && z <= 84) return 'stone';
     if (
       x >= level6Goal.x &&
       x < level6Goal.x + level6Goal.width &&
@@ -247,8 +248,12 @@ export function level6SurfaceKind(
     if (x >= 84 && x <= 85 && z >= 88 && z <= 97) {
       return z >= 91 && z <= 94 ? 'peach' : 'amber';
     }
-    // Standalone cyan ice block to the right of the maze ramp
-    if (x >= 84 && x <= 93 && z >= 103 && z <= 106) return 'ice';
+    // Ribbed + stone platform at the bottom-right of GOAL (before the cyan ice block)
+    if (x >= 84 && x <= 89 && z >= 101 && z <= 104) {
+      return x <= 87 || z <= 102 ? 'ribbed' : 'stone';
+    }
+    // Standalone cyan ice block further along the bottom-right maze path
+    if (x >= 90 && x <= 97 && z >= 103 && z <= 106) return 'ice';
     // Grey stone ramp & landing at the bottom of the maze
     if (x >= 96 && x <= 106 && z >= 103 && z <= 109) return 'stone';
     return 'dark';

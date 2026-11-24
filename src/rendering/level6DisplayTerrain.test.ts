@@ -126,4 +126,14 @@ describe('level6DisplayTerrain', () => {
     expect(isLevel6FloatingSlabEdge(40, 46)).toBe(false);
     expect(isLevel6FloatingSlabEdge(74, 74)).toBe(false);
   });
+
+  it('assigns ribbed/stone before the bottom-right cyan ice block and stone on the upper-left cap', () => {
+    const elevated = [0, 0, 0, 0] as const;
+    expect(level6SurfaceKind(86, 102, elevated)).toBe('ribbed');
+    expect(level6SurfaceKind(86, 103, elevated)).toBe('ribbed');
+    expect(level6SurfaceKind(89, 103, elevated)).toBe('stone');
+    expect(level6SurfaceKind(92, 104, elevated)).toBe('ice');
+    expect(level6SurfaceKind(100, 82, elevated)).toBe('stone');
+    expect(level6SurfaceKind(86, 82, elevated)).toBe('dark');
+  });
 });

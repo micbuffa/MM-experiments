@@ -169,16 +169,16 @@ function createLevel6Materials(scene: Scene): Level6MaterialSet {
   const ribbed = new StandardMaterial('level6-ribbed', scene);
   ribbed.specularColor.set(0, 0, 0);
   ribbed.emissiveColor.set(0.1, 0.1, 0.1);
-  // Smooth high-resolution diagonal (x + y) ribs with trilinear filtering so they project as
-  // clean horizontal stripes on screen without 16x16 nearest-neighbor staircase teeth.
+  // 4 parallel metallic ribs per cell running along the +Z cell edge (constant X in UV space),
+  // matching the down-right parallel ridges on Level 6 worm platforms and end-maze strip.
   ribbed.diffuseTexture = buildPatternTexture(
     scene,
     64,
     (x, y) => {
-      if (x < 2 || y < 2 || x >= 62 || y >= 62) return [92, 92, 98, 255];
-      const phase = ((x + y) % 16) / 16;
-      const ridge = 0.5 + 0.5 * Math.cos(phase * Math.PI * 2);
-      const shade = Math.round(78 + Math.pow(ridge, 0.75) * 162);
+      const phase = (x % 16) / 16;
+      const ridge = 0.5 - 0.5 * Math.cos(phase * Math.PI * 2);
+      const seam = y < 3 || y >= 61 ? 0.65 : 1;
+      const shade = Math.round((76 + Math.pow(ridge, 0.75) * 164) * seam);
       return [shade, shade, Math.min(255, shade + 4), 255];
     },
     Texture.TRILINEAR_SAMPLINGMODE,

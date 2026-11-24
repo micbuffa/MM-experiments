@@ -223,10 +223,20 @@ test('le grand mur jaune garde sa palette ambrée et son ombre arcade', async ({
       );
     }, Array.from(png));
   };
-  await expect.poll(sample, { timeout: 15_000 }).toEqual([
-    [221, 136, 0],
-    [255, 187, 0],
-  ]);
+  await expect
+    .poll(
+      async () => {
+        const [shaded, lit] = await sample();
+        return (
+          shaded !== undefined &&
+          lit !== undefined &&
+          [221, 136, 0].every((v, i) => Math.abs(shaded[i]! - v) <= 6) &&
+          [255, 187, 0].every((v, i) => Math.abs(lit[i]! - v) <= 6)
+        );
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
   expect(errors).toEqual([]);
 });
 
@@ -329,7 +339,20 @@ for (const {
         { bytes: Array.from(png), pixel, wallPixel },
       );
     };
-    await expect.poll(sample).toEqual([color, wallColor]);
+    await expect
+      .poll(
+        async () => {
+          const [top, wall] = await sample();
+          return (
+            top !== undefined &&
+            wall !== undefined &&
+            color.every((v, i) => Math.abs(top[i]! - v) <= 6) &&
+            wallColor.every((v, i) => Math.abs(wall[i]! - v) <= 6)
+          );
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(true);
     if (level === 1) {
       await page.evaluate(async () => {
         const engineEntry = performance

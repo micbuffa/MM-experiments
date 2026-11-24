@@ -103,3 +103,12 @@ The repository is structured for fast onboarding by both human contributors and 
 - [docs/PROTOTYPE_04.md](docs/PROTOTYPE_04.md), [docs/DECISIONS.md](docs/DECISIONS.md), [docs/VALIDATION.md](docs/VALIDATION.md): technical evidence, MAME memory maps, and validation records.
 
 > **Assets note**: `roms/marble.zip`, `roms/atarisy1.zip`, and the surveyed terrain/checkpoint files (`local-roms/*.json`, `local-roms/*.state`) are included in this experimental repository to ease contributor setup.
+
+---
+
+## Credits
+
+- **Original arcade game**: _Marble Madness_ (Atari Games, 1984), executed faithfully via EmulatorJS / MAME 2003-Plus.
+- **3D Web edition & BabylonJS renderer**: **Michel Buffa** (procedural terrains, shaders, lighting, cameras, arcade cabinet/bar scene, and real-time emulation bridge).
+- **A few 3D actor & pipe models (catapult, hammers…)**: reused from [_Rolling Madness 3D_](https://www.lucaelia.com/games.php) (2005) by **Luca Elia**, whom we warmly thank for his inspiring work. This project is a non-commercial research and educational experiment; attempts to reach Luca Elia have so far gone unanswered, and any of these models will be promptly removed and replaced with procedural equivalents upon request.
+- **Atari System I 3D cabinet model**: derived from the SketchUp model by **Gozer** (3D Warehouse).

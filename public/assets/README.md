@@ -33,8 +33,9 @@ Birds: `bird`, `bird_fast`, `bird_expl`. Miniatures: `blacky_mini`,
 `blacky_squashed_mini`, `stick_idle_mini`, `stick_squashed_mini`,
 `amoeba_stretch_mini`, `amoeba_squashed_mini`. The decorative clock is the
 `catapult.png` subset of the static `lev5.ase.mesh` model, stored
-locally as `level5_clock`. Same provenance and agreement from Luca Elia as
-the other extracted meshes; files kept in `local-roms/`.
+locally as `level5_clock`. Same provenance from Luca Elia's _Rolling Madness 3D_
+as the other extracted meshes (non-commercial experimental use; will be replaced
+with procedural geometry upon request); files kept in `local-roms/`.
 
 The fallback pattern `lev5_side.PNG` comes from this installer. Normal rendering
 now uses a mask derived from the original full image of level 5
@@ -73,12 +74,13 @@ from the arcade core. Extracted assets remain local, outside the build.
 
 ## Rolling Madness 3D Catapult
 
-Michel confirmed on November 20, 2026 that he obtained permission from author
-Luca Elia to reuse the Rolling Madness 3D models. The `catapult` and
-`catapult_throw` models, as well as `catapult.PNG`, come from
-the local installer. They are added to `local-roms/rolling-actors.json`
-for the study scene and the game. The original license remains in
-`3D_assets_for_animated_entities/embedded/license.rtf`.
+The `catapult` and `catapult_throw` models, as well as `catapult.PNG`, come from
+the local _Rolling Madness 3D_ (2005) installer by Luca Elia. Attempts to reach
+the author have so far gone unanswered; this project is a non-commercial
+educational/experimental demo, and any of these models will be promptly replaced
+with procedural equivalents upon request. They are added to
+`local-roms/rolling-actors.json` for the study scene and the game. The original
+license remains in `3D_assets_for_animated_entities/embedded/license.rtf`.
 
 ## Remaster Paints and Effects
 

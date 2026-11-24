@@ -19,7 +19,7 @@ Browser-based 3D wrapper for **Marble Madness (Atari System I, 1984)**: the orig
 - 3D Atari System I arcade cabinet inside a first-person explorable bar (`WASD/ZQSD` + mouse look), clickable cabinet controls (coin slots, Start P1/P2, animated trackballs), and smooth camera transitions.
 - Simulated CRT screen (scanlines, curvature, vignette) and **WebAudio positional mixing** based on the player’s position in the bar.
 
-### 3. Real-Time 3D Presentation of All 5 Courses (Prototype 04)
+### 3. Real-Time 3D Presentation of All 6 Courses — Full Game (Prototype 04)
 
 - **Level 1 (_Practice Race_)**: full course survey, grid-aligned red guardrails with spherical elbow joints, opening towers, pits, directional arrows, checkered flags, and `GOAL` decal.
 - **Level 2 (_Beginner / Intermediate Race_)**: articulated bridge, chutes and Y-pipe, animated waves, ice basin, ogival domed white towers with bold masonry joints, green worms, and amoebas.
@@ -29,14 +29,16 @@ Browser-based 3D wrapper for **Marble Madness (Atari System I, 1984)**: the orig
   - Uphill reverse course with towers, 4-quarter-pyramid castles, squashable miniatures (**`+3 SEC`** 3D bonus label), flying birds with **real-time cast shadows**, and yellow wall-collision sparks.
   - **Escher "Monument Valley" finish**: continuous barrel-vault arch clipped along the isometric seam, faithful optical illusion in `Arcade` view, and a floor `?` marker visible in other 3D views.
   - **3D intro flyover**: depth-anchored to the true start platform with an elevated scenic arc and automatic terrain clearance, blending seamlessly into gameplay.
-- **3D Cameras & HUD**: 4 camera presets (`Arcade`, `Follow`, `Overhead`, `Chase` with transparent wall occlusion), `+/-` zoom, native Score/Timer/Notice HUD, and instant **Side-by-side / 3D / Original** view cycling (`V`).
+- **Level 6 (_Ultimate Race_)**:
+  - Complete final course with carmine-red cliffs, 1-block-thick floating upper platforms, speckled amber start mound, hollow square pit island, open yellow triangular chutes, cyan ice strips and `11×11` diamond with 4 hexagonal pyramids, live MAME-synced shimmering amoeba plateaus (Playfield Bank 3), parallel-ribbed worm platforms, black-on-white `GOAL` pad with flags, and the **4-phase disappearing-block final maze** locked directly to the 68010 core (`0x400978`).
+- **3D Cameras, Quality & HUD**: 4 camera presets (`Arcade`, `Follow`, `Overhead`, `Chase` with transparent wall occlusion), `+/-` zoom, `Eco / Balanced / High` GPU quality modes with Intel HD/UHD auto-detection, native Score/Timer/Notice HUD, and instant **Side-by-side / 3D / Original** view cycling (`V`).
 
 ### 4. Static Beta Distribution (`dist-beta/` & GitHub Pages)
 
 - Self-contained static entry point (`beta.html` → `dist-beta/index.html`) deployed to `gh-pages`:
   - Initialization overlay with progress bar, **4.6–8.5 KB Attract Mode boot savestate** (skips the ~4–5 s Atari System 1 POST), **Service Worker Cache-First** (`sw.js`), **IndexedDB ROM cache**, lazy-loaded level checkpoints, and compact zlib-compressed **`rolling-actors.bin` (577 KB vs 6.7 MB JSON)**.
-  - Starts automatically in **full-screen CRT Attract Mode** (scanlines) with a semi-transparent key legend (`5` Insert coins, `1` Start Player 1, `2` Start Player 2) and starting level radio buttons (`1`–`5`).
-  - Automatically switches to **full-screen side-by-side CRT view** (pixel-aligned 4:3 Original on the left, 3D on the right with intro flyover) and a semi-transparent top banner (`V` View, `C` Camera, `Space` Boost, `Esc` Pause).
+  - Starts automatically in **full-screen CRT Attract Mode** (scanlines) with a semi-transparent key legend (`5` Insert coins, `1` Start Player 1, `2` Start Player 2), starting level radio buttons (**`1`–`6`**, full game), player control pickers, and `3D Quality` selector.
+  - Automatically switches to **full-screen side-by-side CRT view** (pixel-aligned 4:3 Original on the left, 3D on the right with intro flyover) and a semi-transparent top banner (`V` View, `C` Camera, `G` Quality, `T` Timer, `Space` Boost, `Esc` Pause).
 
 ---
 
@@ -76,8 +78,8 @@ npm run setup:emulator   # Installs EmulatorJS 4.2.3 + MAME 2003-Plus into publi
 ## Entry Points & Controls
 
 - **`index.html`**: full application (workbench, 3D cabinet/bar, live 3D view, side-by-side comparison, diagnostics).
-- **`beta.html`** (`dist-beta/index.html`): beta-tester full-screen build (CRT attract mode → dual CRT comparison, level picker 1–5).
-- **`terrain.html`**: 3D terrain inspection studio (levels 1–5, arcade scroll slider, reference screenshot overlay).
+- **`beta.html`** (`dist-beta/index.html`): beta-tester full-screen build (CRT attract mode → dual CRT comparison, level picker 1–6).
+- **`terrain.html`**: 3D terrain inspection studio (all 6 levels, arcade scroll slider, reference screenshot overlay).
 - **`scene.html`**: standalone BabylonJS scene testbed.
 
 ### In-Game Keyboard Shortcuts
@@ -86,9 +88,11 @@ npm run setup:emulator   # Installs EmulatorJS 4.2.3 + MAME 2003-Plus into publi
 - **`1`** / **`2`**: Start Player 1 / Start Player 2
 - **`V`** (or `Shift+V`): cycle view (`Side-by-side` → `3D Only` → `Original Only`)
 - **`C`**: cycle 3D camera (`Arcade` → `Follow` → `Overhead` → `Chase`)
+- **`G`**: cycle 3D quality (`Eco` → `Balanced` → `High`)
+- **`T`**: toggle infinite timer (debug)
 - **`+` / `-`**: adjust zoom / FOV
 - **`Space`**: trackball boost · **`Esc`**: pause / release pointer lock
-- **`F2`–`F5`** (dev mode in `index.html`): jump directly to levels 2–5
+- **`F2`–`F6`** (dev mode in `index.html`): jump directly to levels 2–6
 
 ---
 

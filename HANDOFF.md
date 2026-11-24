@@ -1,5 +1,23 @@
 # Handoff
 
+## Level 6 end-maze materials, MAME palette RAM audit, CI stabilization, and English docs — November 24, 2026
+
+- **Level 6 end-maze cell-by-cell material & MAME palette audit** ([level6DisplayTerrain.ts](src/rendering/level6DisplayTerrain.ts), [level6DisplayTerrain.test.ts](src/rendering/level6DisplayTerrain.test.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts), [createPracticeGoal.ts](src/rendering/createPracticeGoal.ts)):
+  - Audited all 4 disappearing-block maze phases against live MAME gameplay (`local-roms/level6-terrain.json` + live MAME `atarisy1` Playfield Palette RAM `0xB00400..0xB0047E`).
+  - Bound `Level6ShimmerPaint` (`level6-peach`) to live **Playfield Bank 3 indices `56..63`** (`0xB00470..0xB0047E`, golden-orange joint + shimmering yellow/peach bands) matching the live arcade bridge & cap under the `GOAL` flags (`x = 84..87, z = 88..89`) and amoeba plateaus.
+  - Mapped all end-maze zones accurately in post-`planarSw` display coordinates: upper-left cap (`x = 99..103, z = 81..86`) as `'stone'`, behind-right strip (`x = 84..85, z = 90..104`) as `amber → ice → amber → ribbed`, bottom-right ice (`x = 88..93, z = 104..106`) bordered by `'stone'` (`x = 86..89, z = 101..105`), bottom-left flat landing (`x = 102..106, z = 104..109`) as `'stone'`, and both gable ramps (`x = 94..101, z = 104..106`) + `x = 104..105, z = 100..103` as `'dark'`.
+  - Switched Level 6 `GOAL` pad (`x = 88..91, z = 88..97`) to authentic live arcade **Playfield Bank 0** black/charcoal ink (`[28, 28, 32, 255]`) on bright white/light-grey paper (`[238, 238, 242, 255]`) over `'stone'` tiles.
+  - Replaced the `16×16` micro-checkerboard on `level6-ribbed` with a `64×64` trilinear-filtered texture (`Texture.TRILINEAR_SAMPLINGMODE`) featuring **4 parallel metallic ribs per cell** aligned with the `+Z` cell edge (`phase = (x % 16) / 16`) and a subtle perpendicular tile seam (`y < 3 || y >= 61`), matching both the worm platforms and the end-maze strip.
+- **CI stabilization & local Playwright Chromium setup** ([tests/browser/terrain.spec.ts](tests/browser/terrain.spec.ts), [tests/browser/navigation.spec.ts](tests/browser/navigation.spec.ts), [src/terrain.ts](src/terrain.ts), [playwright.config.ts](playwright.config.ts)):
+  - Installed Playwright Chromium locally (`npx playwright install chromium`) so the full CI pipeline (`npm run check && npm run test:browser && npm run test:preview`) runs locally.
+  - Guarded dev-only loaders (`loadRollingActors()`, `loadLevelPng()`) behind `import.meta.env.DEV`, raised RGB tolerance to `±6` for `2048×2048` shadows, replaced flaky one-shot assertions with `expect.poll`, and enabled `retries: process.env.CI ? 1 : 0`.
+- **Documentation translated to English**:
+  - Translated all 29 Markdown documentation files across root and `docs/` into English.
+- **Validation & deployment**:
+  - `npm run check && npm run test:browser && npm run test:preview` passed (Prettier, ESLint, TypeScript, 650 Vitest unit tests + coverage, Vite build, 22 Playwright WebGL tests, 3 preview tests).
+  - `npm run build:beta` built and deployed `dist-beta/` to `gh-pages`.
+  - Next action: human playthrough verification of Level 6 on GitHub Pages (`https://micbuffa.github.io/MM-experiments/`).
+
 ## Level 6 (complete visual polish), cross-game shader fix, and infinite timer — November 23, 2026
 
 - **Cross-game shader cache collision fix** ([terrainPalettePaint.ts](src/rendering/terrainPalettePaint.ts), [arcadeTerrainPaint.ts](src/rendering/arcadeTerrainPaint.ts), [intermediatePipePaint.ts](src/rendering/intermediatePipePaint.ts), [createLevel5Terrain.ts](src/rendering/createLevel5Terrain.ts), [createCameraOcclusion.ts](src/rendering/createCameraOcclusion.ts), [arcadeTerrainPaint.test.ts](src/rendering/arcadeTerrainPaint.test.ts)):

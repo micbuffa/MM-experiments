@@ -812,6 +812,7 @@ const DYNAMIC_MESH_PREFIXES = [
   'level4-hammer',
   'level4-vacuum',
   'level4-catapult',
+  'level5-clock',
   'level6-maze-phase-',
   'practice-goal-flag',
   'intermediate-goal-flag',

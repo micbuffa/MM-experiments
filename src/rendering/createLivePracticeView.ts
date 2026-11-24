@@ -1,4 +1,5 @@
 import { level5FinishDepth } from './level5DisplayTerrain';
+import { updateLevel5PipeAnimation } from './createLevel5Terrain';
 import { setLevel6MazePhase } from './createLevel6Terrain';
 import { createBirdDeath } from './createBirdDeath';
 import { createLevel5Actors } from './createLevel5Actors';
@@ -341,6 +342,13 @@ export function createLivePracticeView(
           ? Math.max(0, pose.frame - previousFrame) / 60
           : 1 / 60;
       previousFrame = pose.frame;
+      if (level5) {
+        updateLevel5PipeAnimation(
+          scene,
+          Boolean(pose.inPipe || pose.player2?.inPipe),
+          seconds,
+        );
+      }
       occlusion(
         firstPosition ?? secondPosition ?? firstPoint ?? secondPoint,
         camera.diagnostics.active === 'chase',

@@ -267,11 +267,46 @@ export function createLevel5Terrain(
   }
   const source = library?.models.level5_clock;
   if (source) {
+    const raw = source.poses[0]!.positions;
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity,
+      minZ = Infinity,
+      maxZ = -Infinity;
+    for (let i = 0; i < raw.length; i += 3) {
+      const x = raw[i]!;
+      const y = raw[i + 1]!;
+      const z = raw[i + 2]!;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
+    }
+    const baseX = (minX + maxX) / 2;
+    const baseY = (minY + maxY) / 2;
+    const baseZ = (minZ + maxZ) / 2;
+    const centered = new Array<number>(raw.length);
+    for (let i = 0; i < raw.length; i += 3) {
+      centered[i] = raw[i]! - baseX;
+      centered[i + 1] = raw[i + 1]! - baseY;
+      centered[i + 2] = raw[i + 2]! - baseZ;
+    }
     const clock = mesh('level5-clock', {
-      positions: [...source.poses[0]!.positions],
+      positions: centered,
       indices: Object.values(source.groups).flatMap((indices) => [...indices]),
       uvs: [...source.uvs],
     });
+    clock.position.set(baseX, baseY, baseZ);
+    clock.metadata = {
+      baseX,
+      baseY,
+      baseZ,
+      intensity: 0,
+      phase: 0,
+    } satisfies Level5PipeMotionState;
     const material = new StandardMaterial('level5-clock-red', scene);
     material.diffuseColor.set(0.85, 0.015, 0.01);
     material.emissiveColor.set(0.08, 0, 0);
@@ -280,6 +315,54 @@ export function createLevel5Terrain(
     clock.receiveShadows = true;
     shadows.addShadowCaster(clock, false);
   }
+}
+
+interface Level5PipeMotionState {
+  readonly baseX: number;
+  readonly baseY: number;
+  readonly baseZ: number;
+  intensity: number;
+  phase: number;
+}
+
+/**
+ * Animates the Level 5 surreal curly red pipe (`level5-clock`) with a subtle
+ * elastic tremble and squash-and-stretch while a marble travels inside it
+ * (68010 state `animation === 3`). Mutates transforms in place without allocations.
+ */
+export function updateLevel5PipeAnimation(
+  scene: Scene,
+  inPipe: boolean,
+  seconds: number,
+) {
+  const pipe = scene.getMeshByName('level5-clock');
+  const state = pipe?.metadata as Level5PipeMotionState | undefined;
+  if (!pipe || !state) return;
+  const dt = Math.max(0, Math.min(0.1, seconds));
+  state.intensity = inPipe
+    ? Math.min(1, state.intensity + dt * 12)
+    : Math.max(0, state.intensity - dt * 3);
+  if (state.intensity <= 0.001) {
+    state.intensity = 0;
+    state.phase = 0;
+    pipe.position.set(state.baseX, state.baseY, state.baseZ);
+    pipe.scaling.set(1, 1, 1);
+    return;
+  }
+  state.phase += dt * 32;
+  const amp = state.intensity;
+  const s = Math.sin(state.phase);
+  const c = Math.cos(state.phase * 0.9);
+  pipe.scaling.set(
+    1 + 0.045 * amp * s,
+    1 - 0.035 * amp * Math.sin(state.phase + 0.7),
+    1 + 0.045 * amp * c,
+  );
+  pipe.position.set(
+    state.baseX + 0.07 * amp * Math.sin(state.phase * 1.3),
+    state.baseY + 0.04 * amp * Math.cos(state.phase * 1.7),
+    state.baseZ + 0.07 * amp * Math.cos(state.phase * 1.1),
+  );
 }
 
 const escherHintRows = [

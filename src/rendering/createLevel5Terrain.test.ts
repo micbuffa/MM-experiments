@@ -1,6 +1,7 @@
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { expect, it } from 'vitest';
 import { createTerrainStudy } from './createTerrainStudy';
+import { updateLevel5PipeAnimation } from './createLevel5Terrain';
 import type { TerrainCell } from '../game/modern/terrainMesh';
 it('builds a separate Level 5 scene, reverse opening camera and scene-owned resources', () => {
   const engine = new NullEngine();
@@ -143,6 +144,66 @@ it('builds the three castle forts with four corner quarters and no central spike
     expect(hint.isVisible).toBe(false);
     scene.activeCamera = scene.getCameraByName('terrain-camera')!;
     expect(hint.isVisible).toBe(true);
+    scene.dispose();
+  } finally {
+    engine.dispose();
+  }
+});
+
+it('wobbles the Level 5 surreal red pipe while inPipe is true and settles back to rest', () => {
+  const engine = new NullEngine();
+  try {
+    const cells = Array.from({ length: 141 }, () =>
+      Array<TerrainCell>(141).fill(null),
+    );
+    const scene = createTerrainStudy(
+      engine,
+      undefined,
+      {
+        level: 'level5',
+        cells,
+        origin: { x: 0, z: 0 },
+        lastScroll: -16152,
+      },
+      undefined,
+      {
+        models: {
+          level5_clock: {
+            seconds: 0,
+            poses: [
+              {
+                positions: [14, -10, 16, 22, -10, 16, 18, -4, 24],
+                normals: [0, 1, 0, 0, 1, 0, 0, 1, 0],
+              },
+            ],
+            uvs: [0, 0, 1, 0, 0.5, 1],
+            groups: { 'catapult.png': [0, 1, 2] },
+          },
+        },
+        textures: {
+          'catapult.png':
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        },
+      },
+    );
+    const pipe = scene.getMeshByName('level5-clock')!;
+    expect(pipe).not.toBeNull();
+    expect(pipe.position.x).toBeCloseTo(18, 4);
+    expect(pipe.position.y).toBeCloseTo(-7, 4);
+    expect(pipe.position.z).toBeCloseTo(20, 4);
+
+    updateLevel5PipeAnimation(scene, true, 0.05);
+    expect(
+      Math.abs(pipe.scaling.x - 1) + Math.abs(pipe.scaling.y - 1),
+    ).toBeGreaterThan(0.005);
+
+    for (let i = 0; i < 15; i++) updateLevel5PipeAnimation(scene, false, 0.05);
+    expect(pipe.scaling.x).toBe(1);
+    expect(pipe.scaling.y).toBe(1);
+    expect(pipe.scaling.z).toBe(1);
+    expect(pipe.position.x).toBeCloseTo(18, 4);
+    expect(pipe.position.y).toBeCloseTo(-7, 4);
+    expect(pipe.position.z).toBeCloseTo(20, 4);
     scene.dispose();
   } finally {
     engine.dispose();

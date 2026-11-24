@@ -525,3 +525,20 @@ it('exposes the bird death for each player and clears it during native reconstru
   memory.setUint8(0x33, 4);
   expect(readPracticePose(heap)?.birdDeath).toBeUndefined();
 });
+
+it('exposes inPipe when 68010 animation state is 3 (pipe traversal)', () => {
+  const heap = new Uint8Array(PRACTICE_WORK_RAM + 0x2000),
+    memory = new DataView(heap.buffer, PRACTICE_WORK_RAM);
+  for (const [offset, value] of [
+    [0x474, 2],
+    [0x476, 0xde1e],
+    [0x396, 1],
+  ])
+    memory.setUint16(offset!, value!, true);
+  memory.setUint8(0x31, 1);
+  memory.setUint8(0x30, 0);
+  memory.setUint8(0x33, 3);
+  expect(readPracticePose(heap)?.inPipe).toBe(true);
+  memory.setUint8(0x33, 0);
+  expect(readPracticePose(heap)?.inPipe).toBeUndefined();
+});

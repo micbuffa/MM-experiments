@@ -56,6 +56,7 @@ export interface PracticeMarblePose {
   readonly z: number;
   readonly height: number;
   readonly atGoal?: boolean;
+  readonly inPipe?: boolean;
   readonly respawnTicks?: number;
   readonly catchUpOffset?: number;
   readonly timeBonusOffset?: number;
@@ -215,6 +216,7 @@ export function readPracticePose(
       z: signed(base + 0x28) + fraction(base + 0x2a),
       height: word(base + 0x2c) + fraction(base + 0x2e),
       atGoal: active && animation === 6,
+      ...(active && animation === 3 ? { inPipe: true } : {}),
       ...(active &&
       memory.getUint8(base + (0xf0 ^ 1)) === 1 &&
       awardPoints !== undefined

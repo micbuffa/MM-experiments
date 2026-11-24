@@ -234,9 +234,9 @@ export function level6SurfaceKind(
   if (x >= 77 && z >= 79) {
     const elevated = maxY > lowerMazeFloorY + 0.5;
     if (!elevated) return 'stone';
-    // Static entry platform & far-left upper maze cap (x=99..103, z=81..88) stay grey stone; GOAL pad is golden-amber.
+    // Static entry platform & far-left upper maze cap (x=99..103, z=81..86) stay grey stone; GOAL pad is golden-amber.
     if (x <= 82 && z <= 84) return 'stone';
-    if (x >= 99 && x <= 103 && z >= 81 && z <= 88) return 'stone';
+    if (x >= 99 && x <= 103 && z >= 81 && z <= 86) return 'stone';
     if (
       x >= level6Goal.x &&
       x < level6Goal.x + level6Goal.width &&
@@ -244,19 +244,21 @@ export function level6SurfaceKind(
       z < level6Goal.z + level6Goal.length
     )
       return 'amber';
-    // Strip behind-right of GOAL (x=84..85, z=88..101): amber -> cyan ice -> amber -> ribbed
-    if (x >= 84 && x <= 85 && z >= 88 && z <= 101) {
-      if (z <= 91) return 'amber';
-      if (z <= 94) return 'ice';
-      if (z <= 97) return 'amber';
+    // 2x2 golden-amber bridge under the GOAL flags connecting GOAL to the right strip (x=86..87, z=88..89)
+    if (x >= 86 && x <= 87 && z >= 88 && z <= 89) return 'amber';
+    // Strip behind-right of GOAL (x=84..85, z=88..104): amber -> cyan ice -> amber -> ribbed
+    if (x >= 84 && x <= 85 && z >= 88 && z <= 104) {
+      if (z <= 92) return 'amber';
+      if (z <= 95) return 'ice';
+      if (z <= 98) return 'amber';
       return 'ribbed';
     }
-    // Grey stone block at the bottom-right of GOAL (x=86..89, z=101..104)
-    if (x >= 86 && x <= 89 && z >= 101 && z <= 104) return 'stone';
-    // Flat cyan ice block at the bottom-right of the maze (sloped ramp x>=94 stays dark charcoal)
-    if (x >= 90 && x <= 93 && z >= 103 && z <= 106) return 'ice';
-    // Grey stone ramp & landing at the bottom of the maze
-    if (x >= 96 && x <= 106 && z >= 103 && z <= 109) return 'stone';
+    // Flat cyan ice block at the bottom-right of the maze (x=88..93, z=104..106)
+    if (x >= 88 && x <= 93 && z >= 104 && z <= 106) return 'ice';
+    // Grey stone block bordering the top-right of the cyan ice (x=86..89, z=101..105)
+    if (x >= 86 && x <= 89 && z >= 101 && z <= 105) return 'stone';
+    // Flat grey stone landing at the bottom-left of the maze (both gable ramps x=94..101 stay dark charcoal)
+    if (x >= 102 && x <= 106 && z >= 104 && z <= 109) return 'stone';
     return 'dark';
   }
   return 'stone';

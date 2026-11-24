@@ -106,7 +106,7 @@ describe('level6DisplayTerrain', () => {
       level6SurfaceKind(level6Goal.x + 1, level6Goal.z + 1, flatMazeTop),
     ).toBe('amber');
     expect(level6SurfaceKind(84, 89, flatMazeTop)).toBe('amber');
-    expect(level6SurfaceKind(84, 92, flatMazeTop)).toBe('ice');
+    expect(level6SurfaceKind(84, 93, flatMazeTop)).toBe('ice');
     expect(level6SurfaceKind(92, 104, flatMazeTop)).toBe('ice');
     expect(level6SurfaceKind(103, 106, flatMazeTop)).toBe('stone');
     expect(level6SurfaceKind(90, 82, flatMazeTop)).toBe('dark');
@@ -130,17 +130,20 @@ describe('level6DisplayTerrain', () => {
   it('assigns authentic Level 6 end-maze materials per cell and slope', () => {
     const elevated = [0, 0, 0, 0] as const;
     const sloped = [0, 0, -0.5, -0.5] as const;
-    expect(level6SurfaceKind(84, 89, elevated)).toBe('amber');
-    expect(level6SurfaceKind(84, 90, elevated)).toBe('amber');
-    expect(level6SurfaceKind(84, 93, elevated)).toBe('ice');
-    expect(level6SurfaceKind(84, 96, elevated)).toBe('amber');
-    expect(level6SurfaceKind(84, 99, elevated)).toBe('ribbed');
-    expect(level6SurfaceKind(87, 102, elevated)).toBe('stone');
+    expect(level6SurfaceKind(86, 88, elevated)).toBe('amber');
+    expect(level6SurfaceKind(84, 92, elevated)).toBe('amber');
+    expect(level6SurfaceKind(84, 95, elevated)).toBe('ice');
+    expect(level6SurfaceKind(84, 97, elevated)).toBe('amber');
+    expect(level6SurfaceKind(84, 103, elevated)).toBe('ribbed');
+    expect(level6SurfaceKind(87, 105, elevated)).toBe('stone');
     expect(level6SurfaceKind(88, 103, elevated)).toBe('stone');
-    expect(level6SurfaceKind(92, 103, sloped)).toBe('ice');
+    expect(level6SurfaceKind(88, 104, elevated)).toBe('ice');
     expect(level6SurfaceKind(92, 104, elevated)).toBe('ice');
     expect(level6SurfaceKind(95, 104, sloped)).toBe('dark');
-    expect(level6SurfaceKind(102, 87, elevated)).toBe('stone');
+    expect(level6SurfaceKind(99, 104, sloped)).toBe('dark');
+    expect(level6SurfaceKind(104, 103, elevated)).toBe('dark');
+    expect(level6SurfaceKind(102, 85, elevated)).toBe('stone');
+    expect(level6SurfaceKind(102, 87, elevated)).toBe('dark');
     expect(level6SurfaceKind(100, 90, elevated)).toBe('dark');
     expect(level6SurfaceKind(86, 82, elevated)).toBe('dark');
   });

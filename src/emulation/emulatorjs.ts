@@ -375,13 +375,13 @@ export async function prepareEmulator(
             0x400,
           );
           if (ram.getUint16(0x390, true) === 0) {
-            if (ram.getUint16(0x6a, true) < 60) ram.setUint16(0x6a, 60, true);
+            // Player structs live at 0x400018 (P1) and 0x4000fa (P2); remaining seconds sit at +0x6a.
+            if (ram.getUint16(0x82, true) < 60) ram.setUint16(0x82, 60, true);
             if (
               ram.getUint16(0x396, true) === 2 &&
-              ram.getUint16(0x14c, true) < 60
+              ram.getUint16(0x164, true) < 60
             )
-              ram.setUint16(0x14c, 60, true);
-            if (ram.getUint8(0x3a5) < 60) ram.setUint8(0x3a5, 60);
+              ram.setUint16(0x164, 60, true);
           }
         }
       }

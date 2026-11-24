@@ -82,17 +82,18 @@ const letters = [
   ],
 ] as const;
 
-type GoalPalette = 'idle' | 'blue' | 'red' | 'intermediate';
+type GoalPalette = 'idle' | 'blue' | 'red' | 'intermediate' | 'level6';
 const goalColors = {
   idle: { ink: [20, 20, 20, 255], paper: [193, 193, 193, 255] },
   blue: { ink: [24, 25, 164, 255], paper: [163, 170, 238, 255] },
   red: { ink: [166, 23, 23, 255], paper: [237, 166, 166, 255] },
   intermediate: { ink: [44, 44, 44, 255], paper: [131, 131, 131, 255] },
+  level6: { ink: [196, 124, 16, 255], paper: [255, 224, 132, 255] },
 };
 
 export function practiceGoalPaint(
   palette: GoalPalette,
-  compact = palette === 'intermediate',
+  compact = palette === 'intermediate' || palette === 'level6',
 ) {
   const { ink, paper } = goalColors[palette];
   const pixels = new Uint8Array(128 * 64 * 4);
@@ -116,7 +117,7 @@ export function practiceGoalPaint(
 export function createPracticeGoalMaterial(
   scene: Scene,
   palette: GoalPalette,
-  compact = palette === 'intermediate',
+  compact = palette === 'intermediate' || palette === 'level6',
 ) {
   const material = new StandardMaterial(`practice-goal-${palette}`, scene);
   material.specularColor.set(0, 0, 0);
@@ -151,9 +152,11 @@ export function practiceFlagPaint(level?: PracticeTerrain['level']) {
   const light =
     level === 'intermediate'
       ? [16, 181, 235, 255]
-      : level === 'level5' || level === 'level6'
-        ? [255, 170, 0, 255]
-        : [255, 255, 128, 255];
+      : level === 'level6'
+        ? [238, 102, 48, 255]
+        : level === 'level5'
+          ? [255, 170, 0, 255]
+          : [255, 255, 128, 255];
   const squares = new Uint8Array(checkColumns * checkRows * 4);
   for (let y = 0; y < checkRows; y++) {
     for (let x = 0; x < checkColumns; x++) {
@@ -229,10 +232,15 @@ export function createPracticeGoalFlags(
       : undefined;
   const anchors =
     goalRegion && flagZ !== undefined
-      ? [0.05, goalRegion.width - 0.05].map(
-          (dx) =>
-            [goalRegion.x + dx, flagZ + 0.05, arcadeGroundHeight] as const,
-        )
+      ? terrain.level === 'level6'
+        ? [0.05, 2.05].map(
+            (dz) =>
+              [goalRegion.x + 0.05, flagZ + dz, arcadeGroundHeight] as const,
+          )
+        : [0.05, goalRegion.width - 0.05].map(
+            (dx) =>
+              [goalRegion.x + dx, flagZ + 0.05, arcadeGroundHeight] as const,
+          )
       : [64.05, 67.98].map((z) => [72, z, 16348] as const);
   for (const [index, [x, z, height]] of anchors.entries()) {
     const position = practiceWorldPoint(

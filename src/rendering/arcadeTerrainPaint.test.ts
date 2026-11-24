@@ -1,3 +1,4 @@
+import { MaterialDefines } from '@babylonjs/core/Materials/materialDefines';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
@@ -8,6 +9,8 @@ import {
   ArcadeTerrainPaint,
   setArcadeTerrainPalette,
 } from './arcadeTerrainPaint';
+import { IntermediatePipePaint } from './intermediatePipePaint';
+import { Level4GoldPaint } from './level4PalettePaint';
 
 it.each(['practice', 'intermediate', 'level3'] as const)(
   'updates %s stone and green surfaces from the native banks without allocating scene resources',
@@ -63,3 +66,45 @@ it.each(['practice', 'intermediate', 'level3'] as const)(
     }
   },
 );
+
+it('emits unique shader defines per plugin variant so BabylonJS effect cache never collides across levels', () => {
+  const engine = new NullEngine();
+  const scene = new Scene(engine);
+  try {
+    const plugins = [
+      new ArcadeTerrainPaint(
+        new StandardMaterial('a', scene),
+        'practice',
+        'floor',
+      ),
+      new ArcadeTerrainPaint(
+        new StandardMaterial('b', scene),
+        'practice',
+        'wall',
+      ),
+      new ArcadeTerrainPaint(
+        new StandardMaterial('c', scene),
+        'level3',
+        'wall',
+      ),
+      new ArcadeTerrainPaint(
+        new StandardMaterial('d', scene),
+        'level6',
+        'wall',
+      ),
+      new IntermediatePipePaint(new StandardMaterial('e', scene)),
+      new Level4GoldPaint(new StandardMaterial('f', scene)),
+    ];
+    const keys = new Set<string>();
+    for (const plugin of plugins) {
+      const defines = new MaterialDefines();
+      plugin.prepareDefines(defines);
+      expect(defines[plugin.shaderDefine]).toBe(true);
+      keys.add(plugin.shaderDefine);
+    }
+    expect(keys.size).toBe(plugins.length);
+  } finally {
+    scene.dispose();
+    engine.dispose();
+  }
+});

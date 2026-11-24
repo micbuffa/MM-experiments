@@ -1,3 +1,4 @@
+import type { MaterialDefines } from '@babylonjs/core/Materials/materialDefines';
 import { MaterialPluginBase } from '@babylonjs/core/Materials/materialPluginBase';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -17,9 +18,14 @@ class OcclusionCorridor extends MaterialPluginBase {
     material: StandardMaterial,
     private readonly corridor: Corridor,
   ) {
-    super(material, 'marble-occlusion-corridor', 250);
+    super(material, 'marble-occlusion-corridor', 250, {
+      MM_OCCLUSION_CORRIDOR: false,
+    });
     this.registerForExtraEvents = true;
     this._enable(true);
+  }
+  override prepareDefines(defines: MaterialDefines) {
+    defines['MM_OCCLUSION_CORRIDOR'] = true;
   }
   override getUniforms() {
     return { externalUniforms: ['mmEye', 'mmMarble', 'mmFade'] };

@@ -19,9 +19,17 @@ export const level6Pyramids = [
 ] as const;
 
 export const level6Wedges = [
-  { x: 29, z: 30, width: 3, length: 3 },
-  { x: 29, z: 38, width: 3, length: 3 },
+  { x: 29, z: 31, width: 3, length: 2 },
+  { x: 29, z: 39, width: 3, length: 2 },
 ] as const;
+
+/** Outer cliff edges in the upper floating section (start pads, plateau, square pit, both wedge branches + cyan ice strips) are 1-block-thick slabs suspended in space, before deep cliffs begin at the amoeba/worm plateaus. */
+export function isLevel6FloatingSlabEdge(
+  cellX: number,
+  cellZ: number,
+): boolean {
+  return cellX < 45.95 && cellZ < 45.95 && !(cellX < 38.05 && cellZ > 43.95);
+}
 
 const roundHeight = (height: number) => Math.round(height * 1e9) / 1e9;
 const arcadeToWorldY = (height: number) =>
@@ -29,28 +37,116 @@ const arcadeToWorldY = (height: number) =>
 
 const lowerMazeFloorY = arcadeToWorldY(16316);
 const upperStartY = arcadeToWorldY(16384);
+const walkwayBaseY = arcadeToWorldY(16352);
 
-/** Clean Level 6 display grid: flatten 4 pyramid bases and clip diagonal ears. */
+/** Continuous vertex height for the 6x5 start mound (x=20..25, z=17..21) so adjacent cells share exact corners (zero red facets). */
+function startMoundVertexY(vx: number, vz: number): number {
+  if (vx >= 22 && vx <= 24 && vz >= 19 && vz <= 22)
+    return roundHeight(arcadeToWorldY(16396));
+  if (vx >= 21 && vx <= 25 && vz >= 18 && vz <= 21)
+    return roundHeight(arcadeToWorldY(16386));
+  return roundHeight(upperStartY);
+}
+
+/** Exact 3-face arcade bump on the left narrow walkway (x=67..68, z=59..62): peak (67,61,+8) + 4 planar shoulder vertices at +4. */
+function leftWalkwayBumpVertexY(vx: number, vz: number): number {
+  if (vx === 67 && vz === 61) return roundHeight(arcadeToWorldY(16360));
+  if (
+    (vx === 67 && (vz === 60 || vz === 62)) ||
+    (vx === 68 && (vz === 61 || vz === 62))
+  ) {
+    return roundHeight(arcadeToWorldY(16356));
+  }
+  return roundHeight(walkwayBaseY);
+}
+
+/** Exact 3-face arcade dip on the right narrow walkway (x=59..62, z=69..70): trough (61,71,-8) + 4 planar shoulder vertices at -4. */
+function rightWalkwayDipVertexY(vx: number, vz: number): number {
+  if (vx === 61 && vz === 71) return roundHeight(arcadeToWorldY(16344));
+  if (
+    (vz === 71 && (vx === 60 || vx === 62)) ||
+    (vz === 70 && (vx === 60 || vx === 61))
+  ) {
+    return roundHeight(arcadeToWorldY(16348));
+  }
+  return roundHeight(walkwayBaseY);
+}
+
+/** Clean Level 6 display grid: smooth start mound, flatten 4 pyramid bases, and clip diagonal ears. */
 export function level6DisplayTerrain(
   cells: readonly (readonly TerrainCell[])[],
 ): TerrainCell[][] {
   const display: TerrainCell[][] = cells.map((row, z) =>
     row.map((cell, x) => {
-      if (!cell) return null;
-      const pyramid = level6Pyramids.find(
-        ([cx, cz]) => x >= cx - 1 && x < cx + 2 && z >= cz - 1 && z < cz + 2,
-      );
+      if (!cell || Math.abs(x - z) > 21) return null;
+      // Smooth 6x5 start mound (x=20..25, z=17..21): shared vertex heights eliminate triangular cliff artifacts.
+      if (x >= 20 && x <= 25 && z >= 17 && z <= 21) {
+        return [
+          startMoundVertexY(x, z),
+          startMoundVertexY(x + 1, z),
+          startMoundVertexY(x + 1, z + 1),
+          startMoundVertexY(x, z + 1),
+        ];
+      }
+      // Hollow square pit island (x=20..25, z=29..34): crisp grey outer rim (0),
+      // sunken 1-cell grey stone ledge (-4), and clean 2x2 central pit (x=22..23, z=31..32).
+      if (x >= 20 && x <= 25 && z >= 29 && z <= 34) {
+        if (x >= 22 && x <= 23 && z >= 31 && z <= 32) return null;
+        if (x >= 21 && x <= 24 && z >= 30 && z <= 33) {
+          const yLedge = roundHeight(arcadeToWorldY(16380));
+          return [yLedge, yLedge, yLedge, yLedge];
+        }
+        const yRim = roundHeight(upperStartY);
+        return [yRim, yRim, yRim, yRim];
+      }
+      // Keep the floor flat under the two open-mouthed yellow wedge tunnels so no red cliff sliver pokes inside.
+      if (
+        x >= 29 &&
+        x <= 32 &&
+        ((z >= 30 && z <= 32) || (z >= 38 && z <= 40))
+      ) {
+        const yFlat = roundHeight(upperStartY);
+        return [yFlat, yFlat, yFlat, yFlat];
+      }
+      // Exact 3-face bump on the left narrow walkway (x=67..68, z=59..62)
+      if (x >= 67 && x <= 68 && z >= 59 && z <= 62) {
+        return [
+          leftWalkwayBumpVertexY(x, z),
+          leftWalkwayBumpVertexY(x + 1, z),
+          leftWalkwayBumpVertexY(x + 1, z + 1),
+          leftWalkwayBumpVertexY(x, z + 1),
+        ];
+      }
+      // Exact 3-face dip on the right narrow walkway (x=59..62, z=69..70)
+      if (x >= 59 && x <= 62 && z >= 69 && z <= 70) {
+        return [
+          rightWalkwayDipVertexY(x, z),
+          rightWalkwayDipVertexY(x + 1, z),
+          rightWalkwayDipVertexY(x + 1, z + 1),
+          rightWalkwayDipVertexY(x, z + 1),
+        ];
+      }
+      const pyramid =
+        x >= 68 && x <= 79 && z >= 70 && z <= 81
+          ? level6Pyramids.find(
+              ([cx, cz]) => x >= cx - 1 && x <= cx && z >= cz - 1 && z <= cz,
+            )
+          : undefined;
       if (pyramid) {
         const y = arcadeToWorldY(pyramid[2]);
         return [y, y, y, y];
       }
-      const [nw, ne, se] = cell;
+      const [nw, ne, se, sw] = cell;
       if (nw !== null && ne !== null && se !== null) {
+        const planarSw = nw + se - ne;
+        const maxCorner = Math.max(nw, ne, se);
+        const safeSw =
+          sw !== null && planarSw > maxCorner + 0.5 ? sw : planarSw;
         return [
           roundHeight(nw),
           roundHeight(ne),
           roundHeight(se),
-          roundHeight(nw + se - ne),
+          roundHeight(safeSw),
         ];
       }
       return cell;
@@ -98,34 +194,47 @@ export function level6SurfaceKind(
     cell[2] ?? -999,
     cell[3] ?? -999,
   );
-  // Start pads & warm amber/gold start plateau (outside the white marble ramp)
+  const minY = Math.min(
+    cell[0] ?? 999,
+    cell[1] ?? 999,
+    cell[2] ?? 999,
+    cell[3] ?? 999,
+  );
+  // Start pads & warm amber/gold start plateau (outside the exact 6x5 white mound & 2-cell ridge)
   const inWhiteRamp =
-    (x >= 20 && x <= 26 && z >= 17 && z <= 22) ||
-    (x >= 22 && x <= 24 && z >= 19 && z <= 27);
+    (x >= 20 && x <= 25 && z >= 17 && z <= 21) ||
+    (x >= 22 && x <= 23 && z >= 22 && z <= 26);
   if (x >= 10 && x <= 30 && z >= 12 && z <= 27 && !inWhiteRamp) return 'amber';
-  // Amber bottom inside the hollow square ring island
-  if (x >= 21 && x <= 25 && z >= 30 && z <= 34 && maxY < upperStartY - 0.1)
-    return 'amber';
-  // Cyan ice strips on the two upper branches
-  if (x >= 40 && x <= 45 && z >= 33 && z <= 35) return 'ice';
-  if (x >= 40 && x <= 42 && z >= 42 && z <= 46) return 'ice';
-  // Left peach amoeba plateau (acid 15 & 16)
-  if (x >= 46 && x <= 67 && z >= 35 && z <= 46) return 'peach';
-  // Left grey ribbed worm slope (worm 1 & 2)
-  if (x >= 48 && x <= 67 && z >= 47 && z <= 54) return 'ribbed';
-  // Right grey ribbed worm slope (worm 3 & 4)
-  if (x >= 36 && x <= 46 && z >= 45 && z <= 69) return 'ribbed';
-  // Right peach amoeba plateau (acid 13 & 14)
-  if (x >= 46 && x <= 58 && z >= 55 && z <= 69) return 'peach';
+  // Cyan ice strips on the two upper branches (4 cells each: x=42..45 on left, z=42..45 on right)
+  if (x >= 42 && x <= 45 && z >= 33 && z <= 34) return 'ice';
+  if (x >= 40 && x <= 41 && z >= 42 && z <= 45) return 'ice';
+  // Inclined stone chutes connecting the upper amoeba/worm levels (z=43..61)
+  if (x >= 36 && x <= 67 && z >= 43 && z <= 61 && maxY - minY > 0.15) {
+    return 'stone';
+  }
+  // Left peach amoeba plateau (acid 15 & 16, including its 2x2 neck x=46..47, z=33..34 meeting the left ice strip)
+  if (
+    ((x >= 46 && x <= 67 && z >= 35 && z <= 46) ||
+      (x >= 46 && x <= 47 && z >= 33 && z <= 34)) &&
+    maxY > -0.5
+  ) {
+    return 'peach';
+  }
+  // Left grey ribbed worm slope (worm 1 & 2, stopping at x<=66 so the 2-wide grey walkway x=67..68 stays stone)
+  if (x >= 48 && x <= 66 && z >= 45 && z <= 53) return 'ribbed';
+  // Right grey ribbed worm slope (worm 3 & 4; stops at x<=45 so x=46 belongs to the lower peach amoeba plateau)
+  if (x >= 36 && x <= 45 && z >= 45 && z <= 69) return 'ribbed';
+  // Right peach amoeba plateau (acid 13 & 14; stops at z=68 so the 2-wide right walkway z=69..70 stays grey stone)
+  if (x >= 46 && x <= 58 && z >= 55 && z <= 68) return 'peach';
   // Static stone entry platform before the final disappearing-block maze
   if (x >= 77 && x <= 82 && z >= 79 && z <= 84) return 'stone';
-  // Cyan ice diamond with 4 grey pyramids
-  if (x >= 68 && x <= 79 && z >= 70 && z <= 81) return 'ice';
+  // Cyan ice diamond with 4 grey pyramids (11x11: leaves 2-cell grey stone borders at x=67..68 and z=69..70)
+  if (x >= 69 && x <= 79 && z >= 71 && z <= 81) return 'ice';
   // Final disappearing-block maze (x >= 77, z >= 79)
   if (x >= 77 && z >= 79) {
     const elevated = maxY > lowerMazeFloorY + 0.5;
     if (!elevated) return 'stone';
-    // Static entry platform & GOAL pad stay stone (GOAL decal sits on top)
+    // Static entry platform stays stone; GOAL pad is golden-amber (matching the arcade GOAL decal).
     if (x <= 82 && z <= 84) return 'stone';
     if (
       x >= level6Goal.x &&
@@ -133,10 +242,15 @@ export function level6SurfaceKind(
       z >= level6Goal.z - 1 &&
       z < level6Goal.z + level6Goal.length
     )
-      return 'stone';
-    // Gold/amber block above GOAL & cyan ice block in lower-right maze
-    if (x >= 87 && x <= 94 && z >= 81 && z <= 84) return 'amber';
-    if (x >= 99 && x <= 104 && z >= 104 && z <= 109) return 'ice';
+      return 'amber';
+    // Gold + peach + gold wall behind-right of GOAL
+    if (x >= 84 && x <= 85 && z >= 88 && z <= 97) {
+      return z >= 91 && z <= 94 ? 'peach' : 'amber';
+    }
+    // Standalone cyan ice block to the right of the maze ramp
+    if (x >= 84 && x <= 93 && z >= 103 && z <= 106) return 'ice';
+    // Grey stone ramp & landing at the bottom of the maze
+    if (x >= 96 && x <= 106 && z >= 103 && z <= 109) return 'stone';
     return 'dark';
   }
   return 'stone';

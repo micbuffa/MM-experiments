@@ -1,5 +1,25 @@
 # Passation
 
+## Niveau 6 (finitions visuelles complètes), correctif shader inter-parties et timer infini — 23 novembre 2026
+
+- **Correctif collision de cache shader entre parties** ([terrainPalettePaint.ts](src/rendering/terrainPalettePaint.ts), [arcadeTerrainPaint.ts](src/rendering/arcadeTerrainPaint.ts), [intermediatePipePaint.ts](src/rendering/intermediatePipePaint.ts), [createLevel5Terrain.ts](src/rendering/createLevel5Terrain.ts), [createCameraOcclusion.ts](src/rendering/createCameraOcclusion.ts), [arcadeTerrainPaint.test.ts](src/rendering/arcadeTerrainPaint.test.ts)) :
+  - Ajout d'une clé `#define` unique via `prepareDefines()` sur chaque sous-classe de `MaterialPluginBase` pour éviter toute collision dans `engine._compiledEffects` entre plusieurs parties (rambardes L1 violettes, tuyau L3 bleu, sol L1 marron).
+- **Timer infini (touche `T`, désactivé par défaut)** ([emulatorjs.ts](src/emulation/emulatorjs.ts)) :
+  - Correction des offsets Work RAM du chronomètre en `0x82` (J1 = `0x400018 + 0x6a`) et `0x164` (J2 = `0x4000fa + 0x6a`).
+- **Finitions visuelles complètes du Niveau 6 (_Ultimate Race_)** ([level6DisplayTerrain.ts](src/rendering/level6DisplayTerrain.ts), [level6DisplayTerrain.test.ts](src/rendering/level6DisplayTerrain.test.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts), [createPracticeGoal.ts](src/rendering/createPracticeGoal.ts)) :
+  - **Plateaux amibes animés** : shader `Level6ShimmerPaint` (`MM_LEVEL6_SHIMMER`) branché en direct sur la banque Playfield 1 (`0xb00420..0xb0042c`, indices `16..22`) synchronisé sur le cycle palette 60 Hz de MAME.
+  - **Monticule de départ exact (`6×5`)** : sommets partagés continus (`startMoundVertexY`, zéro facettes rouges), texture ambre mouchetée douce, suppression des rangées de cases grises au pied des murs rouges.
+  - **Îlot du trou carré creux** : bordure extérieure et rebord intérieur en dallage gris, parois intérieures dorées avec ombre portée (`receiveShadows = true`) et fond brun chocolat visible (`bottomY = topY - 0.92`).
+  - **Bouches jaunes ouvertes** : tunnels triangulaires creux décalés sur les vraies tranchées MAME (`z = 31..32` et `z = 39..40`), dégradé d'ombre intérieure et arche frontale fine.
+  - **Dalles flottantes d'1 bloc d'épaisseur et joints gris** : toute la partie haute suspendue dans l'espace (`isLevel6FloatingSlabEdge`), joints verticaux gris sur les murs rouges (`apJoint` index `6`), bandes de glace cyan exactes de 4 cases (`x = 42..45` et `z = 42..45`), plans inclinés en pierre grise et ombres portées des surfaces statiques sur les falaises.
+  - **Plateformes aux vers et passerelles étroites** : micro-damier métallique gaufré `4×4`, géométrie exacte à 3 faces planes sur la bosse gauche (`x = 67..68, z = 59..62`) et le creux droit (`x = 59..62, z = 69..70`), décals verticaux de viaduc (`createViaductWindowSlots`) sur les grandes falaises rouges.
+  - **Losange de glace cyan (`11×11`) et 4 pyramides hexagonales** : bordures grises de 2 cases en haut à gauche/droite, 4 pyramides à base hexagonale (`createLevel6HexPyramid`, hauteur `9.5` unités arcade), suppression des oreilles grises de 3 cases autour de la plateforme d'entrée `6×6`.
+  - **Labyrinthe final et zone `GOAL`** : découpage hors couloir (`Math.abs(x - z) > 21`), garde anti-pointe sur `(103, 82)`, pad `GOAL` doré-crème (`palette: 'level6'`) + drapeaux rouge-orangé/noir placés sur le bord supérieur droit (`x = 88.05, z = 88.05 / 90.05`), muret or/pêche/or derrière à droite, glace cyan sur le bloc isolé, dalles anthracite unies à joints gris clair.
+- **Validation & déploiement** :
+  - `npm run check` + `npm run build:beta` réussis (tous les tests passent, couverture V8 OK).
+  - Vérifications visuelles WebGL2 dans Chrome (`terrain.html` Side-by-side PNG + 3D) sur l'ensemble du niveau 6.
+  - Commité et poussé sur `main`, `dist-beta/` déployé sur `gh-pages`.
+
 ## Optimisations GPU/CPU (Intel UHD 630 & batterie) et outils d'étude — 23 novembre 2026
 
 - **Cache Shadow Map statique + 2048×2048** ([createPracticeSun.ts](src/rendering/createPracticeSun.ts), [createTerrainStudy.ts](src/rendering/createTerrainStudy.ts), [createLivePracticeView.ts](src/rendering/createLivePracticeView.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts)) :

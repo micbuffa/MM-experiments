@@ -4,11 +4,16 @@ import { TerrainPalettePaint } from './terrainPalettePaint';
 /** Native playfield bank 3: violet light and dark faces, with no white gloss. */
 export class IntermediatePipePaint extends TerrainPalettePaint {
   constructor(material: StandardMaterial) {
-    super(material, 'arcade-terrain-paint', [
-      ['pipeDark', 52, 51, 34, 170],
-      ['pipeMid', 54, 85, 68, 204],
-      ['pipeLight', 57, 119, 102, 255],
-    ]);
+    super(
+      material,
+      'arcade-terrain-paint',
+      [
+        ['pipeDark', 52, 51, 34, 170],
+        ['pipeMid', 54, 85, 68, 204],
+        ['pipeLight', 57, 119, 102, 255],
+      ],
+      'MM_INTERMEDIATE_PIPE',
+    );
   }
   override getCustomCode(shader: string) {
     return shader === 'fragment'

@@ -35,16 +35,21 @@ import { intermediateFinishSurface } from './intermediateFinish';
 /** Native yellow wall banks, with the remake's cheese pattern as a mask only. */
 class Level5WallPaint extends TerrainPalettePaint {
   constructor(material: StandardMaterial) {
-    super(material, 'arcade-terrain-paint', [
-      ['sillyLight', 15, 255, 255, 0],
-      ['sillyMid', 14, 170, 170, 0],
-      ['sillyDark', 13, 119, 119, 0],
-      ['sillyOrange', 31, 255, 119, 34],
-      ['sillyOrangeShade', 29, 153, 68, 0],
-      ['sillyPink', 27, 238, 102, 136],
-      ['sillyPinkShade', 28, 119, 34, 51],
-      ['sillyJoint', 4, 70, 70, 70],
-    ]);
+    super(
+      material,
+      'arcade-terrain-paint',
+      [
+        ['sillyLight', 15, 255, 255, 0],
+        ['sillyMid', 14, 170, 170, 0],
+        ['sillyDark', 13, 119, 119, 0],
+        ['sillyOrange', 31, 255, 119, 34],
+        ['sillyOrangeShade', 29, 153, 68, 0],
+        ['sillyPink', 27, 238, 102, 136],
+        ['sillyPinkShade', 28, 119, 34, 51],
+        ['sillyJoint', 4, 70, 70, 70],
+      ],
+      'MM_LEVEL5_WALL',
+    );
   }
   override getCustomCode(shader: string) {
     return shader === 'fragment'

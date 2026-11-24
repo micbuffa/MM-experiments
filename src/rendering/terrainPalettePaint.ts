@@ -1,3 +1,4 @@
+import type { MaterialDefines } from '@babylonjs/core/Materials/materialDefines';
 import { MaterialPluginBase } from '@babylonjs/core/Materials/materialPluginBase';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
@@ -22,17 +23,26 @@ export type PaletteSwatch = readonly [
 export class TerrainPalettePaint extends MaterialPluginBase {
   private readonly colors: Color3[];
   private palette?: TerrainPalette;
+  readonly shaderDefine: string;
   constructor(
     material: StandardMaterial,
     name: string,
     private readonly swatches: readonly PaletteSwatch[],
+    defineKey?: string,
   ) {
-    super(material, name, 210);
+    const key =
+      defineKey ??
+      `MM_PALETTE_${name.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`;
+    super(material, name, 210, { [key]: false });
+    this.shaderDefine = key;
     this.colors = swatches.map(
       ([, , r, g, b]) => new Color3(r / 255, g / 255, b / 255),
     );
     this.registerForExtraEvents = true;
     this._enable(true);
+  }
+  override prepareDefines(defines: MaterialDefines) {
+    defines[this.shaderDefine] = true;
   }
   setPalette(palette: TerrainPalette) {
     if (palette === this.palette) return;

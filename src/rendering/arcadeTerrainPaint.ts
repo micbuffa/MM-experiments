@@ -91,7 +91,15 @@ export class ArcadeTerrainPaint extends TerrainPalettePaint {
       swatches[1] = ['apBright', 28, 0, 255, 255];
       swatches[2] = ['apShade', 20, 0, 45, 45];
     }
-    super(material, 'arcade-terrain-paint', swatches);
+    if (level === 'level6' && surface === 'wall') {
+      swatches[6] = ['apJoint', 6, 119, 119, 119];
+    }
+    super(
+      material,
+      'arcade-terrain-paint',
+      swatches,
+      `MM_ARCADE_${level.toUpperCase()}_${surface.toUpperCase()}`,
+    );
   }
   override getCustomCode(shader: string) {
     if (shader !== 'fragment') return null;

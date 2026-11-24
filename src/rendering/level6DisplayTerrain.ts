@@ -234,10 +234,9 @@ export function level6SurfaceKind(
   if (x >= 77 && z >= 79) {
     const elevated = maxY > lowerMazeFloorY + 0.5;
     if (!elevated) return 'stone';
-    // Static entry platform & far-left upper/mid maze caps stay grey stone; GOAL pad is golden-amber.
+    // Static entry platform & far-left upper maze cap (x=99..103, z=81..88) stay grey stone; GOAL pad is golden-amber.
     if (x <= 82 && z <= 84) return 'stone';
-    if (x >= 99 && x <= 102 && z >= 81 && z <= 84) return 'stone';
-    if (x >= 99 && x <= 102 && z >= 89 && z <= 92) return 'stone';
+    if (x >= 99 && x <= 103 && z >= 81 && z <= 88) return 'stone';
     if (
       x >= level6Goal.x &&
       x < level6Goal.x + level6Goal.width &&
@@ -245,19 +244,17 @@ export function level6SurfaceKind(
       z < level6Goal.z + level6Goal.length
     )
       return 'amber';
-    // Strip behind-right of GOAL (x=84..85, z=88..101): peach -> amber -> cyan ice -> amber -> ribbed
+    // Strip behind-right of GOAL (x=84..85, z=88..101): amber -> cyan ice -> amber -> ribbed
     if (x >= 84 && x <= 85 && z >= 88 && z <= 101) {
-      if (z <= 89) return 'peach';
       if (z <= 91) return 'amber';
       if (z <= 94) return 'ice';
       if (z <= 97) return 'amber';
       return 'ribbed';
     }
-    // Grey stone block at the bottom-right of GOAL (x=86..89, z=101..102)
-    if (x >= 86 && x <= 89 && z >= 101 && z <= 102) return 'stone';
+    // Grey stone block at the bottom-right of GOAL (x=86..89, z=101..104)
+    if (x >= 86 && x <= 89 && z >= 101 && z <= 104) return 'stone';
     // Flat cyan ice block at the bottom-right of the maze (sloped ramp x>=94 stays dark charcoal)
-    if (x >= 86 && x <= 93 && z >= 103 && z <= 106 && maxY - minY <= 0.15)
-      return 'ice';
+    if (x >= 90 && x <= 93 && z >= 103 && z <= 106) return 'ice';
     // Grey stone ramp & landing at the bottom of the maze
     if (x >= 96 && x <= 106 && z >= 103 && z <= 109) return 'stone';
     return 'dark';

@@ -1,26 +1,27 @@
-# Marble Madness — prototype 03
+# Marble Madness — Prototype 03
 
-Michel a autorisé cinq évolutions du prototype 02. Les restrictions historiques
-sur la navigation et l’audio spatial sont levées pour ce lot.
+Michel authorized five evolutions of prototype 02. Historical restrictions
+on navigation and spatial audio are lifted for this batch.
 
-1. **Bar explorable.** Déplacement ZQSD, WASD ou flèches, regard au trackpad.
-   Collisions simples avec la pièce, la borne et le mobilier. E devant la borne
-   transfère la capture au jeu. Échap met en pause. Quitter la borne ramène à la
-   vue d’ensemble. Le déplacement reprend à la dernière position d’exploration.
-2. **Borne affinée.** Proportions à échelle humaine, panneau latéral, métal et
-   bois texturés, ombres statiques. Le cadrage frontal affiche toute la vidéo.
-3. **Trackball visible.** La boule tourne selon les deltas lus par le cœur.
-   Le cadrage Borne avec le bouton Capturer du HUD permet de la voir en jeu.
-4. **Son positionnel.** L’exploration atténue et panoramise le son arcade
-   existant selon la position et l’orientation. Le HUD permet de le désactiver.
-   En jeu et en observation, le mixage arcade d’origine est utilisé.
-5. **Rendu ajustable.** Les profils Éco, Équilibrée et Retina plafonnent la
-   résolution à 1×, 1,5× et 2× du canvas CSS. Le diagnostic mesure les images
-   rendues, les appels de dessin et le temps CPU, ainsi que le temps GPU si la
-   plateforme l’expose. Tester les profils sur un vrai navigateur. Consigner
-   séparément la recette Safari et l’essai sur un écran physique 120 Hz.
+1. **Explorable bar.** ZQSD, WASD, or arrow-key movement, trackpad look.
+   Simple collisions with the room, cabinet, and furniture. Pressing E in front
+   of the cabinet transfers capture to gameplay. Escape pauses. Leaving the
+   cabinet returns to the overview. Movement resumes from the last exploration
+   position.
+2. **Refined cabinet.** Human-scale proportions, side panel, textured metal and
+   wood, static shadows. Frontal framing displays the entire video.
+3. **Visible trackball.** The ball rotates according to deltas read by the core.
+   Cabinet framing with the HUD Capture button makes it visible during play.
+4. **Positional audio.** Exploration attenuates and pans existing arcade audio
+   according to position and orientation. The HUD allows disabling it.
+   During gameplay and observation, the original arcade mix is used.
+5. **Adjustable rendering.** Eco, Balanced, and Retina profiles cap resolution
+   at 1×, 1.5×, and 2× of the CSS canvas. Diagnostics measure rendered frames,
+   draw calls, and CPU time, plus GPU time if exposed by the platform.
+   Test profiles in a real browser. Separately record Safari acceptance and
+   testing on a physical 120 Hz display.
 
-Une session arcade, une texture vidéo et une seule tâche de rendu à la fois.
-Les collisions de visite appartiennent au décor. Les règles et la physique de
-Marble Madness restent dans MAME. Conserver les vues de référence, les commandes,
-la purge après interruption et la sélection locale des ROM et BIOS.
+One arcade session, one video texture, and a single rendering task at a time.
+Visit collisions belong to the scenery. Marble Madness rules and physics
+remain in MAME. Preserve reference views, controls, cleanup after
+interruption, and local selection of ROMs and BIOS.

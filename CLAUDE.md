@@ -1,8 +1,8 @@
-# Instructions pour Claude
+# Instructions for Claude
 
-Lire et appliquer [AGENTS.md](AGENTS.md), référence commune du projet.
-Lire également [ARCHITECTURE.md](ARCHITECTURE.md) et [HANDOFF.md](HANDOFF.md)
-avant toute intervention. Mettre à jour la passation en fin de travail significatif.
+Read and follow [AGENTS.md](AGENTS.md), the shared project reference.
+Also read [ARCHITECTURE.md](ARCHITECTURE.md) and [HANDOFF.md](HANDOFF.md)
+before any work. Update the handoff log at the end of significant work.
 
-Lire systématiquement et appliquer [BABYLONJS_BEST_PRACTICES.md](BABYLONJS_BEST_PRACTICES.md)
-au début de chaque intervention, y compris lors d'une reprise.
+Always read and follow [BABYLONJS_BEST_PRACTICES.md](BABYLONJS_BEST_PRACTICES.md)
+at the start of every task, including when resuming work.

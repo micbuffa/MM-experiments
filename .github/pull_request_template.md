@@ -1,12 +1,12 @@
-## Changement
+## Change
 
-Problème traité, comportement obtenu et éventuelles hypothèses.
+Issue addressed, resulting behavior, and any assumptions.
 
 ## Validation
 
-- [ ] Tests unitaires des fonctionnalités importantes et régressions ajoutés
-- [ ] `npm run check` exécuté avec succès (sinon expliquer)
-- [ ] Vérification navigateur des changements 3D/UI (si applicable)
-- [ ] `HANDOFF.md` actualisé ; architecture et README actualisés si nécessaire
+- [ ] Unit tests added for significant features and regressions
+- [ ] `npm run check` ran successfully (otherwise explain)
+- [ ] Browser verification of 3D/UI changes (if applicable)
+- [ ] `HANDOFF.md` updated; architecture and README updated if needed
 
-Limites et vérifications restantes :
+Remaining limitations and checks:

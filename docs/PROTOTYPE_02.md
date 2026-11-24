@@ -1,65 +1,65 @@
-# Borne interactive et premier bar3D
+# Interactive Cabinet and First 3D Bar
 
-Ce document décrit l’étape 02. Pour le bar explorable et le son positionnel,
-voir la [spécification 03](../Marble_Madness_Prototype_03_SPEC.md).
+This document describes stage 02. For the explorable bar and positional sound,
+see [specification 03](../Marble_Madness_Prototype_03_SPEC.md).
 
-Les cinq étapes ont été autorisées par Michel puis implémentées : borne originale,
-cadrages avec transition, commandes cliquables, matériaux/éclairage, première pièce.
-La spécification02 détaille le périmètre ; le jeu original reste dans MAME.
+All five stages were authorized by Michel and implemented: original cabinet,
+framing with transitions, clickable controls, materials/lighting, first room.
+Specification 02 details the scope; the original game remains in MAME.
 
-## Utiliser
+## Using
 
-1. npm run dev ; archives locales dans roms/ ou sélection manuelle.
-2. Vérifier et préparer, démarrer le cœur puis attendre son écran.
-3. Jouer en plein écran3D. Caméra **Bar** pour la pièce, **Borne** pour le meuble,
-   **Frontale** pour une image droite et agrandie. Les sélecteurs page/HUD suivent
-   le même choix et les transitions fonctionnent aussi en pause.
-4. Hors capture, cliquer sur Crédit ou sur le monnayeur de la borne, puis Start1
-   ou2. Les boutons du HUD restent une alternative accessible. Le programme
-   arcade décide des crédits requis et de l'état de la partie.
-5. Cliquer sur l'écran ou le trackball : rapprochement vers l'écran et capture
-   dans le même geste. Un doigt sans clic maintenu pour jouer, Espace pour boost.
-6. Échap libère et met en pause ; reprendre/capturer explicitement. Pendant la
-   capture, les clics3D ne déclenchent pas de crédits ou de Start. Raccourcis5/(,
-   1/&,2/é toujours disponibles. Le port2 a Start, pas un second trackpad.
+1. npm run dev; local archives in roms/ or manual selection.
+2. Verify and prepare, start the core, then wait for its screen.
+3. Play in 3D fullscreen. **Bar** camera for the room, **Cabinet** for the unit,
+   **Frontal** for a straight, enlarged image. Page/HUD selectors follow the
+   same choice and transitions also work while paused.
+4. Outside capture, click Credit or the cabinet coin door, then Start1
+   or 2. HUD buttons remain an accessible alternative. The arcade program
+   decides required credits and game state.
+5. Click the screen or trackball: zoom in toward the screen and capture in
+   the same gesture. One finger without held click to play, Space for boost.
+6. Escape releases and pauses; resume/capture explicitly. During capture,
+   3D clicks do not trigger credits or Start. Shortcuts 5/(, 1/&, 2/é always
+   available. Port 2 has Start, not a second trackpad.
 
-L'écran de borne attend le premier dessin effectif du cœur s'il n'a pas encore
-été copié ; le décor, lui, peut être affiché en pause avant la première vidéo.
-La caméra n'a pas de navigation attachée au trackpad. La première pièce est
-une scène d'observation fixe, pas un bar explorable en déplacementFPS.
+The cabinet screen waits for the core's first actual draw if it has not yet
+been copied; the scenery, however, can be displayed while paused before the
+first video. The camera has no navigation attached to the trackpad. The first
+room is a fixed observation scene, not an FPS-walkable bar.
 
-## Contenu et propriété
+## Contents and Ownership
 
-- Meuble, plinthe, panneaux latéraux, enseigne et haut-parleurs.
-- Écran original vivant, panneau de commandes, boule, boutons et monnayeur.
-- Métal peint sombre, inserts clairs, accents cyan/orange.
-- Sol à lames, murs, comptoir à lattes, étagères/bouteilles, sièges, table et
-  suspensions ; éclairage ambiant/directionnel et points chaud/froid.
-- Une session, un moteur, une texture vidéo. Géométrie originale et enseignes
-  système générées localement ; aucune image ou modèle externe.
-- Mode direct et plan de comparaison conservés, avec couleurs vidéo non éclairées.
+- Cabinet, plinth, side panels, marquee, and speakers.
+- Live original screen, control panel, trackball, buttons, and coin door.
+- Dark painted metal, light inserts, cyan/orange accents.
+- Plank floor, walls, slatted counter, shelves/bottles, stools, table, and
+  pendant lights; ambient/directional lighting and warm/cool point lights.
+- One session, one engine, one video texture. Original geometry and system
+  marquee generated locally; no external images or models.
+- Direct mode and comparison plane preserved, with unlit video colors.
 
-## Vérifications
+## Verifications
 
-Actions et temps : unitaires purs. NullEngine : géométrie/aspect, caméra unique,
-réutilisation, transition et redimensionnement, trackball sous le champ vidéo,
-destruction de scène. Chrome : pixels vidéo, pause, trois vues, vrais clics
-projetés sur les meshes, survol, capture réelle depuis la boule, commandes
-ignorées pendant capture et nettoyage des textures générées/meshes/caméras.
-Le helper cabinetHarness est dans tests seulement et absent du build.
+Actions and timing: pure unit tests. NullEngine: geometry/aspect, single camera,
+reuse, transition and resize, trackball below video field, scene disposal.
+Chrome: video pixels, pause, three views, real clicks projected onto meshes,
+hover, real capture from the trackball, commands ignored during capture, and
+cleanup of generated textures/meshes/cameras.
+The cabinetHarness helper is in tests only and absent from the build.
 
-Le vrai runtime a été essayé avec les ROMs locales. Des captures des trois vues
-ont été examinées dans /tmp : enseignes droites et jeu non masqué par la boule.
-Les preuves numériques et la nouvelle recette d'endurance sont consignées
-séparément dans VALIDATION.md. La recette du prototype01 ne certifie pas à elle
-seule ce nouveau décor. L'écoute complète, le confort physique, Safari/120Hz et
-le coût GPU complet restent distincts des vérifications automatiques.
+The real runtime was tested with local ROMs. Screenshots of all three views
+were examined in /tmp: straight marquees and game unobstructed by the trackball.
+Numeric evidence and the new endurance recipe are recorded separately in
+VALIDATION.md. The prototype 01 recipe alone does not certify this new scenery.
+Full listening, physical comfort, Safari/120Hz, and full GPU cost remain
+distinct from automated checks.
 
-## Bilan de livraison
+## Delivery Summary
 
-Check250 tests/27 fichiers, Chrome29 et preview3 réussis. Le vrai jeu a servi
-à vérifier Crédit/Start et capture via les meshes, puis les trois cadrages.
-Un essai spécifique du picking et de la capture a également réussi dans le
-build de production, sans helper dev. La nouvelle endurance du build final a
-terminé600,02s actives et36063 copies, sans erreurJS ou commandes bloquées.
-Preuves et limites détaillées dans VALIDATION.md. Les cinq étapes sont livrées.
+Check 250 tests/27 files, Chrome 29, and preview 3 passed. The real game was
+used to verify Credit/Start and capture via meshes, then the three framings.
+A specific picking and capture test also passed in the production build,
+without dev helper. The new endurance run of the final build completed
+600.02s active and 36063 copies, with no JS errors or stuck commands.
+Evidence and limits detailed in VALIDATION.md. All five stages are delivered.

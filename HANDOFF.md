@@ -1,2673 +1,1032 @@
-# Passation
-
-## Niveau 6 (finitions visuelles complètes), correctif shader inter-parties et timer infini — 23 novembre 2026
-
-- **Correctif collision de cache shader entre parties** ([terrainPalettePaint.ts](src/rendering/terrainPalettePaint.ts), [arcadeTerrainPaint.ts](src/rendering/arcadeTerrainPaint.ts), [intermediatePipePaint.ts](src/rendering/intermediatePipePaint.ts), [createLevel5Terrain.ts](src/rendering/createLevel5Terrain.ts), [createCameraOcclusion.ts](src/rendering/createCameraOcclusion.ts), [arcadeTerrainPaint.test.ts](src/rendering/arcadeTerrainPaint.test.ts)) :
-  - Ajout d'une clé `#define` unique via `prepareDefines()` sur chaque sous-classe de `MaterialPluginBase` pour éviter toute collision dans `engine._compiledEffects` entre plusieurs parties (rambardes L1 violettes, tuyau L3 bleu, sol L1 marron).
-- **Timer infini (touche `T`, désactivé par défaut)** ([emulatorjs.ts](src/emulation/emulatorjs.ts)) :
-  - Correction des offsets Work RAM du chronomètre en `0x82` (J1 = `0x400018 + 0x6a`) et `0x164` (J2 = `0x4000fa + 0x6a`).
-- **Finitions visuelles complètes du Niveau 6 (_Ultimate Race_)** ([level6DisplayTerrain.ts](src/rendering/level6DisplayTerrain.ts), [level6DisplayTerrain.test.ts](src/rendering/level6DisplayTerrain.test.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts), [createPracticeGoal.ts](src/rendering/createPracticeGoal.ts)) :
-  - **Plateaux amibes animés** : shader `Level6ShimmerPaint` (`MM_LEVEL6_SHIMMER`) branché en direct sur la banque Playfield 1 (`0xb00420..0xb0042c`, indices `16..22`) synchronisé sur le cycle palette 60 Hz de MAME.
-  - **Monticule de départ exact (`6×5`)** : sommets partagés continus (`startMoundVertexY`, zéro facettes rouges), texture ambre mouchetée douce, suppression des rangées de cases grises au pied des murs rouges.
-  - **Îlot du trou carré creux** : bordure extérieure et rebord intérieur en dallage gris, parois intérieures dorées avec ombre portée (`receiveShadows = true`) et fond brun chocolat visible (`bottomY = topY - 0.92`).
-  - **Bouches jaunes ouvertes** : tunnels triangulaires creux décalés sur les vraies tranchées MAME (`z = 31..32` et `z = 39..40`), dégradé d'ombre intérieure et arche frontale fine.
-  - **Dalles flottantes d'1 bloc d'épaisseur et joints gris** : toute la partie haute suspendue dans l'espace (`isLevel6FloatingSlabEdge`), joints verticaux gris sur les murs rouges (`apJoint` index `6`), bandes de glace cyan exactes de 4 cases (`x = 42..45` et `z = 42..45`), plans inclinés en pierre grise et ombres portées des surfaces statiques sur les falaises.
-  - **Plateformes aux vers et passerelles étroites** : micro-damier métallique gaufré `4×4`, géométrie exacte à 3 faces planes sur la bosse gauche (`x = 67..68, z = 59..62`) et le creux droit (`x = 59..62, z = 69..70`), décals verticaux de viaduc (`createViaductWindowSlots`) sur les grandes falaises rouges.
-  - **Losange de glace cyan (`11×11`) et 4 pyramides hexagonales** : bordures grises de 2 cases en haut à gauche/droite, 4 pyramides à base hexagonale (`createLevel6HexPyramid`, hauteur `9.5` unités arcade), suppression des oreilles grises de 3 cases autour de la plateforme d'entrée `6×6`.
-  - **Labyrinthe final et zone `GOAL`** : découpage hors couloir (`Math.abs(x - z) > 21`), garde anti-pointe sur `(103, 82)`, pad `GOAL` doré-crème (`palette: 'level6'`) + drapeaux rouge-orangé/noir placés sur le bord supérieur droit (`x = 88.05, z = 88.05 / 90.05`), muret or/pêche/or derrière à droite, glace cyan sur le bloc isolé, dalles anthracite unies à joints gris clair.
-- **Validation & déploiement** :
-  - `npm run check` + `npm run build:beta` réussis (tous les tests passent, couverture V8 OK).
-  - Vérifications visuelles WebGL2 dans Chrome (`terrain.html` Side-by-side PNG + 3D) sur l'ensemble du niveau 6.
-  - Commité et poussé sur `main`, `dist-beta/` déployé sur `gh-pages`.
-
-## Optimisations GPU/CPU (Intel UHD 630 & batterie) et outils d'étude — 23 novembre 2026
-
-- **Cache Shadow Map statique + 2048×2048** ([createPracticeSun.ts](src/rendering/createPracticeSun.ts), [createTerrainStudy.ts](src/rendering/createTerrainStudy.ts), [createLivePracticeView.ts](src/rendering/createLivePracticeView.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts)) :
-  - Shadow map plafonnée à `2048 × 2048` (4× moins de fillrate que `4096 × 4096`).
-  - `REFRESHRATE_RENDER_ONCE` activé sur les niveaux statiques (1, 2, 3, 6) avec invalidation ciblée (`invalidatePracticeShadows`) uniquement quand `startLift`, `bridgeStep` ou `level6MazePhase` change ; mode `half-rate` (1 frame sur 2) en qualité `Eco` pour les niveaux à ombres mobiles (4, 5 ou ombres de bille).
-  - Désactivation du PCF coûteux en mode `Eco` (`applyPracticeShadowQuality`).
-  - Gel des matrices monde (`freezeWorldMatrix`) et `isPickable = false` sur les maillages statiques du terrain.
-- **Découplage du rendu 3D et _frame-skip_ adaptatif** ([createVideoView.ts](src/app/createVideoView.ts)) :
-  - `refreshModern()` ne rend plus BabylonJS synchronement dans `marbleOnVideoFrame` : il planifie un `requestAnimationFrame` dédié (`runModernFrame`) et adapte automatiquement un _frame-skip_ 3D (`0..2`) si une frame dépasse `14 ms`, pour garder MAME, WebAudio et la lecture trackball verrouillés à 60 Hz sans glitches audio ni latence trackpad.
-- **Sélecteur de qualité `Eco / Balanced / High` + détection auto Intel UHD** ([betaState.ts](src/beta/betaState.ts), [beta.html](beta.html), [beta.ts](src/beta.ts)) :
-  - Détection WebGL `UNMASKED_RENDERER_WEBGL` basculant automatiquement en `Eco` sur Intel HD/UHD Graphics ou rendu logiciel, basculable à tout moment via le menu Attract Mode ou la touche **`G`** en jeu.
-
-## Niveau 6 : Ultimate Race et labyrinthe dynamique à 4 phases — 23 novembre 2026
-
-- **Analyse ROM 68010 et relevé MAME natif** ([scripts/survey-level6.mjs](scripts/survey-level6.mjs), `local-roms/level6-terrain.json`, `local-roms/level6-web.state`) :
-  - Descripteur ROM `0x2e790` (`recordBase = 0x8136a`, `maxDiag = 0xc8`, grille `122 × 122`, départ `scroll = -16168`, `x = 92, z = 132, h = 16384`).
-  - Les **112 slots dynamiques** (`0x40076e..0x40084c`, 317 cellules mutables dans `x = 76..117, z = 78..117`) sont tous pilotés par la table cyclique à **4 phases** en ROM `0x24e2a..0x24e42` :
-    - `0x24e2a` → phase `0` (`0x24e4e`, 112 mots)
-    - `0x24e32` → phase `1` (`0x24f32`, 112 mots)
-    - `0x24e3a` → phase `2` (`0x25016`, 112 mots)
-    - `0x24e42` → phase `3` (`0x250fa`, 112 mots)
-    - Cadence mesurée en jeu réel : **41–42 frames par phase** à 60 Hz (`~0,683 s`, cycle complet `~2,75 s`), bouclée par la sentinelle `0xffffffff` en `0x24e4a` et exposée dans la Work RAM `0x400978`.
-  - Les 9 acteurs du niveau 6 (1 bille noire sur le losange de glace, 4 vers sur les pentes striées, 4 amibes sur les plateaux pêche) sont déjà lus directement par `readIntermediateActors`.
-- **Lecture temps réel et présentation 3D BabylonJS** ([practicePose.ts](src/emulation/practicePose.ts), [practiceTerrain.ts](src/game/modern/practiceTerrain.ts), [level6DisplayTerrain.ts](src/rendering/level6DisplayTerrain.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts), [arcadeTerrainPaint.ts](src/rendering/arcadeTerrainPaint.ts), [createPracticeGoal.ts](src/rendering/createPracticeGoal.ts)) :
-  - `readPracticePose` reconnaît `0x2e790` (`level: 'level6'`) et expose `level6MazePhase` (`0 | 1 | 2 | 3`) lu en direct depuis `0x400978` (synchronisation 100 % verrouillée sur le cœur 68010, aucune dérive).
-  - `createLevel6Terrain` construit les falaises rouge carmin, le plateau de départ ambre moucheté et la rampe blanche lissée, l'îlot carré creux à fond ambre, les 2 tunnels triangulaires orange, les bandes de glace turquoise, les 2 plateaux pêche à losanges, les 2 pentes grises striées, le losange de glace à 4 pyramides grises (`createPracticeTower`), le marquage `GOAL` et ses 2 drapeaux damier orange/noir.
-  - Les 4 phases du labyrinthe (blocs gris foncé, bloc ambre, bloc glace turquoise et leurs falaises rouges + ombres) sont **pré-construites une seule fois** dans `level6-maze-phase-0..3` et basculées en O(1) via `setLevel6MazePhase` sans aucune allocation par frame. En vue d'étude `terrain.html`, un minuteur dédié cycle automatiquement les 4 phases à la cadence arcade exacte (`41 / 60 s`).
-- **Intégration `terrain.html`, `index.html` (`F6`) et `beta.html` (`6 · Ultimate`)** ([terrain.html](terrain.html), [src/terrain.ts](src/terrain.ts), [index.html](index.html), [src/ui/feasibility.ts](src/ui/feasibility.ts), [beta.html](beta.html), [src/beta/betaState.ts](src/beta/betaState.ts), [src/beta.ts](src/beta.ts), [scripts/build-beta.mjs](scripts/build-beta.mjs)).
-- **Validation** :
-  - `npm run check` réussi (format, lint, typecheck, couverture V8, build Vite) + `npm run build:beta` réussi.
-  - Vérification visuelle Chrome WebGL2 sur `terrain.html` : départ/tunnels orange, losange de glace + 4 pyramides, et 2 captures du labyrinthe à 0,75 s d'écart confirmant la bascule fluide des blocs apparaissants/disparaissants et de leurs ombres.
-  - Fix CI inclus : timeout `expect.poll` relevé à `15 000 ms` dans [tests/browser/terrain.spec.ts](tests/browser/terrain.spec.ts).
-  - Prochaine action : test joué complet du niveau 6 en vue parallèle (original vs 3D) dans `beta.html` ou `index.html`, puis commit/push et redéploiement GitHub Pages sur demande.
-
-## Niveau 5 : fin Escher « à la Monument Valley » (Option 1) — 23 novembre 2026
-
-- **Suppression du viaduc artificiel et du mur jaune sous la bille** ([level5DisplayTerrain.ts](src/rendering/level5DisplayTerrain.ts)) :
-  - Le tablier surélevé à `H = 16416` du pont d'approche ne couvre plus que les 6 cases natives de la passerelle (`X = 29..34, Z = 21..23`) au lieu de `X = 29..43`. Au-delà de `X = 35`, le sol reste à sa vraie hauteur basse `H = 16368`, parfaitement de niveau avec le reste du plateau autour des tours : plus aucun mur jaune sous la bille bleue.
-  - `level5FinishDepth` décale la bille de `(+6, +6, +48)` le long du rayon de visée isométrique sur une zone élargie en `Cadrage arcade` (`X < 33 * 8, Z < 21 * 8`, projection identique au pixel près sans aucun découpage de la bille par le bord du tablier haut), et de manière serrée (`X < 29 * 8 + 6, Z < 18 * 8 + 4`) dans les autres vues autour du marqueur `?` au sol (`level5-escher-hint`, masqué automatiquement en `Cadrage arcade` via `scene.onActiveCameraChanged`).
-- **Bonus `+3 SEC` à l'écrasement des miniatures et étincelle jaune des oiseaux contre les murs** ([practicePose.ts](src/emulation/practicePose.ts), [createPracticeCatchUpLabel.ts](src/rendering/createPracticeCatchUpLabel.ts), [createLivePracticeView.ts](src/rendering/createLivePracticeView.ts), [level5Actors.ts](src/emulation/level5Actors.ts), [createLevel5Actors.ts](src/rendering/createLevel5Actors.ts)) :
-  - Vérifié dans la ROM 68010 (`0x19348 : ADDQ.W #3, $6a(A2)` puis `JSR 0x285b0` avec l'index `14` → pointeur `0x2242e` dans `player+0xec`). `practicePose` lit désormais `0x2242e` (`timeBonusSeconds: 3`) en plus de `0x22446` (`10`), et `createLivePracticeView` affiche le panneau 3D **`+3 SEC`** au-dessus de la bille.
-  - Vérifié dans la ROM 68010 (`0x19d2c → 0x224e2..0x22542` pour collision murale et `0x19e04 → 0x22546..0x22556` pour collision joueur) : `level5Actors` expose `birdSpark` (`'flash'` pendant `0x224f2..0x22526`, puis explosion jaune en 3 étapes `1/3..1` sur `0x2252a..0x2253e` / `0x2254a..0x22552`), rendu dans `createLevel5Actors` par un maillage d'étoile jaune vif calibré au gabarit natif `16×16` (`outer = 0,42`, rayon max `~0,50` case, pré-alloué et possédé par la scène).
-- **Alignement strict, hauteur et coudes sphériques des rambardes rouges du niveau 1** ([createPracticeLandmarks.ts](src/rendering/createPracticeLandmarks.ts), [createPracticeGuardrail.ts](src/rendering/createPracticeGuardrail.ts), [createPracticeLandmarks.test.ts](src/rendering/createPracticeLandmarks.test.ts)) :
-  - Recalage des 5 premières rambardes rouges (`rails[0..4]`) exactement sur les lignes de joints du dallage (`X = 17/25`, `Z = 17/25`) au lieu des valeurs biaisées `16,7`, `25,4`, `24,98`, `25,15` : en vue du dessus, chaque segment est strictement parallèle aux joints du sol.
-  - Relèvement de la hauteur des montants (`railHeight = 0,78`, `leftUpperPost = 0,62`) pour retrouver la hauteur et la longueur d'ombre portées de l'arcade originale en vue `Cadrage arcade`.
-  - Ajout d'une rotule sphérique (`practice-rail-*-joint-*`, diamètre `0,38`) au sommet de chaque montant dans `createPracticeGuardrail` afin que chaque angle entre tube horizontal et tube vertical soit parfaitement jointif sans encoche.
-  - Complétion du coin `SW` manquant sur les bords des deux fosses supérieures (`Z = 12, X = 25..27` et `Z = 24, X = 13..15`) pour supprimer les triangles dentelés près des rambardes, ainsi que sur la marche `(X = 27, Z = 31)` sous le pied de la tour de droite afin qu'elle soit complète et symétrique à `(X = 31, Z = 27)`.
-- **Distribution statique beta (`dist-beta/`) et dépôt GitHub `micbuffa/MM-experiments`** ([beta.html](beta.html), [src/beta.ts](src/beta.ts), [src/beta.css](src/beta.css), [src/beta/betaState.ts](src/beta/betaState.ts), [vite.beta.config.ts](vite.beta.config.ts), [scripts/build-beta.mjs](scripts/build-beta.mjs)) :
-  - `npm run build:beta` produit une distribution 100 % statique en anglais dans `dist-beta/` (`base: './'`, `index.html` + `beta-data/` + `vendor/emulatorjs/`), testable localement via `npm run preview:beta`.
-  - Écran d'initialisation avec barre de progression et 3 optimisations de démarrage : (1) savestate d'Attract Mode `local-roms/attract-web.state` (`4,6 Ko` compressé) restauré dès le démarrage via `session.restoreRawState` pour sauter le POST Atari System 1 ; (2) Service Worker Cache-First (`scripts/beta-sw.js` → `dist-beta/sw.js`) + cache IndexedDB (`src/beta/betaCache.ts`) pour `marble.zip` assemblé ; (3) encodage binaire compressé `rolling-actors.bin` (`src/emulation/rollingActorsBinary.ts`) remplaçant le JSON de 6,7 Mo.
-  - Passage automatique en **vue parallèle plein écran** avec cadres `4:3` alignés au pixel près et effet CRT à scanlines identique sur les deux vues (original à gauche, 3D à droite), sans double réinitialisation du survol sur le niveau 1, et bandeau supérieur semi-transparent (`V` View, `C` Camera, `Space` Boost, `Esc` Pause).
-  - Dépôt Git initialisé et associé à `https://github.com/micbuffa/MM-experiments.git` avec `.gitignore` excluant Rolling Madness (`Rolling Madness 3D 2005/`, `3D_assets_for_animated_entities/`, `local-roms/rolling-actors.json`) et les artefacts générés, tout en versionnant `roms/` (ROM/BIOS), les relevés terrain/checkpoints et la documentation développeur/IA.
-- **Ombre portée des oiseaux dans la vue 3D** ([createRollingActor.ts](src/rendering/createRollingActor.ts), [createLevel5Actors.test.ts](src/rendering/createLevel5Actors.test.ts)) :
-  - Inscription automatique des maillages d'oiseaux (`bird`, `bird_fast`, `bird_expl`) comme émetteurs d'ombres sur le `ShadowGenerator` de la lumière `key` (`addShadowCaster(mesh, false)`), avec `receiveShadows = false` pour éviter l'auto-ombrage sur leurs ailes animées.
-- **Survol d'introduction du niveau 5 sans traversée du modèle 3D** ([createLivePracticeCamera.ts](src/rendering/createLivePracticeCamera.ts), [createLivePracticeView.test.ts](src/rendering/createLivePracticeView.test.ts)) :
-  - Recalage de `startCenter` sur la vraie profondeur du départ (`startDepth = Vector3.Dot(startAim, arcadeDir)`) au lieu du plan `dot = 0` passant par l'origine : sur le niveau 5 (qui monte depuis le bas-droite), l'œil final `startEye` se trouve désormais bien au-dessus et devant la plateforme de départ au lieu d'être enfoui sous la falaise.
-  - Ajout d'une arche de survol en altitude (`flyoverArc = 18` sur le niveau 5, `finishEye` reculé à `34` unités) qui zoome progressivement jusqu'au cadrage arcade de départ, doublée d'un plancher de dégagement dynamique `keepClearOfTerrain` le long de l'axe de visée `arcadeDir` pour empêcher toute traversée des reliefs ou tours.
-- **Alignement du décal `GOAL` en fin de niveau 3** ([createLevel3Materials.ts](src/rendering/createLevel3Materials.ts), [createPracticeGoal.ts](src/rendering/createPracticeGoal.ts), [createLevel3Materials.test.ts](src/rendering/createLevel3Materials.test.ts)) :
-  - Décalage de `level3Goal` de `z = 100` à `z = 101` (`{ x: 92, z: 101, width: 4, length: 10 }`) pour couvrir la rangée finale `z = 110` sans sol beige apparent à droite, et libérer les deux cases terminales des bordures turquoise (`z = 100`).
-  - Maintien des deux drapeaux à damier sur les extrémités des bordures turquoise (`flagZ = goalRegion.z - 1` soit `z = 100`) dans `createPracticeGoalFlags`.
-- **Dômes ogivaux et joints épais des 3 tours du niveau 2** ([createIntermediateTower.ts](src/rendering/createIntermediateTower.ts), [intermediateLandmarks.ts](src/rendering/intermediateLandmarks.ts), [createIntermediateTower.test.ts](src/rendering/createIntermediateTower.test.ts), [intermediateLandmarks.test.ts](src/rendering/intermediateLandmarks.test.ts)) :
-  - Base hexagonale `outline(2, 2)` découvrant les deux cases grises latérales du socle bleu, profil courbe ogival continu en 9 anneaux (`0 → 5,5 → 11 → 16 → 19,5 → 22,5 → 24,5 → 25,5 → 26`) avec couronne légèrement arrondie et ombre portée fidèle au galbe original.
-  - Matériau procédural dédié `createIntermediateTowerMaterial` (`intermediateTowerStone`) avec joints sombres épais, ceinture horizontale marquée à `h = 16` et panneaux alignés de bas en haut sur les deux étages.
-- **Châteaux à 4 quarts de pyramides sans pointe centrale** ([createLevel5Terrain.ts](src/rendering/createLevel5Terrain.ts), [createLevel5Terrain.test.ts](src/rendering/createLevel5Terrain.test.ts)) :
-  - Suppression de la 5e pyramide centrale erronée sur les 3 blocs châteaux (`[36, 27]`, `[11, 28]`, `[48, 36]`) : le sommet gris visible en arrière-plan dans l'arcade originale est le 4e coin arrière du couronnement, pas une pointe centrale.
-- **Arche voûtée en porte-à-faux découpée sur la couture Escher** ([level5Bridge.ts](src/rendering/level5Bridge.ts), [level5Bridge.test.ts](src/rendering/level5Bridge.test.ts)) :
-  - `openLevel5Bridge` retire aussi la paroi verticale d'extrémité en `X = 35, Z = 21..24` afin de ne pas fermer la couture Escher.
-  - `level5BridgeGeometry` construit une vraie voûte en berceau continue sur `Z = 21..24` (`alongStart = 30`, `alongSpan = 3.5`, `crownArcade = 16408`, `springArcade = 16376`) découpée le long de la droite isométrique `H = 16368 + 8 * (X - 29)` pour qu'aucune portion de l'arche ne dépasse sous le sol gris en vue arcade.
-- **Validation** :
-  - Vérification visuelle Chrome WebGL2 sur `terrain.html` (Niveau 5 au défilement `940 px`, capture `/tmp/l5_escher_arcade_v3.png`).
-  - `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run build` et `630/631` tests Vitest passants (dont tous les tests Niveau 5 : `level5Bridge.test.ts` et `level5DisplayTerrain.test.ts`). Un test préexistant sans rapport dans `src/rendering/createPracticeLandmarks.test.ts:77` échoue (`expected 1.80 to be less than 1`).
-  - Le point historique des ronds cachés sous le tube/horloge reste ouvert.
-
-## Niveau 5 / niveau 1 : arrivée, symétrie et murs — captures 16h06–17h47 du 22 novembre 2026
-
-Cette entrée remplace les descriptions des coins à 8 unités et les anciennes
-coordonnées visuelles de GOAL dans les entrées précédentes.
-
-### Symétrie et hauteur
-
-- `createPracticeTower` utilisait un socle centré en **(0,5 ; 0,5)**, puis
-  ramenait l'épaulement et la pointe vers (0 ; 0). Tous les anneaux et la pointe
-  partagent désormais le centre du socle, aux niveaux 1 et 5. Le test de
-  calibration du joint frontal du niveau 1 est mis à jour pour le déplacement
-  projeté de quatre pixels résultant de ce centrage ; sa hauteur reste inchangée.
-- Les trois tours à quatre coins ont un **toit et quatre parois dédiés**,
-  `level5FortGeometry`, avec la même construction sur chaque côté. Le sol du
-  relevé reste à leur pied ; les coins ne sont plus dépendants de sa
-  triangulation. Les faces verticales restent jaunes avec les joints communs.
-- Les quatre pointes de coin montent de **12 unités arcade**, visibles dans
-  le relevé natif (par exemple 16380 → 16392), et non des 8 unités du modèle
-  de Rolling Madness utilisé lors de la correction précédente. La pointe
-  centrale garde son centre à (cx+0,5 ; cz+0,5).
-- Tests de symétrie par rotations de 90° et 180° sur les positions du toit,
-  des murs et de la tour classique ; test de centrage de l'apex.
-
-### Dents de scie
-
-Le domaine de collision du niveau 5 est borné par **X−Z=±21**. Une cellule
-entière au bord dépassait ce domaine d'un triangle ; les coupes ne sont plus
-limitées aux premiers écrans. Le coin NE étranger est retiré de la limite +21,
-le coin SW de la limite −21, sur toute la course. Les hauteurs des trois coins
-valides sont conservées, sans utiliser le coin étranger pour extrapoler SW.
-
-La conservation générale des SW absents, introduite pendant cette intervention,
-découpait aussi les **murs intérieurs** en dents de scie (rangée Z=28,
-X=42..48 notamment). Elle est retirée : les trois échantillons cohérents
-complètent les dalles de ces rangées ; seule la limite extérieure est coupée.
-Tests sur les deux diagonales et sur une rangée intérieure complète. Inspection
-Chrome confirmant le mur intérieur droit derrière la tour et les bords extérieurs.
-
-### GOAL, petite pente et arche
-
-La forme de GOAL reste 4 × 10 cellules. Sa profondeur de présentation est
-recalée sur **X=25..28, Z=24..33, H=16416** au lieu de la bande de collision
-X=19..22, Z=18..27, H=16368. Le décalage +48 sur X, Z et H **conserve exactement
-la projection arcade**, mais permet à la façade Z=34 d'arriver directement
-sur la pente de Z=34..35. Les anciens volumes isolés sont intégrés aux deux
-plateformes continues. Les drapeaux utilisent la hauteur du terrain présenté.
-Le marquage n'a pas changé de dimensions.
-
-`level5FinishDepth` applique le même recalage de présentation aux deux billes
-sur la bande de fin et le pont d'approche ; aucune coordonnée du cœur n'est
-écrite. Le test d'intégration conserve les poses natives et contrôle la position
-3D ; le test pur vérifie l'identité de projection.
-
-`archBridgeGeometry` extrait la géométrie auparavant intégrée au niveau 4,
-sans changer les deux arches de ce niveau. `level5Bridge` réutilise le profil
-(couronne à −9, naissance à −15 unités sous le tablier), orienté suivant X,
-X=29..35, Z=21..24 : six panneaux au total. L’ouverture centrale mesure
-**trois cellules**, X=30,5..33,5, avec deux appuis pleins de 1,5 cellule. Le
-profil de l’intrados n’est pas étiré sur toute la traversée. Les faces pleines
-du passage sont retirées, un sol inférieur reçoit les ombres.
-Les extrémités et les murs voisins sont conservés. Tous ces meshes et matériaux
-appartiennent à la scène ; pas de nouvelle boucle ou de nouvelle carte d'ombre.
-
-### Validation et suite
-
-**`npm run check` réussi : 628 tests / 100 fichiers**, format, lint, typage,
-couverture et build. Couverture métier inchangée : 99,45 % instructions,
-98,60 % branches, 99,01 % fonctions, 99,41 % lignes. Avertissement habituel de
-taille des chunks. **Chrome : 10/10 tests terrain réussis**.
-
-Captures réellement examinées : `/tmp/mm-1747-fort-top.png`,
-`/tmp/mm-1747-fort-front.png`, `/tmp/mm-1747-fort-back.png`,
-`/tmp/mm-1747-pyramid-top.png`, `/tmp/mm-1747-level1-top.png`,
-`/tmp/mm-1633-final-arcade.png`. Les vues finales montrent le mur intérieur
-rectiligne après restauration des dalles. Les différences d'éclairage entre
-faces sont attendues ; la symétrie revendiquée porte sur les positions.
-Le banc de session locale charge F5 et montre aussi la fin de niveau ; ce n'est
-pas une partie jouée complète. Pas de recette Safari/audio/confort ajoutée.
-
-Aucun Git initialisé ; pas de changement du cœur, des collisions, des ROMs,
-des dépendances ni du gain d'entrée. La fidélité visuelle reste soumise à la
-comparaison de Michel. Le point historique des ronds cachés sous le tube reste
-ouvert, comme indiqué dans l'entrée précédente ; ne pas le déclarer résolu.
-
-## Niveau 5 : retouches des captures 15h26–15h31 — 22 novembre 2026
-
-- Les trois tours près de GOAL ont maintenant **quatre volumes fermés de pierre
-  grise**, générés par `level5FortCorners`. Chaque quart possède deux pentes
-  vers l'intérieur, deux coupes verticales grises et une base. Les anciennes
-  hauteurs de coins du terrain sont retirées : elles produisaient des coupes
-  jaunes via le générateur de parois. Test de fermeture des arêtes, sommets
-  séparés pour les normales. Le terrain sous ces éléments est plat.
-- Les trois pointes centrales sont centrées sur le socle 3 × 3, affinées
-  (demi-largeur 0,54 cellule), avec hauteur projetée conservée. Pierre mate,
-  éclairage et ombres du soleil partagé. Les cinq pyramides des oiseaux
-  conservent leur construction commune avec le niveau 1.
-- Petite rampe de l'arène : deux bandes Z=95..96, X=90..92 ; profil natif
-  16244 → 16242 → 16240 → 16238. Les deux bandes partagent exactement les
-  mêmes bords, arrondis à 1e−9. Le test impose planéité et raccords.
-- Miniatures écrasées : ancrage calculé depuis le bas du modèle pour que la
-  surface ne soit plus enfouie dans le sol ; marge 0,025, largeur 1,35×.
-  Les amibes écrasées sont opaques ; leurs couleurs et celles des autres
-  aplats sont renforcées sans spécularité. Les poses normales rétablissent
-  leurs dimensions et leur position. Les délais restent ceux du cœur.
-- Oiseaux : section du bec jaune 1,8×, extrémités des plumes raccourcies et
-  rapprochées ; chaque pose conserve son mouvement natif. Normales recalculées
-  une fois sur les copies ajustées, sans modifier la bibliothèque locale.
-
-Validation : `npm run check` **617 tests / 98 fichiers réussis**, couverture
-métier inchangée (99,45 / 98,60 / 99,01 / 99,41 %), build et typage réussis.
-**Chrome : 10/10 tests terrain réussis.** Captures réelles inspectées :
-`/tmp/mm-level5-fort.png`, `/tmp/mm-level5-compare-arena.png`,
-`/tmp/mm-level5-compare-birds.png`, `/tmp/mm-1531-squashed.png`.
-Le banc d'écrasement initialise les contacts puis laisse les transitions au
-cœur ; ce n'est pas une traversée jouée. Pas de Git initialisé.
-
-**Point restant : ronds sous l'entrée du tube/horloge.** Le masque actuel a
-été confronté au framebuffer natif : 2 292 des 2 296 pixels de pigments relevés
-sur le cadrage `/tmp/mm-1531-clock-ejs-full.png` correspondent exactement à
-la carte complète, avec offset vertical 1292 et scroll −15462. Cette capture
-ne révèle cependant pas les parties derrière le tube. Aucun rond supposé
-ni supplément de pixels non probant n'a été ajouté. Prochaine action : isoler
-la façade désignée dans un cadrage natif où elle est découverte et compléter
-uniquement son contour prouvé. La validation humaine des silhouettes reste
-ouverte. Ne pas présenter ce point comme corrigé.
-
-## Niveau 5 : arène, pyramides et mort par oiseau — 22 novembre 2026, captures 14h49–14h53
-
-Cette entrée corrige et complète l'implantation initiale ci-dessous.
-
-- Les zones grises venaient d'UVs doublés sommet par sommet à une hauteur
-  erronée (16232, alors que le sol de l'arène est à 16238). Une même dalle
-  pouvait traverser une grande partie de l'atlas et devenir grise par mipmap.
-  `level5Surface` attribue maintenant une densité uniforme par cellule :
-  **2× en X=90..103, Z=91..104**, sol ET dessus des blocs, 1× sur les rampes
-  et chemins voisins. Les UVs sont recalculés depuis les positions, sans
-  multiplication répétée d'un sommet partagé.
-- Les deux grandes pentes possèdent une arête diagonale : X−Z=9 pour
-  X=106..111 et X−Z=−11 pour X=96..101. Leurs cellules de crête restent
-  pliées suivant NW–SE avec SW=NE. L'extension plane précédente relevait
-  artificiellement SW et produisait les dents. Les tests vérifient la hauteur
-  maximale de crête et l'égalité des bords avec les cellules voisines.
-- Le masque de murs reconnecte maintenant le pigment uniquement dans les
-  petites interruptions de **mortier gris** de la référence. Les séparations
-  jaunes entre motifs distincts restent intactes ; les joints gris 3D sont
-  appliqués ensuite. Le trait jaune au milieu des ellipses est ainsi supprimé.
-  Bibliothèque locale régénérée avec `extract-rolling-actors.mjs`.
-- Les **cinq pyramides de la zone des oiseaux** réutilisent désormais
-  `createPracticeTower` du niveau 1 : jupe de trois pierres, épaulement,
-  joints et pointe. Empreinte 3 × 3 et hauteur adaptée au niveau 5. Leur
-  terrain sous-jacent est plat. Les trois petites tours près de GOAL gardent
-  leurs coins en quarts de pyramide à deux facettes.
-- Bec des oiseaux : les quatre faces partagent le sommet UV U≈0,0004,
-  V=1,49. `birdParts` les isole dans un matériau jaune mat et légèrement
-  émissif ; la texture violette ne les dilue plus dans les mipmaps. Le modèle
-  pointe vers −Z : correction de rotation de π pour suivre la direction
-  native. Chrome sur l'asset réel : 110 triangles de corps + 4 de bec.
-
-### Animations vérifiées dans le 68010 et dans le cœur Web
-
-- Contact mortel : `0x19e14` place le joueur en **état 0x0b** avec le compteur
-  `player+0x57=0x66`. Le dispatcher `0x254ba` conduit à `0x25876`, puis
-  `0x13ade` : sentinelle 102 → 36 → 0, huit fragments en expansion.
-  `birdDeath` lit leurs coordonnées projetées déjà calculées dans les deux
-  groupes du joueur à +0x38 et +0xa4 (glyphes 0x10b..0x112), relativement
-  au centre +0x1e/+0x20. Les fragments hors écran ou les anciens enregistrements
-  à la sentinelle ne sont pas affichés. `createBirdDeath` affiche ces positions
-  sans horloge indépendante, puis masque ses meshes dès la sortie de cet état.
-- Miniatures : la routine `0x192e2` écrase l'acteur, arrête sa vitesse et
-  conserve l'état 2. **Bille noire** : listes 0x21f7a → 0x21f7e → 0x21f82,
-  puis image tenue via 0x21f8a. Le rendu conserve les deux premiers paliers
-  par compression verticale du mesh, puis utilise `blacky_squashed_mini`.
-  **Ver** : image fixe via 0x21a62 (`stick_squashed_mini`). **Amibe** : image
-  fixe via 0x21efe (`amoeba_squashed_mini`). Pas de cycle écrasé inventé.
-- Sonde Chrome : initialisation contrôlée des contacts, puis code natif seul.
-  Les trois écrasements sont observés ; le compteur de mort passe de 102 à
-  35,34,33… avec huit enregistrements de fragments (six encore visibles en
-  fin d'expansion, les autres étant coupés). Le cœur retourne ensuite à
-  l'état joueur 0 et `birdDeath` disparaît. La bille est hors champ après le
-  retour au point sûr dans ce banc téléporté ; aucune traversée complète ou
-  recette du confort au trackpad n'est revendiquée.
-- Le driver MAME officiel consulté configure la machine/Slapstic ; les
-  séquences ci-dessus proviennent du programme 68010 local et sont confirmées
-  dans le cœur épinglé. Voir `docs/DECISIONS.md` pour la référence du driver.
-
-Validation : **`npm run check` réussi, 614 tests / 97 fichiers** ; couverture
-métier inchangée : 99,45 % instructions, 98,60 % branches, 99,01 % fonctions,
-99,41 % lignes. **Chrome : 10/10 tests terrain réussis**. Aucun changement de
-ROM, de physique, de dépendance ou de boucle. Chaque nouveau mesh/matériau
-appartient à la scène ; remise à zéro sur pose absente et destruction de scène.
-
-Fichiers utiles : `level5DisplayTerrain`, `createLevel5Terrain`, `birdParts`,
-`level5Actors`, `createLevel5Actors`, `birdDeath`, `createBirdDeath` et leurs
-branchements dans `practicePose`/`createLivePracticeView`. Tests sur UVs,
-crêtes, masque pigment/mortier, écrasements, J1/J2, fragments et nettoyage.
-
-Captures inspectées : `/tmp/mm-1449-arena.png`, `/tmp/mm-1453-birds.png`,
-`/tmp/mm-1453-bird-death.png`, `/tmp/mm-1453-bird-death-late.png`,
-`/tmp/mm-1453-bird-rebuild.png`, `/tmp/mm-bird-beak-close.png`.
-Journal natif `/tmp/mm-1453-native-cycle.log`. Les dernières captures du banc
-rejouent les contacts réels, sans imposer directement les états d'écrasement
-ou de mort. Pas de Git initialisé. Pas de recette Safari/audio/J2 jouée.
-
-Prochaine action : recharger l'application pour reprendre le masque local,
-puis F5 et essai joué du niveau 5. Conserver la lecture des fragments natifs,
-la densité de dallage par cellule et les crêtes pliées ; ne pas réintroduire
-la condition d'UV par hauteur. Niveau 6 ensuite, sur demande.
-
-## Niveau 5 — Silly Race, motifs originaux et tours — 22 novembre 2026
-
-Michel a validé le Y fermé du niveau 2 et les vagues du niveau 3 avant de
-passer au niveau 5. Le niveau 6 ne fait pas partie de cette intervention.
-
-- Relevé local `level5-terrain-v1`, 141 × 141, 3 825 cellules actives,
-  hauteurs natives 16168..16416. Descripteur 68010 `0x2de1e`, départ
-  `(1004,996,16168)`, scroll −15212. Défilement inversé : F5 et bouton
-  Niveau 5 restaurent le point de reprise local ; `/terrain.html` propose
-  aussi le niveau 5, le curseur inversé et la vue libre. La limite d'étude
-  −16152 cadre l'arrivée ; ce n'est pas une mesure de la limite native.
-- `scripts/survey-level5.mjs` vérifie le sampler sur le relevé du niveau 4,
-  puis laisse le cœur initialiser la course suivante dans une session de
-  diagnostic. Il écrit seulement un relevé dérivé et un checkpoint normal
-  dans `local-roms/`. Les écritures RAM de transition du banc ne sont pas
-  intégrées au jeu. Aucun changement du cœur ou des collisions.
-- `createLevel5Terrain` possède les sols, murs, ombres, GOAL et horloge
-  décorative. `level5DisplayTerrain` répare les quatrièmes échantillons qui
-  produisaient des dents sur les rampes. Huit socles de 3 × 3 cellules portent
-  leurs pyramides centrales. Les quatre coins sont des **quarts de pyramide
-  à deux facettes** : diagonale adaptée au coin relevé, sommets séparés pour
-  les normales. Le test comporte une cellule triangulaire avant les tours
-  pour vérifier que leur repérage ne dépend pas d'un indice multiple de six.
-- Le motif répétitif de Rolling Madness est remplacé par un **masque de
-  pigments extrait de `MarbleMadness_Level5.png`**. Seuls les pixels des
-  ellipses sont retenus ; ni ombres, ni joints, ni sols ne sont recopiés.
-  Projection calibrée sur la carte 576 × 2286 :
-  `uPixels=270+2*(nativeZ-nativeX)` ;
-  `vPixels=nativeX+nativeZ-2*(nativeHeight-16384)-256`.
-  Les UVs des murs utilisent cette transformation, en respectant
-  l'orientation des données PNG. Les cercles de la façade GOAL se retrouvent
-  aux mêmes positions que dans la vue native. Les couleurs sont pilotées
-  par les banques PF du cœur : orange 31/29, rose 27/28, jaune 15/14/13,
-  joints 4. Le masque décrit les surfaces visibles sur cette référence ;
-  les faces cachées n'ont pas de preuve visuelle indépendante.
-- `level5Actors` lit **9 miniatures**, base RAM `0x1890`, pas `0x28`, types
-  7/8/9 à +0x25, et **10 oiseaux**, base `0x19f8`, pas `0x38`. Positions fixes
-  16.16 à +0xc/+0x10/+0x14 ; activité +0x18, état +0x1a, liste sprite +0x1c,
-  compteur/période +0x24/+0x25. Les cycles sont lus depuis les listes natives,
-  sans minuterie Babylon ni déplacement recréé. Les modèles miniatures et
-  oiseaux de Rolling Madness sont ajoutés à la bibliothèque locale ; les
-  états écrasés utilisent les poses correspondantes. L'adaptation de poses
-  3D aux sprites reste une correspondance visuelle, pas une identité de mesh.
-- `readPracticePose`, chargement local, comparaison et caméra acceptent le
-  niveau 5. Un test empêche la régression où la caméra restait bloquée sur
-  GOAL à cause du clamp de scroll croissant. Les aspirateurs du niveau 4
-  restent procéduraux. Pas de nouvelle dépendance, moteur ou boucle de rendu.
-
-Reconstruction des assets locaux :
-`node scripts/extract-rolling-actors.mjs "3D_assets_for_animated_entities/data/{app}"`.
-Cette commande extrait aussi le masque original via `scripts/level5-wall-pattern.mjs`.
-Bibliothèque : 6 725 084 octets avant les dernières retouches de code, sous
-la limite de 8 Mo ; aucun de ces fichiers n'est livré dans le build.
-
-Validation finale : **`npm run check` réussi, 605 tests / 93 fichiers** ;
-**Chrome : 10/10 tests terrain réussis**, dont Silly Race. Couverture métier
-99,45 % instructions, 98,60 % branches, 99,01 % fonctions, 99,41 % lignes.
-Voir `docs/VALIDATION.md` pour les commandes et leurs résultats. Captures Chrome de comparaison dans `/tmp/mm-level5-compare-*.png`,
-vue des tours `/tmp/mm-level5-fort.png`. Ces vues sont issues de positions
-initialisées dans un banc temporaire, pas d'une course entière au trackpad.
-Les couleurs du PNG complet diffèrent de celles de certaines palettes natives :
-le PNG fixe les motifs, la RAM fixe les teintes en jeu. L'horloge importée reste
-un décor statique. Pas de Git initialisé.
-
-Prochaine action : vérifier la traversée jouée et les interactions avec les
-miniatures/oiseaux ; conserver le masque original et les facettes des coins.
-Le prochain niveau à reconstruire sera le niveau 6.
-
-## Y fermé et lissé, intérieur/extérieur — 22 novembre 2026, capture de 11h40
-
-Cette entrée remplace la reconstruction par découpe des coiffes et
-l'aplatissement ponctuel de la sortie décrits précédemment. L'audit montre
-que le Y extrait de Rolling Madness est une surface fermée ; les ouvertures
-parasites venaient des faces supprimées puis remplacées sans raccord complet.
-
-- `refineIntermediatePipe` conserve toute la surface source et subdivise
-  chaque triangle du Y en quatre, avec relaxation locale des branches.
-  Les lèvres fines des trois bouches sont protégées : leur relaxation
-  indépendante faisait se croiser les peaux intérieure/extérieure. Les
-  limites entre matériaux et les arêtes franches sont également conservées.
-  Une surface partielle/non fermée n'est pas subdivisée. Le J séparé n'est
-  ni déplacé ni subdivisé.
-- `fitIntermediatePipeHoods` compacte les coiffes à 85 % au-dessus de leur
-  base et conserve l'abaissement de la jonction (1,45 unité au maximum),
-  via une déformation continue appliquée identiquement aux sommets
-  coïncidents. Plus aucune face de coiffe, dessous, lèvre ou raccord n'est
-  supprimée. L'aplatissement par classification des peaux est retiré : il
-  créait aussi des triangles dégénérés après subdivision.
-- Normales recalculées sur les sommets coïncidents des différentes faces
-  et matériaux ; normales sources du J conservées. `createIntermediatePipes`
-  utilise aussi les indices intérieurs ajustés. Suppression du calcul de
-  normale plate spécial sur la sortie et du seuil `normalW.z < -0.9` qui
-  produisait une tache lumineuse nette à l'intérieur malgré le matériau mat.
-- Aucun changement des données extraites locales, du cœur, des collisions
-  ou des timings. Pas de nouvelle dépendance, scène, lumière ou boucle.
-  Les copies et buffers sont possédés/libérés par les meshes existants.
-
-Audit reproductible, Vite lancé :
-`node scripts/audit-intermediate-pipe.mjs`.
-Il lit uniquement le relevé local des tuyaux et affiche des nombres, sans
-export de géométrie, ROM ou heap. Sur le **Y** réel : 352 triangles source,
-1 408 après subdivision ; **0 arête ouverte, 0 arête non-manifold, 0 triangle
-dégénéré, 0 croisement non coplanaire détecté entre faces non voisines**,
-avec une tolérance d'arête de 0,000001 unité. Plus petite aire double après
-ajustement : 0,0197808653. Le J séparé est hors de cet audit ciblé ; son
-modèle comporte des croisements préexistants et reste inchangé.
-
-Validation : **`npm run check` réussi, 596 tests / 89 fichiers** ; couverture
-99,45 % instructions, 98,59 % branches, 99,01 % fonctions, 99,40 % lignes.
-Le premier passage avait relevé l'usage de `console` sans import dans le
-nouveau script ; remplacé par `stdout` importé de Node avant réussite.
-Tests de non-régression : tube creux avec lèvres, conservation de la fermeture
-et de l'orientation, ouverture des bouches, absence de triangles dégénérés,
-normales unitaires/continues, sommets dupliqués et immutabilité des sources.
-**Chrome : 9/9 tests terrain réussis**. Avertissement habituel de gros chunks.
-Pas de Git initialisé.
-
-Inspection WebGL2/SwiftShader sans erreur JS ni shader : trois cadrages
-arcade du niveau 2, quatre gros plans autour des entrées, trois autour de
-la sortie et vues réellement dans le tube vers les entrées/sortie.
-Pour ces dernières seulement, la limite de distance de la caméra d'étude
-est abaissée dans le banc, sans changer le code de navigation du jeu.
-Captures : `/tmp/mm-l2-pipe-wall-closed3-*.png`,
-`/tmp/mm-y-sealed-intake-*.png`, `/tmp/mm-y-sealed-inside-*.png`.
-Les premiers cadrages arcade précèdent la suppression du seuil lumineux ;
-les gros plans des entrées et les vues intérieures sont repris après celle-ci. Pas de nouvelle
-partie complète, recette Safari, audio ou trackpad.
-
-Prochaine action : recharger puis inspecter l'entrée depuis la vue derrière
-la bille et la sortie en vue libre. Conserver la topologie source fermée ;
-ne pas réintroduire les découpes de coiffes ou les aplatissements de peaux.
-
-## Sol débordant, toit du Y et fausses pointes — 22 novembre 2026, captures de 11h24–11h27
-
-Cette entrée remplace le prolongement de tablette ajouté dans l'intervention
-précédente : les deux sols d'alcôve sont entièrement en retrait de la façade,
-chacun de sept cases sur trois. La tablette basse ne déborde plus de trois
-cases devant le mur ni sur la glace ; sa hauteur est conservée. Le test de
-construction vérifie maintenant explicitement sa limite au plan x = 88.
-
-Les stries du toit de la bouche du Y étaient un z-fighting géométrique :
-les peaux intérieure et extérieure font toutes deux partie de `shell`,
-et non de deux matériaux distincts. L'ancien critère `interior` reconnaissait
-seulement le sol intérieur, laissant les deux peaux du toit sur le même plan.
-`fitIntermediatePipeHoods` utilise désormais les normales sources pour
-préserver leur orientation et leur séparation de 0,11 unité. Un test couvre
-les deux peaux dans le même matériau, sans liste d'intérieur. Les fichiers
-sources importés restent inchangés.
-
-Les trois petites pointes jaunes/blanches autour de la tour centrale du
-niveau 1 venaient des coins SW de trois dalles (x = 28..30, z = 24) qui
-reprenaient le profil de collision de la tour. `practiceDisplayTerrain`
-prolonge le plan défini par NW/NE/SE lorsque SW est anormalement relevé.
-Cela supprime les facettes et parois triangulaires au-dessus du dallage.
-Les pointes grises légitimes et les règles/collisions arcade sont conservées.
-Test synthétique de continuité, absence de paroi relevée et immutabilité.
-
-Validation : `npm run check` réussi, **591 tests / 88 fichiers**, couverture
-99,45 % instructions, 98,59 % branches, 99,01 % fonctions, 99,40 % lignes.
-`PLAYWRIGHT_CHANNEL=chrome npx playwright test tests/browser/terrain.spec.ts` :
-**9/9**. Aucun changement de dépendance ; avertissement de gros chunks habituel.
-Pas de dépôt Git initialisé.
-
-Chrome WebGL2/SwiftShader, sans exception JS ou erreur shader : trois cadrages
-arcade de la fin du niveau 2, trois gros plans de la sortie du Y (face, dessus,
-arrière), puis trois vues de la tour du niveau 1 (arrière, dessus, côté).
-Captures inspectées : `/tmp/mm-l2-pipe-wall-inset-roof-fix-760.png`,
-`/tmp/mm-spout-skins-fixed-{front,top,rear}.png`,
-`/tmp/mm-opening-pits-after-{behind,top,side}.png` ; vues avant disponibles
-sous `/tmp/mm-opening-pits-before-*.png`. Pas de nouvelle partie complète,
-recette Safari, audio ou trackpad.
-
-Prochaine action : recharger l'application et vérifier les trois cadrages
-signalés par Michel. Ne pas réintroduire une plateforme devant l'alcôve basse.
-
-## Trous du départ, alcôves/Y et dos des aspirateurs — 22 novembre 2026, captures de 10h24–10h28
-
-- **Niveau 1** : le liseré noir autour des trous venait de pixels transparents
-  de l'atlas des parois interprétés comme opaques. Le shader BabylonJS 9.33.2
-  active `ALPHATEST_AFTERALLALPHACOMPUTATIONS` avec les couleurs de sommets :
-  `useAlphaFromDiffuseTexture = true` est nécessaire pour inclure l'alpha de
-  l'atlas dans ce test final. La correction conserve les joints et la géométrie
-  existants. Le diagnostic initial de jour dans le dallage est infirmé par le
-  relevé GPU : les pixels noirs avaient exactement la teinte de joint (24).
-  Après correction, les dalles derrière la découpe réapparaissent.
-- **Niveau 2** : les deux alcôves gardent une largeur identique de sept cases,
-  vérifiée sur leurs coordonnées monde. Le creux reste profond de trois cases.
-  La tablette basse est relevée de 1,2 unité et prolongée de trois cases vers
-  l'avant pour former la plateforme horizontale visible, au lieu de disparaître
-  derrière la glace. La distance verticale entre tablettes est maintenant 9.
-- Le raccord du **Y** est abaissé localement (maximum 1,45 unité monde) sans
-  déplacer ses deux coiffes, son autre tuyau ni le débouché sur le terrain.
-  Les normales suivent la déformation. La sortie évasée a un toit et des
-  joues plans, une lecture de facette distincte du fût arrondi, et conserve
-  0,11 unité entre faces intérieure/extérieure pour éviter leur superposition.
-  La géométrie source importée reste intacte ; l'ajustement se fait en copie.
-- **Aspirateurs du niveau 4** : ajout d'un coude procédural à 90° entre la
-  tige verticale et l'entrée arrière de la tête, et fermeture du dos de la
-  tête autour de ce raccord. Le coude est parenté au support et dépasse
-  légèrement dans la tête pour conserver une jonction pendant le tremblement.
-  La bouche passe de 1,70 × 0,62 à 1,70 × 0,84 unité ; la coque est également
-  plus haute (1,28 au maximum). Les positions et déclenchements natifs restent
-  inchangés. Aucun asset Rolling Madness ajouté pour les aspirateurs.
-
-Validation : **`npm run check` réussi, 589 tests / 88 fichiers**, couverture
-99,45 % instructions, 98,59 % branches, 99,01 % fonctions, 99,40 % lignes.
-Le premier contrôle complet a signalé une annotation de type interdite dans
-le test navigateur puis une indexation à rendre explicite ; les deux ont été
-corrigées avant la réussite complète. Avertissement habituel de gros chunks
-BabylonJS conservé. Aucun ajout de dépendance ; dépôt Git non initialisé.
-
-**Chrome : 9/9 tests terrain réussis**, dont une régression GPU qui projette
-un texel transparent de l'atlas sur une surface isolée : le fond presque noir
-réapparaît (canaux < 5), au lieu de la teinte de joint 24. Les tests unitaires
-vérifient aussi le coude, la bouche moins aplatie, la largeur monde de sept
-cases des deux tablettes, la plateforme basse, l'abaissement de la jonction,
-l'épaisseur de la sortie et l'immutabilité de sa source.
-
-Inspection WebGL2/SwiftShader : cadrages arcade des niveaux 1–3 et tuyau/glace,
-trois vues rapprochées des alcôves, aspirateurs en gros plan de face et de dos.
-Aucune exception JS ou erreur shader dans ces inspections. Captures locales :
-`/tmp/mm-l1-followup3-0.png`, `/tmp/mm-l2-pipe-wall-followup6-{730,760,790}.png`,
-`/tmp/mm-vacuum-followup-{front,rear}.png`. Les captures de Michel et le PNG
-complet du niveau 2 ont servi de références. Pas de nouvelle recette audio,
-Safari ou trackpad, ni de partie complète ; les ajustements géométriques
-restent des interprétations 3D des vues arcade, pas une égalité pixel à pixel.
-
-Prochaine action : recharger et comparer les deux alcôves/la sortie du Y
-avec la capture de 10h24, puis regarder les aspirateurs de dos en vue libre.
-
-## Creux du niveau 2 et détails verts du niveau 3 — 22 novembre 2026
-
-Corrections suivant les captures de 05h04, 05h08 et 05h09 et les précisions
-sur les deux niches :
-
-- Niveau 2 : deux ouvertures superposées, avec deux tablettes distinctes de
-  sept cases de long sur trois de profondeur, fond et retours latéraux.
-  Une bande pleine sépare les ouvertures ; la paroi reprend sous la seconde.
-  Le Y conserve ses branches et sa sortie importées, mais ses deux coiffes
-  sont remplacées par des quarts de cylindre extrudés. Les triangles anciens
-  traversant le raccord sont découpés au plan de base. La source reste intacte.
-  Les violets proviennent du playfield 52/54/57, sans reflet blanc.
-- Niveau 3 : suppression de l'amplification de hauteur des vagues (1,32×),
-  normales supérieures corrigées, absence d'ombres reçues sur l'eau et ses
-  jupes, suppression du sol pavé superposé sous son emprise. Le profil vivant
-  reste piloté par les échantillons arcade, sans nouvelle simulation ; des
-  échantillons identiques ne réécrivent plus les buffers. Le vert plat est
-  63/126/99, les reliefs utilisent les couleurs des sprites des vagues.
-- Les bordures vertes ne reçoivent plus les ombres projetées parasites et
-  restent mates ; teinte claire 150/195/165. Le petit capuchon pyramidal du V
-  passe de 0,85 unité à 16 unités arcade (1,633 unité monde). Son emprise est
-  inchangée. Les drapeaux des niveaux 1/3 deviennent jaune pâle et noir,
-  comme ceux du niveau 4 ; ceux du niveau 2 restent cyan.
-- Les faces sombres des murs du niveau 3 tiennent désormais compte des
-  ombres : auparavant leur couleur ignorait entièrement le terme d'ombre.
-  Un rayon de diagnostic confirme un mur occultant sur la paroi voisine
-  des vagues. Le contraste des ombres reste une approximation de présentation.
-- Joints verticaux des niveaux 1–3 : quatre pixels centrés sur seize, au
-  lieu de deux. Mesure dans les PNG complets : répétitions de 12 pixels de
-  mur puis 4 de joint, notamment niveau 2 ligne 1750 et niveau 3 ligne 2000.
-
-Lecture graphique bornée : 64 mots de playfield à B00400, puis 16 mots de
-motion objects à B002a0. Les indices 64–79 du tableau correspondent aux
-couleurs MO 80–95. Aucun dump de heap, ROM ou état, aucune physique modifiée.
-Les ressources et plugins restent possédés/libérés par la scène existante.
-
-Validation : `npm run check` réussi, **587 tests / 88 fichiers**, couverture
-99,45 % instructions, 98,59 % branches, 99,01 % fonctions, 99,40 % lignes.
-Tests ajoutés pour amplitude/normales/stabilité du profil, hauteur du cône,
-remplacement local et immutabilité du tuyau, épaisseur des joints ; tests
-étendus pour les deux tablettes, les drapeaux et les banques de palette.
-`PLAYWRIGHT_CHANNEL=chrome npx playwright test tests/browser/terrain.spec.ts` :
-**9/9** réussis. Le premier lancement sans canal a échoué faute de Chromium
-installé ; Chrome installé a servi à toute la recette. L'attente GPU du mur
-sombre du niveau 3 est actualisée pour sa nouvelle ombre (15 au lieu de 24).
-
-Chrome WebGL2/SwiftShader : dix cadrages des niveaux 1–3, vues tuyau/glace,
-trois vues rapprochées des niches, puis deux comparatifs avec le cœur vivant
-aux départs des niveaux 2 et 3 ; aucune exception JS ou erreur shader relevée.
-Captures locales : `/tmp/mm-l2-pipe-wall-revision6-{730,760,790}.png`,
-`/tmp/mm-l{1,2,3}-corrected-*.png`,
-`/tmp/mm-native-level{2,3}-details.png`. Les vagues animées sont inspectées
-sur la page d'étude ; une partie humaine complète jusqu'aux vagues reste à
-faire. Les profondeurs sont exactes selon la demande, mais la hauteur du
-second creux et les coiffes sont des ajustements visuels, pas une extraction
-complète de la géométrie arcade. Pas d'égalité pixel à pixel revendiquée.
-Safari et le ressenti trackpad ne sont pas retestés. Aucun dépôt Git initialisé.
-
-Prochaine action concrète : recharger l'application et comparer les deux
-niches depuis la vue libre, puis les vagues en jeu vivant sur les cadrages
-fournis par Michel. Conserver les aspirateurs procéduraux du niveau 4.
-
-## Palettes natives des niveaux 1, 2 et 3 — 22 novembre 2026
-
-La vérification demandée après le niveau 4 est appliquée aux trois courses
-précédentes. Les couleurs proviennent de la palette du cœur vivant, pas de
-la palette des PNG complets. Captures comparatives dans une même session,
-original à gauche / 3D à droite, pour chaque départ. Le premier niveau est
-atteint avec Crédit/Start ; les deux suivants avec leurs checkpoints locaux.
-Aucun export de heap, modification de ROM ou changement de physique.
-
-- Niveau 1 : sol gris 180/180/180 ; murs jaune 255/238/0, orange
-  238/119/0, face sombre 170/51/0. Les motifs/UV des fosses et bandes
-  existantes sont conservés, les faces d'orientation sombre retrouvent
-  leur brun au lieu de devenir jaunes après la correction de palette.
-- Niveau 2 : même sol gris ; murs cyan 0/187/255, ombre 0/100/150 et
-  face sombre 0/54/90. Les dalles auparavant trop sombres sont recalées.
-  La glace conserve son atlas de cuvette mais utilise les teintes de la
-  seconde banque : cyan 0/135/135, lumière 0/255/255, ombre 0/45/45.
-  Ses reflets blancs sont supprimés ; les reflets des tuyaux bleus sont réduits.
-- Niveau 3 : sol sable 210/182/140 ; murs gris foncé 45/45/45,
-  36/36/36, 24/24/24, joints sable sombre. Tours et arches conservent
-  leurs motifs, recalés sur cette palette. Vagues et bordures vertes
-  utilisent la seconde banque (99/143/121 à plat, 187/221/187 en lumière).
-  Le tuyau cuivre garde son modèle/position/diamètre, avec un reflet moins fort.
-
-`emulation/level4Palette.ts` devient `terrainPalette.ts` : même lecture
-bornée et vérifiée de 32 mots, même réutilisation du tableau inchangé,
-mais disponible sur toutes les courses. `practicePose` publie la palette
-pour chaque niveau et `createLivePracticeView` transmet uniquement ses
-changements. `TerrainPalettePaint` partage les uniforms et leur mise à
-jour ; `ArcadeTerrainPaint` distingue sol, mur, pierre de tour, vert et glace.
-Le niveau 4 garde ses propres couleurs et son masque d'ombre local.
-Le grain reste procédural ; les couleurs de sommets héritées ne doublent
-plus l'éclairage des sols. Les pierres sont mates. Le filtrage PCF et un
-biais normal de 0,02 réduisent les parasites des ombres sans nouveau soleil
-ni carte ; NullEngine utilise le repli Poisson prévu par BabylonJS.
-
-Validation : `npm run check` réussi, 584 tests / 86 fichiers, format, lint,
-TypeScript, couverture et build. Six nouveaux cas unitaires vérifient le
-transport de palette des trois courses, sa réutilisation/immutabilité et
-l'actualisation des uniforms des deux banques sans nouvelle ressource.
-La suite navigateur terrain passe 9/9 : trois nouveaux cas mesurent les
-pixels des sols et faces sombres (180/180/180 et 170/51/0 ; 180/180/180
-et 0/54/90 ; 210/182/140 et 24/24/24), sur terrains synthétiques sans ROM.
-La régression d'ombre/palette du niveau 4 reste incluse et réussie.
-Un premier `check` a rencontré la recréation simultanée de `test-results`
-par Playwright ; le contrôle complet a ensuite été exécuté séparément.
-
-GPU : Chrome WebGL2/SwiftShader ; comparatifs vivants aux trois départs,
-puis dix cadrages arcade d'étude et les deux vues dédiées tuyaux/glace du
-niveau 2, sans exception JS ni erreur de shader. Captures
-`/tmp/mm-native-level{1,2,3}-after.png`,
-`/tmp/mm-l{1,2,3}-final-*.png`. Les silhouettes d'ombres et le grain des
-matériaux restent des approximations 3D ; leur égalité complète avec les
-tuiles originales n'est pas certifiée. Aucun nouveau masque d'ombre
-local n'a été ajouté sur ces niveaux. Le confort trackpad et Safari
-n'ont pas fait l'objet d'une nouvelle recette.
-
-Prochaine action : comparaison humaine après rechargement, notamment les
-murs anthracite du niveau 3, les faces brunes du niveau 1 et la glace cyan.
-
-## Palette du cœur vivant et ombre gauche de fin — 21 novembre 2026, captures de 22h14/22h16
-
-Cette correction remplace le calage de couleurs de l'entrée précédente :
-le PNG complet reste une référence géométrique et de silhouette d'ombre,
-mais sa palette n'est pas celle du cœur Web en cours de jeu. Les deux vues
-de Michel sont bien original à gauche / 3D à droite. Une capture locale du
-cœur confirme les murs corail 255/68/51, leur ombre 187/51/34, leur face
-sombre 119/34/17 ; les murs de fin sont ambrés 255/187/0, avec ombre
-221/136/0 et face sombre 153/102/0. Le sol clair vaut 180 et les joints
-verticaux 70. La piste initiale passe de brun 75/70/60 à beige 165/143/110
-et rose clair 255/204/204 selon son orientation, contrairement au bronze
-uniforme employé précédemment.
-
-`level4Palette.ts` lit seulement les 32 entrées utiles de RAM graphique
-B00400, via le pointeur vérifié du binaire figé. Il contrôle les deux tables
-B00000..B007ff, leurs handlers, le pointeur et ses limites. Le décodage
-IIIIRRRRGGGGBBBB reproduit l'intensité native. Une palette inchangée réutilise
-son tableau précédent. `practicePose` la transmet à `createLivePracticeView`,
-puis aux uniforms de `Level4CliffPaint` et `Level4GoldPaint`, seulement lors
-d'un changement. La scène d'étude utilise les mêmes teintes mesurées comme
-repli. Les gris sont éclaircis vers le sol natif 180. Pierre et pistes
-restent mates. Aucun octet de ROM, entrée ou règle arcade n'est modifié.
-
-Le grand mur extérieur gauche X=90, Z=72..90 ne rencontre aucun obstacle
-vers le soleil dans la géométrie reconstruite (rayons vérifiés). L'ombre
-visible dans les tuiles originales est donc complétée par un masque local
-fixé aux coordonnées de cette paroi. Sa limite est mesurée dans le PNG
-complet : H=16213/16203/16193 à Z=72,5/73,5/74,5 ; palier H≈16187 à
-Z=75,5..78,5 ; reprise de la diagonale à Z=79,5. Le masque se combine par
-minimum avec la visibilité du soleil ; il ne supprime aucune ombre 3D et
-n'ajoute ni mur invisible, texture, carte d'ombre, observer ou passe GPU.
-Il s'arrête avant les montants du second passage.
-
-Validation : `npm run check` réussi, 578 tests / 85 fichiers, couverture,
-lint, TypeScript et build. Trois nouveaux tests unitaires couvrent décodage,
-mémoire invalide, changement/reprise d'une palette, immutabilité et passage
-aux uniforms des deux matériaux sans création de ressources. Le test GPU
-« grand mur jaune » passe sur une grille synthétique sans ROM et vérifie
-les pixels 221/136/0 dans l'ombre et 255/187/0 dans la zone éclairée.
-La suite navigateur du terrain réussit ses 6 tests, sans ROM personnelle.
-
-Chrome WebGL2/SwiftShader : six cadrages d'étude sans exception JS et
-comparatif vivant au départ (même session arcade, caméras arcade, capture
-active). Capture `/tmp/mm-live-native-comparison.png` ; étude
-`/tmp/mm-l4-shadowpalette-{0,160,320,480,640,784}.png`. La lecture réelle
-confirme les mots de palette F721/FB32/FF43 du départ. Aucun export du heap
-n'a été effectué. Le masque est une restitution locale de l'ombre arcade,
-pas la preuve d'une occlusion géométrique absente. Les autres silhouettes
-et le grain des dalles restent des approximations procédurales.
-
-Prochaine validation humaine : recharger la vue et comparer le départ puis
-le grand mur gauche de fin. La référence de couleur est désormais le cœur
-vivant, et non le PNG complet à palette différente.
-
-## Palette et matériaux du niveau 4 — 21 novembre 2026
-
-Comparaison avec `MM_original_levels_full_views/MarbleMadness_Level4.png`
-sur six cadrages arcade couvrant le niveau (scrolls 0, 160, 320, 480, 640,
-784). Relevé des couleurs PNG, puis comparaison des familles de pixels
-après alignement des joints et correction de l'aspect arcade (5/3 en X,
-1,75 en Y). Ce diagnostic n'est pas une égalité pixel à pixel : les ombres,
-le filtrage, les joints procéduraux et quelques silhouettes diffèrent.
-
-`Level4CliffPaint` utilise maintenant les couleurs natives : orange
-204/68/0, orange ombré 153/34/0, rouge sombre 102/0/0, jaune 255/255/0,
-ocre 187/153/0 et jaune de face sombre 136/102/0. Les joints verticaux
-restent gris 102. Les frises, murs bas jaunes et corrections géométriques
-existantes sont conservés. Le mélange clair/ombre utilise la carte `key`,
-en retirant la contribution sans ombre de l'hémisphère. La palette limite
-les dérives brunes et les noirs sur les faces sombres ; c'est un traitement
-arcade de présentation, pas une modification du cœur ou un nouveau soleil.
-
-Les dalles deviennent neutres, légèrement plus claires et mates. Le remplissage
-hémisphérique du seul niveau 4 passe à 0,30 avec un sol neutre. Les rampes
-dorées gardent des normales éclairées mais perdent le renforcement des
-couleurs par sommet hérité du niveau 2, qui blanchissait la pente de droite.
-Leur composante diffuse/émissive limite le contraste et garde le bronze.
-Pierre sans spéculaire ; catapulte importée corrigée en rouge pur malgré
-sa texture source rose 255/68/68, avec un reflet rouge très faible.
-Les marteaux importés n'ont plus de reflet blanc. Aspirateurs procéduraux
-conservés ; aucune substitution d'asset, nouvelle texture ou nouvelle boucle.
-
-Validation automatique : 16 tests ciblés réussis, puis `npm run check`
-(575 tests / 83 fichiers, format, lint, TypeScript, couverture et build).
-Les tests contrôlent notamment l'absence de spéculaire des pierres,
-la neutralité des gris, l'absence de suréclairage par sommet des rampes
-dorées et le matériau rouge sur les poses importées de la catapulte.
-
-Validation GPU : Chrome WebGL2/SwiftShader, six cadrages, aucune exception JS.
-Médianes relevées dans les familles comparables : orange 190/80/32 →
-204/68/0 ; rouge 93/14/7 → 102/0/0 ; jaune 241/218/36 → 255/255/0 ; face
-jaune sombre 68/65/7 → 136/102/0 ; dalle claire 144/144/146 → 168/168/168
-(cible 170/170/170). Ces nombres ne prouvent pas la concordance de chaque
-ombre. En particulier, certains grands murs jaunes restent trop éclairés
-par rapport à l'ocre de la référence : la répartition des ombres doit encore
-être affinée. Les essais d'angle solaire et d'ajout des dalles principales
-aux projecteurs n'améliorant pas suffisamment ce point, ils ne sont pas retenus.
-
-Captures locales `/tmp/mm-l4-calibrated-{0,160,320,480,640,784}.png` ;
-baseline `/tmp/mm-l4-before-*.png`, diagnostic `/tmp/mm-color-audit.py`.
-Prochaine validation humaine : comparaison côte à côte des murs jaunes
-profonds et des mécanismes en jeu. Le calage de palette est terminé ;
-la fidélité complète des silhouettes d'ombre n'est pas annoncée acquise.
-
-## Sols et parois des couloirs initiaux du niveau 3 — 21 novembre 2026, captures de 21h34/21h35
-
-Le défaut est reproduit depuis l'arrière du labyrinthe, comme sur les
-captures de Michel. Le relevé contient 43 cellules dont SW échantillonne
-le plateau à 16384 tandis que NW/NE/SE appartiennent au couloir inférieur.
-`terrainMesh` fabriquait alors un triangle de dalle incliné jusqu'en haut
-du mur, très clair sous l'éclairage : ces fausses rampes semblaient découper
-les parois verticales et les sols.
-
-`level3DisplayTerrain` reconstruit maintenant SW par le plan des trois autres
-coins cohérents, uniquement dans le labyrinthe X=16..42, Z=18..44, quand ce
-coin correspond au plateau et que les trois autres restent nettement dessous.
-Les trois autres hauteurs ne sont pas modifiées : les petites pentes natives
-sont conservées. La grande rampe de sortie et les reliefs ultérieurs gardent
-leurs traitements. Les murs issus des nouveaux bords sont verticaux, les
-sols voisins se raccordent sans falaise intérieure ni triangle relevé.
-Aucun changement du cœur, du relevé original, des matériaux ou des ombres.
-
-Validation : `npm run check` réussi, 575 tests / 83 fichiers, couverture,
-lint, TypeScript et build. Les nouveaux tests reproduisent deux dalles
-voisines avec coin parasite, vérifient les normales des sols et murs,
-l'absence de paroi interne, la pente douce conservée, la rampe de sortie
-et l'absence d'effet sur une cellule hors du secteur. Le relevé source
-n'est pas modifié.
-Chrome WebGL2/SwiftShader : vue libre d'ensemble, vue rapprochée inversée
-et vue opposée, sans erreur JS. Le diagnostic sur le relevé réel compte
-43 corrections ; il ne trouve pas le même motif hors du secteur réparé.
-Captures `/tmp/mm-2135-after-wide.png`, `...-detail.png`, `...-reverse.png`,
-avec captures `before` correspondantes pour l'ensemble et la vue inversée.
-Le filtrage et le biais des ombres finaux restent les réglages existants :
-la correction traite les triangles de géométrie, pas les ombres en les masquant.
-
-Prochaine action : comparer la vue libre rechargée à celle de Michel et
-parcourir les couloirs en jeu pour confirmer le confort de visibilité.
-
-## Tuyau et bloc décalés d’une case — 21 novembre 2026, capture de 21h24
-
-La photo de Michel montre sept cases avant le bloc latéral, contre six
-précédemment. Le tuyau et le bloc sont déplacés ensemble d'une case vers
-+Z (droite à l'écran). La précédente correction de largeur du conduit et les
-aspirateurs procéduraux sont conservés.
-
-- Le bloc de trois rangées occupe maintenant Z=76/77/78, X=76..78, à 16320.
-  L'ancienne rangée Z=75 retrouve le niveau inférieur à 16196. Cela ajoute
-  une case sur le bord de la grande plateforme avant le bloc (Z=69..75).
-- L'ouverture mesure toujours 3×4 cases, mais occupe Z=79..82. Son extrémité
-  Z=83 touche directement la plateforme haute existante : aucune bande vide
-  d'une case à droite. Les coins parasites de l'ancien relevé sont aplanis
-  au niveau inférieur sous l'entonnoir, sans supprimer son sol bas.
-- Coque et doublure du tuyau reçoivent le même décalage `position.z = 1`.
-  Les données importées restent intactes ; diamètre élargi et hauteur restent
-  ceux de la correction précédente. Aucune modification du cœur arcade.
-
-Validation : `npm run check` réussi, 573 tests / 82 fichiers, couverture,
-lint, TypeScript et build. Tests des sept cases d'approche, des trois rangées
-hautes déplacées, de la fermeture à Z=83, de l'absence de modification du relevé
-source et des bornes des deux meshes translatés. Chrome WebGL2/SwiftShader à
-540 px, sans erreur JS. Capture `/tmp/mm-2124-level3-pipe.png` : bloc de trois
-dalles déplacé avec l'entonnoir, lèvre droite jointe à la plateforme.
-
-À faire avec Michel : comparer la vue rechargée à sa capture de 21h24 et
-vérifier le passage de la bille en partie réelle après ce recalage visuel.
-
-## Inventaire, tuyau niveau 3 et aspirateurs procéduraux — 21 novembre 2026, captures de 19h23/19h33
-
-Michel a explicitement demandé de conserver des aspirateurs procéduraux.
-Aucun modèle, texture ni son `hoover` de Rolling Madness n'est branché.
-L'inventaire réellement utilisé est maintenant en tête de `public/assets/README.md`,
-avec les modèles chargés mais inutilisés distingués des modèles sélectionnés.
-
-- `widenLevel3Pipe` augmente de 22 % le diamètre du conduit vertical, avec
-  raccord progressif à la lèvre et au coude/sortie conservés. Les positions et
-  normales sont copiées ; la géométrie importée d'origine reste intacte.
-  Le conduit octogonal devait aussi dégager la bille entre les coins, pas
-  seulement avoir un rayon maximal suffisant.
-- La photo de 19h33 montre trois dalles entre le bord gauche et l'entonnoir,
-  contre deux dans la scène. `level3DisplayTerrain` rétablit Z=75 à 16320
-  pour X=76..78 : les rangées hautes sont Z=75/76/77. La bouche commence
-  toujours à Z=78 ; le tuyau n'est pas déplacé et son ouverture reste dégagée.
-- `createLevel4Vacuums` possède désormais les six aspirateurs procéduraux,
-  leurs matériaux partagés et leurs meshes (libérés avec la scène). Tête
-  rectangulaire à petite courbure aux coins, lèvre étagée, fond peu profond
-  doré avec quatre points, conduit à faces planes et trois nervures.
-  Le sommet de la tête reste à une hauteur proche de l'ancienne version.
-- `readLevel4VacuumMouthFrames` lit les deux images actives émises à +0x42 :
-  tables `0x22016/0x2201a` ou `0x220a6/0x220aa` selon le type. Le signal passe
-  par `PracticePose.vacuumMouthFrames` et le setter existant. Seule la tête
-  oscille légèrement (position/rotation/écrasement) quand l'aspirateur est
-  entièrement levé et dans sa boucle active. Retrait et reset annulent l'effet.
-  Pas d'horloge ni d'observer live ajouté ; le tuyau vertical reste fixe.
-  Les fragments d'aspiration suivent la cible du bec qui bouge.
-
-Validation : `npm run check` réussi, 572 tests / 82 fichiers, couverture,
-lint, TypeScript et build. Tests de dégagement de la bille face aux plats
-du conduit, préservation de la lèvre/sortie/source, trois rangées exactes,
-lecture de l'image émise distincte de la suivante, tête seule mobile, reset
-et branchement dans la vue live avec fragments.
-Chrome WebGL2/SwiftShader : niveau 4 à 180/250 px, niveau 3 à 540 px,
-sans erreur JS. Les deux phases natives injectées donnent des positions
-visuelles distinctes ; ces essais ne sont pas un rejeu complet d'aspiration.
-Une sphère de diamètre 1,35 placée dans le conduit à (18,5274,-9,5,20,9958)
-est masquée : zéro pixel bleu détecté ; retirer les meshes du tuyau révèle
-2099 pixels bleus, confirmant que la sphère du contrôle est bien rendue.
-Captures `/tmp/mm-1923-vacuum-180.png`, `...-250.png`,
-`/tmp/mm-1923-level3-pipe.png` (avec les trois rangées), et
-`/tmp/mm-1923-tremor-0.png` / `...-1.png`.
-
-À valider par Michel : ressemblance des nouveaux aspirateurs face à sa photo,
-et passage réel de la bille dans le tuyau pendant une partie. Les règles et
-collisions restent celles du cœur arcade ; seule la présentation est ajustée.
-
-## Profils des deux paires d’arches — 21 novembre 2026, capture de 19h12
-
-Les profils sont recalés sur la référence arcade complète, avec les dalles
-adjacentes comme repères. Les portées de trois cases, l'écartement des deux
-montants, leur épaisseur de 0,1 case et les raccords aux plateformes sont gardés.
-
-- Première paire : intrados abaissé, sommet à 16255 et extrémités à 16249,
-  pour un dessus à 16264. Le bandeau était beaucoup trop mince.
-- Seconde paire : intrados remonté, sommet à 16262 et extrémités à 16256,
-  pour un dessus à 16272. Le bandeau était trop épais.
-- La courbe passe de `sin(pi*t)^0.55` à `sin(pi*t)` : épaules moins gonflées,
-  raccord au sommet plus proche du profil dessiné. Les dessus fins sont gris.
-- Les parois terminales rétablies précédemment et les ombres restent en place.
-  Aucun changement de physique, de caméra ou de ressource d'ombre.
-
-Comparaison Chrome à 570 px, même échelle horizontale et verticale que le
-cadrage de la page (le raster plein niveau doit être étiré verticalement de
-5 % par rapport à une mise à l'échelle uniforme). Captures de superposition
-`/tmp/mm-arch-overlay-calibrated.png`, rendu `/tmp/mm-arch-model-after.png`,
-référence `/tmp/mm-arch-original-calibrated.png`. Ne pas conclure sur une
-superposition uniforme : elle ajoute un écart de pente aux joints. À 570 px :
-image à gauche 76 px, en haut -2021,35 px, taille 960×3580,5 px ; découpe de
-contrôle (450,250), 450×570 px dans la fenêtre 1120×840.
-Trois contrôles du contour avant de la première paire donnent un écart de
-0/0/1 pixel de capture, contre 20/18/21 avant correction. Deux points de la
-seconde paire donnent 1/0 pixel, contre 27/25 avant correction. Les bords de pixels,
-l'éclairage et la teinte ne sont pas certifiés identiques à l'original.
-
-Validation : `npm run check` réussi, 568 tests / 79 fichiers. Le nouveau test
-mesure sept points du profil de chacune des deux paires à partir des vertices,
-avec tolérance d'une unité de hauteur arcade pour l'escalier du raster natif.
-Chrome WebGL2/SwiftShader sans erreur JS ; les deux paires et l'ombre courbe
-sont visibles dans la capture. Prochaine action : confronter la vue rechargée
-à la capture de Michel de 19h12 et à la superposition locale.
-
-## Ombre courbe, axe et GOAL niveau 3 — 21 novembre 2026, captures de 19h
-
-Les trois demandes sont corrigées et vérifiées dans Chrome :
-
-- La découpe `openLevel4Bridge` supprimait aussi les parois d'extrémité des
-  berges X=87/90, Z=91..95. Elles sont conservées ; seules les grandes faces
-  le long des arches sont ouvertes. `level4-landing-cliffs` reçoit de nouveau
-  les ombres du soleil existant. Le mur droit porte maintenant la silhouette
-  courbe du montant. Aucune nouvelle lumière ni carte d'ombre ajoutée.
-  `splitLevel4LandingWalls` garde aussi les quads complets, car les couleurs
-  des murs dépendent du bord supérieur de chaque face. L'ancienne copie par
-  triangles était incompatible avec cette classification.
-- `fitCatapultAxle` raccourcit les extrémités transversales de l'axe importé.
-  Le masque est déterminé dans la pose de repos puis conservé pour toutes les
-  poses : la coupelle et le bras restent intacts, même lors du lancer.
-  La bibliothèque locale d'origine n'est pas modifiée.
-- Le dernier défilement d'étude du niveau 3 passe de -15440 à -15336, soit
-  un curseur de 736 à 840 px. La plaque GOAL complète tient maintenant dans
-  le cadrage arcade, avec une marge de 32 pixels natifs sous son coin inférieur.
-  Le défilement live reste fourni par le cœur ; il n'était pas plafonné ici.
-
-Validation : `npm run check` réussi, 567 tests / 79 fichiers, couverture,
-lint, TypeScript et build. Tests de conservation des deux parois, réception
-et projection sur la même carte, quads/couleurs, raccourcissement d'axe pour
-plusieurs poses sans altération de source/coupelle, GOAL dans le cadre final.
-Chrome WebGL2/SwiftShader aux défilements 510/620 du niveau 4 et 840 du niveau 3,
-sans erreur JS. Retirer uniquement les arches basses des projecteurs modifie
-4380 pixels dans la fenêtre du mur droit (RGB > 6), confirmant leur contribution.
-Captures locales `/tmp/mm-1900-level4-510.png`, `...-620.png` et
-`/tmp/mm-1900-level3-goal.png`. La projection reste calculée en 3D ; sa silhouette
-n'est pas certifiée pixel par pixel identique au dessin arcade.
-
-Prochaine action : comparer l'application rechargée aux captures de 19h00/19h01.
-Le serveur Vite existant reste disponible sur `http://127.0.0.1:5173/terrain.html`.
-
-## Marteaux, U, arches et arrivée — 21 novembre 2026, captures de 18h35 à 18h38
-
-Les six points de Michel sont traités :
-
-- Audit 68010 des marteaux : la table de 15 entrées répète les sprites aux pas
-  3/4 et 8/9/10/11 et revient aux sprites initiaux aux pas 13/14. Les modèles
-  importés et le secours procédural respectent désormais ces répétitions.
-  Le lecteur RAM utilise surtout **+0x42/+0x44**, image effectivement émise
-  par `0x13334..0x13440`, et non +0x3e, que `0x132e0` avance déjà vers la
-  prochaine image. L'activation par changement de zone et les attentes restent
-  dans le cœur ; aucune horloge live ajoutée. Preuves détaillées dans DECISIONS.
-- Le dessus des six blocs du support en U partage un matériau gris uni,
-  sans texture ni joints (`level4-catapult-rim-top`), possédé par la scène.
-  Les joints des faces verticales restent en place.
-- Les deux paires d'arches reçoivent les ombres du soleil et restent dans sa
-  liste de projecteurs. Le masque de palette des faces internes conserve leur
-  réaction à la lumière, au lieu de leur imposer le rouge sombre extérieur.
-  La géométrie et les dimensions approuvées sont conservées.
-- Les faces basses de fin de niveau (sommet <= 16228 et secteur X+Z >= 146)
-  sont jaunes sur toute la hauteur. La classification est constante par face ;
-  les murs élevés conservent la frontière et les pointillés rouge/jaune.
-- Drapeaux de l'arrivée du niveau 4 : damier jaune pâle/noir et mâts jaunes.
-
-Validation : `npm run check` réussi, 565 tests / 78 fichiers, couverture,
-lint, TypeScript et build. Tests ciblés du lecteur RAM (image émise différente
-de l'image suivante), répétitions des poses, fin escamotée, secours procédural,
-matériau gris partagé sans texture, deux arches réceptrices, murs bas jaunes
-et damiers. Chrome WebGL2/SwiftShader aux défilements 510/620/784, aucune
-erreur JavaScript. Contrôles A/B du soleil, de la réception et de la projection
-des ombres ; voir VALIDATION pour les mesures et limites.
-
-Limite : les poses du mesh Rolling Madness restent une adaptation des sprites,
-les timings et déclenchements sont ceux du cœur. La sonde MAME confirme encore
-la création des quatre objets ; les essais de téléportation n'ont pas produit
-un rejeu natif complet de traversée/frappe. L'analyse du déclenchement et des
-attentes repose donc sur le désassemblage, pas sur un tel rejeu. À faire avec
-Michel : une traversée jouée de la zone pour apprécier visuellement les coups
-et les collisions ensemble. L'application est disponible sur le serveur Vite
-existant, `http://127.0.0.1:5173/terrain.html`.
-
-## Départ : frise parasite, trait de contact et ombre du grand mur — 21 novembre 2026, captures de 18h00/18h02
-
-Trois corrections de présentation d'après les nouvelles captures de Michel :
-
-- La frise jaune/pointillée n'est plus appliquée aux falaises du premier secteur.
-  Le masque exige maintenant X+Z >= 120. Le mur tout à gauche reste orange
-  jusqu'en bas ; les zones ultérieures conservent leur jaune et leur frise.
-- Le trait sous le bras gauche était une fausse auto-ombre de contact sur la
-  façade X=22, Z=18..23. Cette façade reprend la teinte orange uniforme de la
-  référence, avec les joints conservés. Les autres faces restent éclairées.
-  Les faces Z du départ gardent leur rouge sombre sans nouvelle diagonale
-  sombre artificielle ; le pilotage des ombres des secteurs suivants est gardé.
-- Les parois profondes du croisement reçoivent à nouveau la carte d'ombre
-  complète du soleil (`key`). Elle contient les grandes falaises, les tremplins
-  et leurs parois. La petite carte locale excluait des contributions nécessaires
-  au grand mur droit : `createLevel4JumpShadows.ts` est supprimé, ainsi que son
-  exclusion des récepteurs de l'éclairage principal. Cela supprime aussi une
-  lumière et une texture d'ombre supplémentaires. Les grandes parois restent
-  des projecteurs et des récepteurs dans la même carte.
-
-Le test de non-régression vérifie le raccord des parois à la carte complète,
-la présence des falaises et des tremplins parmi les projecteurs, l'absence
-d'exclusion des récepteurs et le nettoyage de scène. Les règles
-arcade, les positions et les dimensions de la géométrie ne changent pas.
-
-Validation : `npm run check` réussi, 563 tests / 77 fichiers, couverture,
-lint, TypeScript et build. Chrome WebGL2/SwiftShader : défilements 0, 160 et
-620, sans erreur JS. Le contrôle d'image ne trouve aucun pixel jaune dans
-la zone du mur gauche examinée et confirme du jaune dans le secteur aval.
-La façade sous le bras gauche est orange aux deux points de contrôle qui
-étaient sombres. La comparaison des ombres du soleil activées/désactivées
-modifie 6211 pixels dans la zone réceptrice examinée à droite.
-
-Les captures attendent la scène puis plusieurs frames de la boucle normale ;
-ne pas ajouter de `scene.render()` manuel concurrent pendant cette vérification.
-Le tracé des ombres reste une projection 3D, sans identité pixel par pixel
-avec le dessin arcade. Prochaine action : confronter l'application rechargée
-aux captures de 18h00/18h02, particulièrement la diagonale du grand mur droit.
-
-## Raccord de pente, éclairage et comparaison du départ — 21 novembre 2026, captures de 10h13 à 10h25
-
-Le raccord X=82 de la seconde zone ne contient plus de marche rouge : le
-palier X=80..82 est à 16264 et les quatre lignes de la pente commencent
-exactement à cette hauteur. Les bords atteignent 16272 à X=87, le centre 16276. `level4LandingNormals` conserve une normale d'éclairage commune aux
-deux triangles de chaque dalle du petit palier/pente. Les variations
-résiduelles du relevé ne forment plus de diagonales de teinte. Cela reste
-une correction de présentation, sans modification des règles arcade.
-
-L'analyse du mesh local `lev4.ase.mesh` a montré que les grandes parois
-entrantes devaient continuer jusqu'au coin (22,23). Les supprimer avait
-créé la cavité noire signalée par Michel. Elles sont rétablies, ainsi que
-les deux faces des chemins gris inférieurs. Seuls les bras sortants restent
-en porte-à-faux. La référence distingue bien ces bras des rampes entrantes.
-
-L'éclairage des faces arrière visibles était incorrect : le matériau de
-falaise a maintenant `twoSidedLighting=true`. Les faces X visibles sont
-orange, les faces Z rouge sombre, sans les plages rouge vif introduites
-par la correction intermédiaire. La peinture ambiante reste modulée par
-les ombres. Repères RGB dans les captures fournies : rouge sombre de
-l'original 93/14/7, rendu 95/14/7 ; orange original 189/78/32, rendu
-190/80/32. Ce sont des prélèvements des images PNG, pas une calibration
-colorimétrique d'écran.
-
-Les parois profondes du départ sont maintenant séparées du bandeau dans
-`level4-jump-ramp-walls`. Elles reçoivent les ombres des tremplins via
-`createLevel4JumpShadows`, lumière directionnelle et carte locale 2048
-possédées par la scène. La direction solaire reste celle du niveau. La
-paroi est exclue de l'éclairage directionnel global pour éviter le double
-éclairage ; elle reste un projecteur dans sa carte globale. La carte locale
-contient les sols dorés et leurs bandeaux, sans auto-ombrage des grandes
-parois. La comparaison Chrome avec/sans ombre locale donne 1420 pixels
-modifiés dans la zone réceptrice examinée. Les ombres sont recalculées en 3D ;
-leur contour ne reproduit pas exactement le dessin de l'arcade.
-
-Comparaison avec `MarbleMadness_Level4.png` : superposition à l'échelle 5/3,
-translation (76,-1) sur une capture de 1120×840. Les bras dorés sortants
-mesurent 5 cases côté gauche à l'écran et 3 côté droit ; les chemins gris
-sous-jacents s'étendent sur 9 et 7 cases, soit 4 cases de plus chacun.
-Les UV des bras répètent une fois par case. Le gris des joints verticaux
-est porté à 102/255 et leur bande à 4 texels sur 16, correspondant aux
-barres de 4 pixels sur un pas de 16 observées dans la vue complète native.
-Les joints des faces terminales ont une largeur de 0,085 et le même gris.
-Les joints du sol doré sont ocre (ton minimal 122), et non presque noirs.
-
-Validation : `npm run check` réussi, 563 tests dans 77 fichiers, lint,
-typage, couverture et build. Tests des arêtes communes, absence de paroi
-au raccord de la pente, normales identiques par dalle, conservation des
-normales ailleurs, parois restaurées, nombres de cases via UV, réception
-et projection des ombres locales, destruction des ressources. Chrome
-WebGL2/SwiftShader : vues 0/160/620 px, puis comparaison superposée du départ,
-sans erreur JS. Les vues 510/784 avaient aussi été vérifiées au cours du lot.
-Une traversée arcade n'est pas une validation nouvelle de cette intervention.
-
-Prochaine action : comparer le rendu rechargé à la capture de 10h25 en gardant
-le cadrage arcade. La superposition de contrôle est dans le fichier temporaire
-`/tmp/mm-start-original-overlay.png` ; elle sert à vérifier les repères,
-pas à certifier une identité pixel par pixel.
-
-## Raccords de la seconde arche et joints des tremplins — 21 novembre 2026, après captures de 09h55/10h00
-
-Les corrections précédentes avaient aplati les bandes du mauvais côté du
-passage et ajouté une pente au-dessus des arcs. Les captures originales et
-les hauteurs du relevé montrent deux cases plates à 16260 en Z=92..94,
-encadrées par une pente d'une case sur chaque côté (Z=91..92 et 94..95),
-avec les arêtes extérieures à 16272. Ce profil est restauré sur X=90..94.
-Les deux arcs du passage X=87..90 ont maintenant un dessus horizontal à
-16272, exactement jointif à ces arêtes. La pente longitudinale ajoutée
-sur leur première case est retirée.
-
-Les deux rangées du grand plan incliné X=94..98 partagent désormais les
-mêmes sommets, de 16260 à 16228. Les coins SW erronés ne produisent plus
-le pli triangulaire au raccord du palier ni au pied. Le raccord de l'autre
-palier X=82..87 rejoint son bord extérieur à 16272 et reprend le bord
-amont à 16264, avec les deux biseaux conservés.
-
-La peinture locale du passage est rouge sur les parois longitudinales,
-avec la frise rouge/jaune au niveau 16228 ; l'abaissement diagonal global
-de la frise ne s'applique plus à cette zone. Le relief reste éclairé.
-`splitLevel4LandingWalls` isole les parois du petit palier de la réception
-de la carte d'ombre globale : les stries d'auto-ombrage constatées dans
-Chrome disparaissent, les parois restent des projecteurs d'ombres sur le
-couloir inférieur. Leurs triangles sont retirés du mesh de falaise principal.
-
-`createLevel4RampEndJoints` ajoute un contour de mortier gris sur les faces
-verticales exposées des deux cubes terminaux suspendus (Z=27 et X=28).
-Les bandes ont une largeur de 0,055 unité et un décalage extérieur de 0,003
-pour éviter la superposition des faces. Le matériau sans éclairage conserve
-la lisibilité du joint sur le fond rouge. Mesh et matériau appartiennent
-à la scène, sans observer supplémentaire.
-
-Validation : `npm run check` réussi, 560 tests dans 76 fichiers, couverture
-V8 au-dessus des seuils, lint, TypeScript et build. Tests de non-régression
-pour la hauteur constante des arcs, les deux cases plates et les pentes,
-les raccords haut/bas du grand plan incliné, les joints et leur nettoyage,
-et la séparation sans duplication des parois du palier. Chrome WebGL2 a
-rendu les défilements 0/510/620/784 px sans erreur JS ; captures examinées.
-Les tests de rendu et de géométrie ne constituent pas une nouvelle traversée
-arcade. Prochaine action : comparer dans l'application rechargée les zones
-du départ et du second passage aux deux dernières captures originales.
-
-## Rampes, deux passages et marteaux — 21 novembre 2026
-
-Les demandes des captures de 09h13 à 09h24 sont traitées dans la présentation
-uniquement. Aucun changement des ROMs, des collisions ni de la simulation arcade.
-
-- Départ : suppression des deux soutènements pleins sous les rampes dorées.
-  Les bandeaux et sous-faces restent, avec une seule sous-face au croisement.
-  Les supports du chemin gris inférieur sont conservés. Le filtrage PCF de
-  l'ombre globale et le retrait de l'auto-ombrage des bandeaux réduisent l'acné.
-- Premier passage : le haut des deux bandes passe de 16268 à 16264, pour
-  rejoindre le niveau de la plateforme. La crête intérieure est conservée.
-- Second passage : les indices sont retournés pour l'axe X. Les normales
-  étaient inversées par rapport au passage sur Z ; l'arche avant était éclairée
-  comme le fond et perdait son contour. Les deux biseaux du palier X=82..87,
-  Z=91..95 sont reconstruits, avec raccords cohérents aux rangées centrales.
-  Le biseau d'entrée des bandes rejoint la rive à 16272 puis descend à 16260.
-- Marteaux : le rang passe de X=104 à X=105, avec ancrage importé à 105,45 et
-  Z=102,5/104,5/106,5/108,5 (cases 10/8/6/4 depuis le bas), orientation
-  retournée de π à 0. Le modèle utilisé reste `hammer.ase.mesh` de Rolling
-  Madness. Le lecteur RAM convertit les coordonnées entières par division par
-  huit. La boucle locale live a été supprimée ; sans image native active ou
-  après réinitialisation les marteaux sont masqués. Le secours procédural
-  reçoit aussi les images natives et ne boucle plus en mode jeu.
-
-**Correction des anciennes notes de passation :** la création des marteaux
-suit les tranches de défilement (table `0x1dfd4`, entrée 40..64). L'entrée
-native en zone 10 réveille ensuite leurs scripts. L'ancienne animation locale
-« visible dès F4 » et l'ancien lecteur qui comparait 102 directement à la
-coordonnée RAM 816 empêchaient une synchronisation correcte. Les preuves et
-les limites de la sonde MAME sont dans `docs/DECISIONS.md`.
-
-Validation : `npm run check` réussi, 557 tests dans 76 fichiers, couverture
-métier au-dessus des seuils, lint, typage et build réussis. Tests ajoutés pour
-les normales de l'arche avant, la hauteur du premier passage, les deux biseaux,
-l'absence de sous-faces superposées et le pilotage des marteaux sans horloge.
-Chrome WebGL2/SwiftShader : captures aux défilements 0, 510, 620 et 784 px,
-sans erreur JS. Un second contrôle navigateur injecte des enregistrements RAM
-au format réel : les quatre poses 2/6/9/12 sont visibles aux nouveaux ancrages
-et restent inchangées pendant 20 notifications de rendu. Il s'agit d'un test
-du rendu, pas d'une partie native complète.
-
-Prochaine action concrète : Michel peut rejouer F4 et confronter le passage en
-zone 10 aux frappes et collisions natives. Le choix des poses Rolling Madness
-reste une correspondance visuelle des images arcade ; la fidélité du mouvement
-en situation doit encore être appréciée sur une traversée jouée.
-
-## Deux passages à arches fines — correction du 20 novembre 2026 au soir
-
-`npm run check` réussi avec 553 tests.
-
-Lecture des captures de Michel et du maillage local
-`lev4.ase.mesh` de Rolling Madness 3D. Les bandes de bord mesurent
-0,1 case dans le modèle de référence, aux deux côtés des passages.
-Leur intrados comporte des jambages hauts et une courbe peu bombée.
-La demi-ellipse précédente partait du sol et produisait une voûte
-trop volumineuse.
-
-Les bordures du premier passage restent en X=76 et X=79 sur Z=78..81.
-Le retrait des falaises est corrigé pour ces faces, qui n’étaient pas
-celles retirées par l’ancien filtre. Le profil est abaissé au centre
-avec des extrémités hautes et les faces supérieures des bandes sont
-fermées. Pour le second passage, le dallage supérieur ajouté en
-X=87..89/Z=91..94 est retiré. Le couloir bas reste à 16228 et les
-deux bandes fines bordent son croisement. Les parois du couloir inférieur
-ont un propriétaire unique pour supprimer les surfaces superposées.
-
-Les bandes reçoivent l’éclairage directionnel et projettent leurs ombres.
-Leur auto-ombrage via la carte du niveau est désactivé : cette carte
-produisait des artefacts sur ces faces de 0,1 unité. Les proportions
-en hauteur sont une adaptation du profil du modèle de référence au
-relevé arcade. Vérification Chrome aux défilements 510 et 620 px.
-La traversée et la vue libre restent à valider par Michel.
-
-## Parois latérales sous la seconde arche, raccord du biseau du tablier et rampes de saut — 20 novembre 2026
-
-- **Parois sous le couloir inférieur de la seconde arche (`X = 87..90, Z = 88..97`)** (`src/rendering/createTerrainStudy.ts`, `src/rendering/createLevel4ArchBridge.ts`, `src/rendering/createLevel4Materials.ts`) :
-  - `createTerrainStudy.ts` génère désormais `level4-underpass-cliffs` pour les deux parois extérieures du couloir inférieur (`X = 87` et `X = 90` sur `Z = 91..95` à la hauteur `16228`) afin que le dallage inférieur sous l'arche repose sur de vraies falaises texturées et non dans le vide.
-  - Dans `createLevel4ArchBridge.ts`, `openLevel4Bridge` retire la marche interne résiduelle en `X = 87` sur toute la largeur `Z = 91..95` du pont supérieur, et la crête des deux arches `level4-lower-bridge-arches` épouse le biseau gauche `X = 87..88` (`16276 -> 16260`) jusqu'au tablier plat `X = 88..90` (`16260`).
-  - Dans `createLevel4Materials.ts`, les bordures `Z = 91` et `Z = 94` sur `X = 90..93` sont maintenues planes à `16260` dans l'alignement exact du tablier supérieur (`Z = 91..95`).
-- **Rampes de saut dorées détachées du sol (`X = 22, Z = 19..26` et `Z = 23, X = 19..27`)** (`src/rendering/createLevel4ArchBridge.ts`, `src/rendering/createTerrainStudy.ts`, `src/rendering/createLevel4Materials.ts`) :
-  - Dans le relevé 2D (`local-roms/level4-terrain.json`), une seule hauteur par case (`16344`) écrasait les deux chemins gris inférieurs (`16320`) et générait des falaises pleines sous les deux tremplins dorés qui se croisent en `(X = 22, Z = 23)`.
-  - `level4DisplayTerrain` maintient la dernière dalle `(X = 22, Z = 26)` horizontale à `16344` en l'air ; `createTerrainStudy.ts` prolonge les deux chemins gris (`level4-floor` à `16320`) sous les tremplins jusqu'à leur jonction angle-à-angle en `(X = 23, Z = 24)` et ajoute `level4-top-surface` aux projecteurs d'ombres (`shadows.addShadowCaster(topFloor, false)`).
-  - `openLevel4Bridge` retire les parois pleines sous les deux tremplins en porte-à-faux et `createLevel4ArchBridge` construit `level4-jump-ramp-fascia` : bandeaux latéraux et d'extrémité fins (`0,85` unité sous `toY(16344)`), sous-faces horizontales pour une ombre portée nette sur les chemins gris et les falaises, et parois de falaise en retrait (`X = 22, Z = 19..24` et `Z = 23, X = 19..23` sous le croisement haut ; `X = 23, Z = 24..31` et `Z = 24, X = 23..32` sous les chemins gris).
-- **Validation** :
-  - Vérification visuelle dans Chrome WebGL2 sur `terrain.html` (Niveau 4 au défilement `0 px`).
-  - `npm run check` (`prettier --check`, `eslint --max-warnings 0`, `tsc --noEmit`, `vitest run --coverage` avec `553` tests passants sur `45` fichiers, `vite build`) entièrement vert.
-
-## Marteaux 3D visibles dès F4, croisement à double arche, fond de catapulte et recul des aspirateurs — 20 novembre 2026
-
-- **Marteaux 3D visibles dès `F4` et synchronisés en zone `10`** (`src/rendering/createRollingHammers.ts`, `src/rendering/createRollingHammers.test.ts`, `src/emulation/level4Hammers.ts`) :
-  - Tant que la bille n'a pas encore atteint la zone `10` (`0x23b28 : X ≈ 102, Z ≈ 99`) en mode jeu (`F4`), le cœur 68010 n'a pas encore instancié les 4 slots RAM de marteaux (`kind = 0x0c`, `id = 0x0a`). `createRollingHammers` anime désormais un cycle local déphasé sur les 4 marteaux tant qu'aucun slot RAM n'est actif (`hasActiveRamHammers === false`), puis bascule automatiquement sur les pointeurs RAM natifs (`0x20c14` escamoté sous la piste et `0x22346..0x2237e` en frappe) dès que la bille entre dans la zone `10`.
-  - En mode étude (`terrain.html`), les emplacements `0` et `2` (espacés de `4` cases) restent affichés en pose armée (`pose 6`) à l'échelle `0,088` conformément à `MM_original_levels_full_views/MarbleMadness_Level4.png`.
-- **Croisement supérieur/inférieur de la seconde arche (`X = 87..90, Z = 91..95`)** (`src/rendering/createLevel4ArchBridge.ts`, `src/rendering/createLevel4ArchBridge.test.ts`, `src/rendering/createLevel4Materials.ts`, `src/rendering/createTerrainStudy.ts`) :
-  - Le relevé 2D de la grille de hauteurs ne conservait qu'une seule hauteur par case (`16228`, celle du couloir inférieur) au croisement `X = 87..89, Z = 91..94`, ce qui coupait le tablier supérieur (à `16260`) et laissait l'arche plaquée contre un mur rouge.
-  - `level4DisplayTerrain` restitue le tablier supérieur continu à `16260` sur `X = 87..89, Z = 91..94` (avec la marche sombre d'une case en `X = 87` descendant de `16276` à `16260`), `createTerrainStudy.ts` ajoute le dallage du couloir inférieur (`level4-underpass-surface` à `16228`), et `createLevel4ArchBridge.ts` oriente les deux arches `level4-lower-bridge-arches` selon l'axe `X` en `Z = 91` et `Z = 95` (`openLevel4Bridge` retirant les parois pleines sous le pont).
-- **Fond de la coupelle de la catapulte au repos** (`src/rendering/createRollingCatapult.ts`) :
-  - `baseHeight` relevé à `2,1 * scale` pour que la coupelle repose au-dessus du dallage sans qu'aucune dalle grise ne traverse le fond rouge au repos, tout en conservant la table `nativeThrowToPose` (`1..20`) pour la levée rapide en `3` frames au lancer.
-- **Recul et course verticale des aspirateurs** (`src/rendering/createLevel4Materials.ts`, `src/rendering/createTerrainStudy.test.ts`) :
-  - Recul des 6 supports d'aspirateurs à `1,16` unité du centre de la dalle de bordure (`0,66` unité hors de la falaise), réduction de la course verticale de retrait à `1,1` unité et masquage sous le seuil `extension < 0,35` pour que le pavillon ne donne jamais l'impression de traverser le dallage en descendant.
-- **Validation** :
-  - Vérification visuelle dans Chrome WebGL2 sur `terrain.html` (Niveau 4 aux défilements `280 px`, `500 px`, `620 px` et `784 px`).
-  - `npm run check` (`prettier --check`, `eslint --max-warnings 0`, `tsc --noEmit`, `vitest run --coverage` avec `553` tests passants sur `45` fichiers, `vite build`) entièrement vert.
-
-## Arches réduites en aval et têtes de cylindres encastrées — 20 novembre 2026
-
-Le premier placement des arches sous la plateforme des cylindres était
-erroné. Le span est désormais placé sous le tronçon transversal X=73..75,
-Z=78..80, à la hauteur arcade 16228. Il mesure trois cases et descend
-de 2,3 unités de présentation. Les deux côtés sont orientés sur Z
-constant et la plateforme haute retrouve ses faces pleines.
-
-Les motifs rouges partent de la limite entre jaune et orange. Leur
-bord inférieur est sur cette limite et le jaune forme une petite
-surélévation autour. Les têtes rétractées sont maintenant des disques
-plats plus larges, avec un joint circulaire gris foncé et sans spéculaire.
-Le minimum de gris des joints du dallage du niveau 4 est relevé.
-
-Tests de géométrie adaptés à l’emplacement et à la hauteur réduite.
-La traversée du pont et le rendu de tous les angles restent à valider
-en jeu. La géométrie du relief reste un réglage visuel depuis les captures.
-
-## Arches, peinture des falaises, cylindres affleurants et ombres — 20 novembre 2026
-
-`npm run check` réussi avec 551 tests.
-
-La scène affiche deux arches sous le tablier des cases X=76..78,
-Z=72..77. Les faces pleines des deux côtés ont été retirées dans cette
-portion. Les 36 cylindres possèdent une tête circulaire gris métal au
-ras du dallage, y compris pendant leur attente. Les fûts restent
-pilotés par les slots natifs.
-
-`level4CliffPaint` colore les murs orange en haut et jaune en bas,
-avec une bordure de tirets. La hauteur de séparation et sa progression
-vers l’aval sont des réglages de présentation estimés depuis la vue
-complète. Leur calage exact reste à comparer. Le plugin s’applique
-également aux arches et au support de la catapulte.
-
-Le support de catapulte n’ajoute plus de face coplanaire sous le haut
-de la falaise extérieure à X=62. Les textures de joints sont répétées
-explicitement en coordonnées monde pour supprimer les grandes surfaces
-grises. Une lumière directionnelle de même direction et intensité que
-le soleil éclaire uniquement les deux meshes importés de la catapulte,
-avec une carte d’ombre locale de 2048 et filtrage PCF. Le soleil général
-exclut ces deux meshes pour éviter un double éclairage.
-
-Chrome a affiché les caps et les arches aux défilements 440 et 510,
-sans erreur JS. Les tests de scène vérifient le découpage des murs,
-la construction de l’arche et les caps au repos. Une partie complète
-F4 et le réglage humain de la séparation des couleurs restent ouverts.
-
-## Support maçonné et conduit prolongé — 20 novembre 2026
-
-Le support de la catapulte est maintenant un relief en U dans le plan,
-avec trois couronnements gris et des parois descendant jusqu’à la base
-des falaises. Les faces réutilisent le matériau des falaises et alignent
-leurs UV de joints sur la grille du monde. Les anciens montants et la
-petite semelle ont été retirés. La catapulte importée garde ses poses.
-
-Vérification visuelle dans Chrome effectuée, sans erreur JavaScript.
-`npm run check` réussi avec 550 tests.
-
-La comparaison avec `hoover_down` montre un long conduit dont le bas
-reste fixe dans les poses. Le conduit procédural a été prolongé vers le
-bas pour que son extrémité reste sous la piste. Le pavillon avance de
-0,3 unité supplémentaire. Le fond de gorge a été avancé aussi pour
-dégager la bouche du tube. Les six orientations suivent le même montage.
-
-Les tests vérifient le prolongement des murs, les matériaux du support,
-le bas du tuyau et l’avancée du pavillon. Prochaine vérification en
-partie : observer les sorties et retraits des six aspirateurs depuis F4.
-
-## Catapulte importée avec accord de l’auteur — 20 novembre 2026
-
-Michel confirme avoir contacté l’auteur de Rolling Madness 3D et obtenu
-son accord pour réutiliser ses modèles. La catapulte utilise maintenant
-`catapult.ase.mesh`, `catapult_throw.ase.mesh` et `catapult.PNG` depuis
-l’extraction locale. Les autres entrées de la bibliothèque locale ont
-été préservées. Le script d’extraction inclut les deux modèles et
-résout la casse des noms de textures.
-
-`createRollingCatapult` installe les maillages possédés par la scène et
-raccorde leurs poses au numéro d’image natif. Le berceau procédural
-reste visible. Le bras et la coupelle procéduraux restent disponibles
-en secours lorsque la bibliothèque manque. L’ancienne version est aussi
-conservée sous `docs/backups/level4-catapult-procedural.ts.txt`.
-
-L’intégration est disponible en jeu et dans la scène d’étude. Le test
-NullEngine vérifie repos, tir, retour au repos et conservation du secours.
-Chrome vérifie aussi les poses réelles au repos, pendant le tir et au
-retour, avec leur texture locale. `npm run check` réussi avec 550 tests.
-La scène d’étude a été examinée sans erreur JS. La géométrie
-du support et le calage pendant une vraie partie restent à confronter
-aux captures de Michel.
-
-## Gabarit des mécanismes et comparaison arcade — 20 novembre 2026
-
-Les conduits sont plus épais, raccourcis et montés entièrement à
-l’extérieur du dallage. Les têtes sont plus larges et moins hautes.
-La catapulte procédurale a un bras allongé, une coupelle épaissie et
-deux murets avec retours à angle droit autour de l’axe. Le centre de
-lancement reste le même. Les joints de falaise ont leur propre teinte
-grise, indépendante de la couleur orangée ou jaune du mur.
-
-L’ancienne catapulte procédurale est conservée sous
-`docs/backups/level4-catapult-procedural.ts.txt`. Le maillage extrait de
-Rolling Madness 3D reste une référence locale. Les superpositions
-Chrome à 50 % utilisent les captures MAME 1177 et 1297, avec les
-défilements natifs de 128 et 314 px. Le cadrage général présente
-encore un décalage des contours du décor. La comparaison a servi
-à élargir le bec, avec un modèle et un support propres au projet.
-La vérification en partie reste ouverte.
-
-## Becs rectangulaires, support carrelé et cylindres natifs — 20 novembre 2026
-
-Le bec des aspirateurs a une ouverture rectangulaire à coins arrondis.
-Le bras de la catapulte est raccourci et rejoint le dessous de la coupelle.
-La semelle de la catapulte reçoit quatre carreaux séparés par des joints.
-Les faces des montants réutilisent le matériau de la piste.
-
-La ROM définit 36 cylindres et non les deux rangées du prototype.
-Les tables à `0x24406`, `0x2442a` et `0x2444e` donnent trois groupes
-de 3 × 4, en cases X/Z 69..71/55..58, 69..71/63..66 et 76..78/74..77.
-`0x186ac` initialise la table `0x401650` quand une bille active entre
-en zone 4 ou 5. La routine remet la table à zéro lorsque plus aucune
-bille active n’y est présente. Le cœur échelonne les montées par compteurs
-et fait défiler treize pointeurs d’image (montée, maintien, descente).
-Dans MAME, la zone 4 s’active à 1204 et les premiers slots montent à 1205.
-Les autres groupes commencent ensuite suivant leurs propres compteurs.
-
-Le rendu live lit la table native. Il affiche les seuls cylindres en
-mouvement, avec quatre niveaux de hauteur de présentation. La scène
-d’étude seule montre les becs et la catapulte. Chrome a permis de contrôler
-les deux nouveaux maillages à 270 et 440 px. Une RAM de test dans Chrome
-a vérifié quatre slots observés dans MAME à des hauteurs distinctes.
-`npm run check` réussi avec 549 tests. Une traversée manuelle F4
-du secteur des cylindres reste à vérifier.
-
-## Maillages procéduraux des mécanismes — 20 novembre 2026
-
-Les aspirateurs disposent maintenant d’un pavillon ovale creux à lèvre
-arrondie, avec un conduit effilé. Le repère des fragments a été replacé
-dans la gorge. La catapulte comprend une coupelle creuse, un bras incliné
-et un berceau fixe avec semelle et deux montants. La semelle repose sur
-le niveau du dallage au droit du mécanisme. La coupelle garde le même
-centre horizontal au repos, au point de départ de la bille.
-
-Les maillages sont générés localement dans `createLevel4Materials.ts`.
-Les fichiers extraits de Rolling Madness 3D restent des références
-d’analyse. Les tests NullEngine vérifient l’assise du support, son
-immobilité pendant le tir et le centrage de la coupelle. Captures Chrome
-examinées à 280 et 440 px. `npm run check` réussi avec 547 tests.
-Prochaine vérification en jeu : inspecter les mécanismes en parcourant F4.
-
-## Fragments d’aspiration et catapulte du niveau 4 — 20 novembre 2026
-
-La vue live lit l’état de bille `0x0a`, le compteur natif et l’index
-de l’aspirateur. Huit fragments procéduraux par joueur remplacent la bille
-le temps de l’aspiration et convergent vers le bec. La phase de
-reconstruction réutilise le rendu existant.
-
-La catapulte native est un objet de type `0x0a`. La routine `0x29e22`
-exige une distance strictement inférieure à huit unités arcade sur
-chaque axe, une vitesse verticale nulle et un mécanisme prêt. Elle
-repositionne la bille en X et Z sur l’acteur avant l’impulsion. La sonde
-MAME 0.271 a observé le point (504, 560), le pointeur de repos `0x2111e`,
-puis `0x210ca` à l’impulsion (image 1298, vitesse verticale +10).
-Les maillages de Rolling Madness 3D décrivent le modèle de repos et
-22 poses de tir sur 2,03 s, avec le matériau `catapult.png`.
-
-La coupelle procédurale a son centre au point natif de départ et le
-mouvement repose sur les pointeurs d’image du cœur. La scène d’étude
-présente la catapulte au repos. `npm run check` réussi avec 547 tests.
-Chrome WebGL2 a vérifié le cadrage de la bille dans la coupelle et les
-fragments à partir de poses de contrôle. Prochaine vérification en jeu : passer
-successivement par un aspirateur et par la coupelle depuis F4.
-
-## Aspiration de la bille — comparaison des deux jeux — 20 novembre 2026
-
-Les fichiers locaux de Rolling Madness 3D définissent deux animations pour
-le mécanisme et une pour la bille.
-
-| Maillage                 | Poses | Durée déclarée | Triangles | Matériau     |
-| ------------------------ | ----: | -------------: | --------: | ------------ |
-| `hoover_down.ase.mesh`   |    12 |        0,333 s |       254 | `hoover.png` |
-| `hoover_on.ase.mesh`     |    12 |            2 s |       254 | `hoover.png` |
-| `player_hoover.ase.mesh` |    17 |            2 s |       224 | `player.png` |
-
-`actor/hoover.txt` rejoue le retrait à l’envers pour la sortie. L’état
-actif boucle sur `hoover_on` avec `hoover_72.ogg`. Les bornes du bec
-descendent dans `hoover_down` et fluctuent légèrement dans `hoover_on`.
-La texture `hoover.png` est un aplat RGBA (242, 198, 0, 255) de 16 × 16.
-Le volume du bec vient du maillage et de son éclairage. Dans
-`player_hoover`, la bille s’allonge vers le bec et les sommets convergent
-vers un seul point à la dernière pose. Cette animation figure déjà dans la
-bibliothèque locale. Le rendu actuel ne la sélectionne jamais.
-
-Arcade, MAME 0.271 et BIOS TTL. Après initialisation contrôlée de la
-position et de la vitesse en amont, le cœur joue la capture sans intervention
-supplémentaire. À l’image 1178, la bille entre dans l’état `0x0a` à
-`player + 0x1a`, avec `0x20` au compteur `player + 0x57` et l’index de
-l’acteur à `player + 0x58` (base J1 à `0x400018`). La routine `0x13d38`
-émet des sprites successifs vers le bec. Les coordonnées monde de la bille
-restent fixes pendant cette phase. L’image 1177 montre la sphère intacte,
-1184 et 1200 des fragments bleus, et 1232 la disparition près du bec.
-À 1242, l’acteur entame son retrait et la bille passe à l’état `4` de
-reconstruction. Les images restent temporaires.
-
-Le lecteur `practicePose` ne transmet pas l’état `0x0a` et le
-rendu n’a donc pas de signal d’aspiration distinct. Pour un futur effet
-procédural, lire cet état, son compteur et l’index de l’acteur. Animer
-uniquement la présentation depuis la position figée vers le bec, puis
-laisser le chemin de reconstruction existant reprendre. Aucune modification
-des maillages en scène ou de la simulation pendant cette comparaison.
-
-## Aspirateurs procéduraux synchronisés — 20 novembre 2026
-
-La vue 3D emploie six supports procéduraux en bord de piste. Hors partie,
-la scène d’étude les montre déployés. En partie, les pointeurs d’image
-lus dans les slots d’objets du cœur épinglé pilotent la hauteur du bec.
-L’image d’attente ou un slot inactif masque l’aspirateur. Le rendu revient
-à l’état masqué après une pose absente. Le déplacement vertical et ses
-dimensions sont propres aux modèles procéduraux. Les règles arcade restent
-dans le cœur. La confirmation d’une restauration utilise le niveau demandé
-par F2, F3 ou F4. F2 conserve sa vérification de coordonnées.
-
-Tests ciblés sur les deux types, les pointeurs d’ouverture et de retrait,
-l’identifiant indépendant du slot et le masquage. Chrome WebGL2 sur le
-relevé local, avec réinjection des pointeurs observés dans MAME dans une
-RAM de test : six meshes créés, zéro visible au repos, puis alternance
-attendue entre les aspirateurs 0 et 2. Capture examinée, aucune erreur JS.
-La reprise F4 a été confirmée dans Chrome avec le cœur réel. Un déplacement
-artificiel vers la zone 31 a changé la zone du joueur sans initialiser les
-slots d’aspirateurs dans ce rejeu Web. Une partie qui suit le parcours reste
-à vérifier. `npm run check` réussi avec 545 tests.
-
-## Aspirateurs du niveau 4 — déclenchement arcade — 20 novembre 2026
-
-Le désassemblage du programme 68010 et une sonde MAME 0.271 avec le BIOS
-TTL confirment six aspirateurs, identifiants de zone `0x1e..0x23`, types
-d’acteur `0x0b` et `0x0d`. Le tableau de scripts du niveau commence à
-`0x1dfd4`. Les acteurs en attente ont l’état `4` et un pointeur d’image
-`0x20c14`, observé en RAM à l’initialisation des six.
-
-- `0x1365c` lit la table des frontières du niveau (`0x23ac0`) et compare
-  la case avant/après un pas de simulation. La direction de sortie d’un
-  segment détermine le nouvel identifiant de zone de la bille.
-  `0x13966` sélectionne le script d’ouverture de l’acteur associé.
-- Le script d’objet vérifie à `0x12ca8` si une bille active occupe encore
-  l’une des deux zones qu’il surveille. Le retour à l’attente et le script
-  de retrait consécutif à une capture sont deux chemins distincts.
-  L’aspiration passe par `0x13d38` et le retrait après capture par
-  `0x25674` pour le type `0x0b`.
-- Les six positions sont renseignées dans les scripts d’initialisation
-  `0x1d7d0`, `0x1d7e6`, `0x1d7fc`, `0x1d812`, `0x1d828`, `0x1d83e`.
-  Dans le repère de la grille (X, Z), les ancrages lus sont (39, 36),
-  (48, 36), (50, 46), (34, 42), (42, 42) et (44, 52), tous à la hauteur
-  16300 en unités arcade. Les captures de Michel montrent des becs au bord
-  de la piste.
-  Les deux socles au centre de dalles et le mouvement continu actuellement
-  codés dans `createLevel4Landmarks` expliquent l’écart de présentation.
-
-Sonde contrôlée avec position et vitesse initialisées près de deux frontières,
-puis simulation native. Entrée en zone 30 à l’image 1122, ouverture de
-l’aspirateur correspondant. Entrée en zone 32 à 1140, ouverture du second
-type et retrait du premier, qui retrouve le pointeur vide à 1186.
-Dans un essai sans franchissement précoce de la seconde frontière, le
-premier a alterné deux images actives puis le chemin de capture a lancé
-son retrait à 1242. L’étude concerne les aspirateurs seulement. Aucune
-modification du rendu ni de l’émulation.
-
-## Mécanismes procéduraux du niveau 4 — 20 novembre 2026
-
-Les deux aspirateurs, les six pistons, la catapulte et les deux marteaux
-prennent leur hauteur au centre de dalles présentes dans le maillage affiché.
-Les becs basculent, les pistons se rétractent à hauteur de piste et les bras
-pivotent sur des axes distincts de leurs socles. Les dimensions et cycles
-sont des choix de présentation à vérifier en partie. La capture arcade et
-les définitions d’acteurs ont servi de référence pour identifier les mécanismes.
-
-Validation dans `createTerrainStudy.test.ts` avec une grille synthétique.
-Contrôle visuel dans Chrome sur la vue d’étude à 315, 494 et 750 px.
-`npm run check` réussi avec 542 tests. Prochaine vérification utile :
-observer les interactions en partie depuis le raccourci F4.
-
-## Extraction locale de Rolling Madness 3D — 20 novembre 2026
-
-- Les 329 fichiers de la charge Inno Setup sont dans
-  `3D_assets_for_animated_entities/data/{app}/`. Le dossier local contient aussi
-  4 ressources intégrées à l’installateur, dont sa licence, et 6 fichiers de
-  métadonnées exportés par l’extracteur.
-- Les 47 maillages `.ase.mesh`, les textures, les sons, les définitions
-  d’acteurs et de niveaux ont été conservés dans leur arborescence d’origine.
-  Pour les niveaux 4 à 6, consulter `level/level4.txt` à `level/level6.txt`
-  et les définitions `actor/world4.txt` à `actor/world6.txt`.
-- Les 329 fichiers correspondent à la table de l’archive en chemin, taille
-  et somme Inno. Les 339 sorties passent la vérification `SHA256SUMS`.
-  Le convertisseur existant a produit un JSON temporaire avec ses 11 modèles.
-  La texture `amoeba.png` diffère de celle de la bibliothèque locale actuelle.
-- Prochaine action pour le niveau 4 : partir de `level/level4.txt` et des
-  définitions dans `actor/`, puis déterminer les placements et les confronter
-  à la RAM arcade avant de raccorder les maillages au rendu BabylonJS.
-
-## Raccourcis rapides F3 (Niveau 3) / F4 (Niveau 4) et Niveau 4 (_Aerial Race_) — 20 novembre 2026
-
-- **Raccourci `F3` (Niveau 3) & `F4` (Niveau 4)** (`scripts/record-level3-checkpoint.mjs`, `scripts/survey-level4.mjs`, `src/dev/localRoms.ts`, `src/emulation/localStudy.ts`, `src/ui/feasibility.ts`, `index.html`) :
-  - Enregistrement local des points de reprise natifs `local-roms/level3-web.state` (départ Niveau 3 `0x2cd9e`) et `local-roms/level4-web.state` (départ Niveau 4 `0x2d648`).
-  - Boutons **« Niveau 3 · F3 »** et **« Niveau 4 · F4 »** + raccourcis clavier `F3` / `F4` et paramètres `?study=level3` / `?study=level4` dans `feasibility.ts`.
-- **Niveau 4 (_Aerial Race_, descripteur `0x2d648`, clé `'level4'`)** (`src/rendering/createLevel4Materials.ts`, `src/game/modern/practiceTerrain.ts`, `src/emulation/practicePose.ts`, `src/rendering/createTerrainStudy.ts`, `src/rendering/createLivePracticeView.ts`, `src/rendering/createPracticeGoal.ts`, `src/terrain.ts`, `terrain.html`) :
-  - Relevé arcade complet `130 × 130` (`1 492` cellules actives, scroll `-16152 → -15368`, soit `784 px`) dans `local-roms/level4-terrain.json`.
-  - Rendu BabylonJS fidèle à `MM_original_levels_full_views/MarbleMadness_Level4.png` : rampes croisées dorées/ocre au sommet (`level4-top-floor`), pistes gris pierre (`level4-floor`), falaises striées vermillon-orange en haut passant au jaune-or en bas (`level4-cliffs` + `level4CliffColors`), nettoyage des dents de scie sur les bords de fosse (`level4DisplayTerrain`), zone `GOAL` (`x = 113..116, z = 104..113`) + drapeaux animés, et bouton **« Voir le niveau 4 (étude) »** sur `terrain.html`.
-  - Branchement live complet (`0x2d648` dans `readPracticePose` et `readModernPhase`, préchargement dans `feasibility.ts`).
-- **Validation** :
-  - `npm run check` vert (**541 tests Vitest**, couverture V8 ≥ 90 %, Prettier, ESLint `--max-warnings 0`, `tsc --noEmit`, build Vite).
-  - Captures Chrome WebGL2 vérifiées sur `http://127.0.0.1:5173/terrain.html` (Niveau 4 à `0 px`, `380 px` et `784 px`).
-  - **Mécanismes 3D animés & `player_hoover`** (`createLevel4Materials.ts`, `scripts/extract-rolling-actors.mjs`) : extraction de `player_hoover.ase.mesh` (`17` poses) dans `local-roms/rolling-actors.json` ; correction complète des triangles blancs sur la fente centrale (`z = 62, x = 59..63` et `z = 66, x = 57..63`) ; premiers modèles procéduraux temporaires (`createLevel4Landmarks`).
-  - **Découverte importante dans `Rolling Madness 3D 2005/RollingMadness3D-Installer.exe`** :
-    - Le nettoyage automatique de `/tmp` par macOS avait purgé les fichiers de `/tmp/mm-rolling-research/extracted/` datant de plus de 3 jours (ainsi que `libboost_iostreams-mt.dylib` utilisé par `innoextract`).
-    - La décompression de l’en-tête Inno Setup 5.0.4 (`0x10757e6` dans `RollingMadness3D-Installer.exe`) confirme que **tous les vrais modèles 3D, animations, textures et définitions des Niveaux 4 à 6 sont bien présents dans l’installeur** :
-      - Modèles & animations : `hoover_down.ase.mesh`, `hoover_on.ase.mesh`, `catapult.ase.mesh`, `catapult_throw.ase.mesh`, `hammer.ase.mesh`, `rod.ase.mesh` (pistons), `bird.ase.mesh`, `bird_fast.ase.mesh`, `bird_expl.ase.mesh`, `lev4.ase.mesh`, `lev5.ase.mesh`, `lev6.ase.mesh`, `lev6_bridge1..4.ase.mesh`, `amoeba_stretch_mini.ase.mesh`, `amoeba_squashed_mini.ase.mesh`, `blacky_mini.ase.mesh`, `stick_idle_mini.ase.mesh`, `stick_bend_mini.ase.mesh`.
-      - Textures : `hoover.png`, `catapult.PNG`, `hammer.PNG`, `rod.PNG`, `amoeba.png`, `bird.PNG`, `lev4_catapult.png`, `lev4_side.png`, `lev4_tile_glass.png`.
-      - Définitions du monde et des acteurs : `actor/world4.txt`, `actor/world5.txt`, `actor/world6.txt`, `actor/catapult.txt`, `actor/hammer.txt`, `actor/hoover.txt`, `actor/bird.txt`.
-  - **Suite du niveau 4** : utiliser l’extraction locale décrite ci-dessus pour préparer le remplacement des modèles procéduraux de `createLevel4Landmarks` par les maillages animés.
-
-## Niveau 3 : décodage exact ROM des vagues, pyramide du V et dalles des pentes finales — 20 novembre 2026
-
-Corrections des 3 points signalés par Michel en test live du Niveau 3 :
-
-- **Vague turquoise 100 % synchro sur le décodeur ROM `0x0d0a0` (`practicePose.ts`, `practicePose.test.ts`, `createLivePracticeView.ts`, `createLevel3Materials.ts`)** :
-  - Désassemblage de la routine 68010 `0x0d0a0` et de ses tables `0x24c7a..0x24df4` : pour chaque dalle `i = 0..20`, `word(0x76e + i * 6)` encode directement la hauteur exacte `0x9ab4..0x9ad2` (`0..30` unités arcade, soit `0` au repos tant que la bille n’arrive pas par la passerelle du milieu) ; pour la dalle de bout `i = 21`, `word(0x7f0)` encode `0x8f84..0x8fa2` (`0..30`).
-  - Suppression de l’heuristique `nearWave` dans `createLivePracticeView.ts` (la RAM arcade reste naturellement à `0` quand la bille est à gauche).
-  - Recalage de `waveRegion.z` de `75` à `76` (`z = 76..97`, aligné sur les deux ponts `z = 81..82` et `z = 93..94`), hauteur physique exacte `waveMaxHeight = level3Height(16148 + 30) - waveBaseY` et suivi direct sans retard de lissage.
-- **Éclairage, ombres, contraste des parois et reflets menthe du Niveau 3 (`createTerrainStudy.ts`, `createLevel3Materials.ts`, `createTerrainStudy.test.ts`)** :
-  - Abaissement de `fill.intensity` (`0.34 → 0.18`), `fill.groundColor` (`0.14, 0.12, 0.10`), `level3-cliffs` `emissiveColor` (`0.025, 0.021, 0.016`) et `shadows.darkness` (`0.28 → 0.10`) pour retrouver les parois ombrées brun-charbon et les ombres portées denses du jeu original.
-  - Restauration d’un spéculaire menthe maîtrisé (`specularColor = (0.55, 0.88, 0.76)`, `specularPower = 22`) et d’un contraste directionnel `[0.42..1.48]` sur les murets turquoise (`level3CurbColors`).
-  - Vague turquoise rehaussée (`× 1.32`), plateau supérieur plus lumineux (`diffuse 0.32, 0.90, 0.72`, `emissive 0.09, 0.26, 0.21`) et versant ombré plus profond (`dark * 0.82`).
-- **Pyramide turquoise du V (`createLevel3Materials.ts`)** : inversion du winding des 4 triangles de `level3-turquoise-spike` en sens sortant main gauche (`c1, tip, c0`, `c2, tip, c1`, `c3, tip, c2`, `c0, tip, c3`) — les 2 faces avant ne sont plus masquées par le backface culling.
-- **Dalles pliées des 3 pentes finales (`createLevel3Materials.ts`)** : lissage planaire `[nw, ne, ne, nw]` des rangées `z = 86, x = 96..99` et `z = 93, x = 89..92 / 95..98` (dont `(99, 86)`, `(92, 93)` et `(98, 93)` avaient `fold = 9` juste sous le seuil `0.5`).
-
-## Niveau 3 : pyramide du V, dalle d’entrée des pentes, ouvertures d’arche, amibes déformantes et vague plate avant approche — 19 novembre 2026
-
-Corrections des 5 points signalés par Michel en dernier retour sur le Niveau 3 :
-
-- **Éclairage, ombres, contraste des parois et reflets menthe du Niveau 3 (`createTerrainStudy.ts`, `createLevel3Materials.ts`, `createTerrainStudy.test.ts`)** :
-  - Abaissement de `fill.intensity` (`0.34 → 0.18`), `fill.groundColor` (`0.14, 0.12, 0.10`), `level3-cliffs` `emissiveColor` (`0.025, 0.021, 0.016`) et `shadows.darkness` (`0.28 → 0.10`) pour retrouver les parois ombrées brun-charbon et les ombres portées denses du jeu original.
-  - Restauration d’un spéculaire menthe maîtrisé (`specularColor = (0.55, 0.88, 0.76)`, `specularPower = 22`) et d’un contraste directionnel `[0.42..1.48]` sur les murets turquoise (`level3CurbColors`).
-  - Vague turquoise rehaussée (`× 1.32`), plateau supérieur plus lumineux (`diffuse 0.32, 0.90, 0.72`, `emissive 0.09, 0.26, 0.21`) et versant ombré plus profond (`dark * 0.82`).
-- **Pyramide turquoise du V (`createLevel3Materials.ts`)** : aplanissement de la cellule de base `(99, 92)` à `16124` sous la pyramide + ajout de couleurs par sommet (`level3CurbColors`) et teinte mate `(0.18, 0.58, 0.48)` sur `level3-turquoise-spike` — plus aucun triangle cyan fluo surexposé ni coin dépassant.
-- **Dalles d’entrée des pentes finales (`createLevel3Materials.ts`)** : lissage planaire `[nw, ne, ne, nw]` des cellules `(92, 94)` et `(99, 87)` dont le coin `sw` échantillonnait le muret turquoise adjacent (`16148`) — suppression du pli sombre sur la dalle marron.
-- **Ouvertures d’arche au pied des ponts de départ (`createLevel3Materials.ts`)** : ajout de petites arches sombres ogivales au pied des deux arcs-boutants (`footYApex = 16384 - 8.5`, sous `archProfile[5] = -6`), alignées sur `68141cba.png`.
-- **Amibes déformantes (`scripts/extract-rolling-actors.mjs`, `createRollingActor.ts`, `createIntermediateActors.ts`, `createRollingActor.test.ts`)** : extraction du vrai maillage animé **`amoeba_stretch.ase.mesh`** de _Rolling Madness 3D_ (12 poses, 34 triangles) dans `local-roms/rolling-actors.json`, recentrage en Z par pose (`centerAmoebaPoses`) pour que la déformation d’étirement se fasse sur place sans double translation, matériau semi-transparent vert-acide (`alpha = 0.62`, `disableDepthWrite = true`, laissant voir les joints du sol et fusionnant les chevauchements), et pilotage continu du morph sur la distance parcourue (avec repli procédural si le modèle est absent en test).
-- **Vague plate jusqu’à l’approche de la bille (`createLivePracticeView.ts`)** : maintien d’un profil plat tant que la bille n’est pas dans la zone de la vague (`pose.scroll <= -15620 || pose.z >= 70 * 8`), puis pilotage par les 22 triplets RAM `0x772 + i * 6`.
-- **Validation** :
-  - `npm run check` vert (537 tests Vitest, couverture V8 ≥ 90 %, Prettier, ESLint `--max-warnings 0`, `tsc --noEmit`, build Vite).
-  - Captures Chrome WebGL2 vérifiées sur `http://127.0.0.1:5173/terrain.html` à `0 px` et `736 px` (pyramide du V mate et nette, dalle d’entrée des pentes parfaitement plane, ouvertures d’arche sous les ponts).
-  - **Reste à confirmer par Michel en jeu live** : comportement de la vague à l’approche, déformation des amibes en mouvement et fonte dans l’acide (`player_melt`). Si besoin, on peut importer directement `amoeba_stretch.ase.mesh` de Rolling Madness 3D ou passer au **Niveau 4** (_Aerial Race_).
-
-## Niveau 3 : amibes fluides, vague synchro RAM + joints, tuyau jointif et fonte dans l’acide — 19 novembre 2026
-
-Corrections des 4 points signalés par Michel en test live du Niveau 3 :
-
-- **Finitions live & rendu Niveau 3 (`createIntermediateActors.ts`, `createMarbleAnimation.ts`, `createMagicWand.ts`, `createLevel3Materials.ts`, `createTerrainStudy.ts`, `practicePose.ts`)** :
-  - **Amibes fluides et semi-transparentes** : vitesse linéaire constante (`maxStep = 0.095` dalle/frame) et matériau vert-acide plus profond, semi-transparent (`alpha = 0.62` / `0.52`, `disableDepthWrite = true`) laissant voir les joints du sol et fusionnant visuellement les amibes qui se chevauchent.
-  - **Bille qui fond (`player_melt`)** : application de l’échelle exacte `0.675` (alignée sur `player_broken` et la bille) avec progression linéaire 60 fps sur les 54 frames natives de `state === 9`.
-  - **Baguette magique (`createMagicWand.ts`)** : baguette classique noire à embout blanc et poignée or, plus épaisse (`diameter = 0.13`), inclinée en diagonale (`tilt ≈ -0.95 rad`) sur le côté de la bille avec balancement et étincelles.
-  - **Tuyau cuivre (`createLevel3Pipe`)** : `copper.backFaceCulling = true` sur `level3-pipe-shell`, supprimant le triangle parasite qui perçait la paroi verticale du tube.
-  - **Tours de départ & pyramide turquoise (`createLevel3Materials.ts`)** : meurtrières gothiques en lancette (resserrées en pointe vers le haut), arches en arc-boutant descendant jusqu’à `base` sur leur moitié inférieure (`archDrop`), et pyramide turquoise unique dans le V (`x = 99, z = 92`) à 4 triangles indépendants + winding sortant + matériau uni `level3-spike-turquoise`.
-  - **Vague turquoise** : suppression du fallback `0.7` (seuls `0xf004` = `1.0` et `0xbf84/0xdf84/0xcf84` = `0.42` lèvent la vague, `0` par défaut) et suivi rapide (`lerp 0.55` sans lissage écrasant) dans `practicePose.ts` et `createLevel3Materials.ts`.
-  - **2 bosses asymétriques & arêtes nettes (`createLevel3Materials.ts`, `terrainMesh.ts`)** : coupe diagonale de 2 dalles (`gx - gz <= 4` et `gz - gx <= 8`), séparation des cellules non-coplanaires en 2 triangles indépendants dans `terrainMesh.ts` (éliminant les dents de scie d’éclairage sur le bord coupé, désormais parfaitement droit) ; restriction de `isLevel3TurquoiseCurb` à `z >= 88` et `z >= 95`.
-- **Vague turquoise synchronisée sur la RAM arcade + fort relief + joints verticaux (`src/emulation/practicePose.ts`, `src/rendering/createLevel3Materials.ts`, `src/rendering/createTerrainStudy.ts`, `src/rendering/createLivePracticeView.ts`)** :
-  - Lecture native des **22 triplets de la vague en RAM (`0x76e..0x7f2`, mot `+4` à `0x772 + i * 6`)** découverts dans la ROM (`0x1d370..0x1d3f2` : `0x9f84` plat, `0xbf84/0xdf84/0xcf84/0x8f84` pentes, `0xf004` sommet) dans `readPracticePose` (`waveProfile`, 22 valeurs `0..1`).
-  - Pilotage temps réel via `setLevel3WaveProfile(scene, pose.waveProfile)` en mode `live = true` (crête haute `2.25` + couleurs par sommet contrastées turquoise clair / vert-sapin profond selon la normale) ; l’animation autonome reste active sur `terrain.html` (`live = false`).
-  - Séparation des flancs verticaux `level3-wave-sides` avec texture procédurale striée turquoise/joints sombres (1 joint par dalle le long de Z, fidèle à `MarbleMadness_Level3.png`).
-- **Teinte sable/marron chaude, 2 bosses symétriques des amibes et niches murales jusqu’au bord (`src/rendering/createLevel3Materials.ts`)** :
-  - Harmonisation de `level3-floor`, `level3-cliffs` et `level3-tower-stone` sur la vraie palette sable-doré / brun-ardoise chaude du CRT arcade.
-  - Reconstruction symétrique des 2 pyramides tronquées sur la terrasse des amibes (`x=63..68, z=61..66` et `x=66..71, z=72..77`) dans `level3DisplayTerrain` (finies les lames blanches et marches en escalier).
-  - Relèvement des niches murales jusqu’au ras du dallage (`lintelY = topY - 0.14`) et ajustement des parités/plages des 6 façades jusqu’au bord.
-  - Pyramide turquoise (`level3-turquoise-spike`) rendue plus compacte (`+0.72`).
-- **Tuyau cuivre jointif en haut et complet en bas (`src/rendering/createLevel3Materials.ts`)** : masquage des 3 cellules de collision `z = 78, x = 76..78` dans `level3DisplayTerrain` qui mordaient dans l’entonnoir supérieur (`x = 76..79, z = 78..82`) et dont la falaise à `z = 79` tranchait le fût et le coude bas.
-- **Animation de la bille qui fond dans l’acide (`src/emulation/practicePose.ts`, `src/rendering/createMarbleAnimation.ts`)** :
-  - Détection native de `state === 9` (mesuré sur 56 frames dans MAME 0.271, progression `word(base + 0x74)` de `0x1062` à `0x107a` en 7 étapes → `melt` dans `0..1`).
-  - Routage de `animation === 9` vers le maillage animé `player_melt` (12 poses déjà présentes dans `local-roms/rolling-actors.json`), synchronisé sur `pose.melt` + lissage continu.
-- **Validation** :
-  - `npm run check` vert (536 tests Vitest, couverture V8 ≥ 90 %, Prettier, ESLint `--max-warnings 0`, `tsc --noEmit`, build Vite), avec nouveaux tests dans `practicePose.test.ts` et `createTerrainStudy.test.ts`.
-  - Vérification visuelle Chrome WebGL2 sur `http://127.0.0.1:5173/terrain.html` à `500 px` (entonnoir jointif au millimètre + fût et coude complets) et `736 px` (joints verticaux nets sur les flancs de la vague).
-  - **Reste à confirmer par Michel en jeu live** : fluidité des amibes, fonte de la bille dans l’acide (`player_melt`) et synchronisation en temps réel de la vague turquoise avec le CRT original.
-
-## Niveau 3 : scroll complet jusqu’à GOAL, amibes natives, tours texturées, niches et ombres — 19 novembre 2026
-
-Corrections des 5 points signalés par Michel sur le Niveau 3 :
-
-- **Scroll débloqué jusqu’aux amibes et à `GOAL` (`src/game/modern/practiceTerrain.ts`)** : `level3LastSurveyedScroll` porté de `-15870` (`306 px`) à **`-15440`** (`736 px`), couvrant tout le niveau jusqu’à la vague turquoise et `GOAL`.
-- **Amibes acides natives en jeu live (`src/emulation/intermediateActors.ts`, `src/rendering/createIntermediateActors.ts`)** :
-  - Découverte via MAME 0.271 des 8 slots natifs d’amibes/flaques acides à partir de `0x1482` par pas de `0x42` (`byte(base + 0x18) === 1`, `id = 10..17`, `kind = 'acid'`).
-  - Rendu de 8 flaques vert néon animées (`arcade-acid-0..7`, disques concentriques pulsants pilotés par `pose.frame` sans allocation par frame).
-- **Textures des deux tours de départ (`src/rendering/createLevel3Materials.ts`)** :
-  - Matériau procédural `level3-tower-stone` (`64 × 128`) avec chapiteau cannelé, bandeau de collerette, pilastres kaki-olive d’angle/centraux et fût ardoise, avec coordonnées UV découpées proprement entre le chapiteau (`v = 0..0.234`) et le fût (`v = 0.234..1`).
-- **Reliefs du grand mur vertical, entonnoir cuivre, vague pleine & murets turquoise (`src/rendering/createLevel3Materials.ts`, `src/rendering/createTerrainStudy.ts`)** :
-  - Généralisation de `carveLevel3WallNiches` aux **6 façades** visibles dans `MM_original_levels_full_views/MarbleMadness_Level3.png` (zigzag gauche `x=50`, zigzag droit `z=60`, terrasse amibes gauche `x=73` et droite `z=82`, approche tuyau `x=76`, pilier droit du tuyau `z=86`), toutes avec appui inférieur horizontal.
-  - Rehaussement du tuyau cuivre (`level3-pipe-shell` / `level3-pipe-interior`) de `+4` unités arcade pour affleurer le dallage `16320`, et teinte terre-cuite/cuivre satinée moins fluorescente.
-  - Ajout des flancs verticaux avant/arrière sur `createLevel3Wave` (vague turquoise pleine et plus lumineuse à 2 crêtes).
-  - Extraction et lissage transversal (`[nw, ne, ne, nw]`) des **murets ondulés turquoise** des montagnes russes finales (`level3-turquoise-curbs`, matériau `level3-curb-turquoise`) + ajout de la **pyramide turquoise** au coin central (`level3-turquoise-spike`, shadow caster).
-  - Relèvement du seuil `bentX` à `> 0.5` dans `level3DisplayTerrain` pour préserver les deux bosses de la terrasse des amibes.
-- **Ombres plus claires sur le Niveau 3 (`src/rendering/createTerrainStudy.ts`)** :
-  - `fill.intensity = 0.34` et `shadows.darkness = 0.28`.
-- **Validation** :
-  - `npm run check` vert (Prettier, ESLint `--max-warnings 0`, `tsc --noEmit`, Vitest + couverture V8 ≥ 90 %, build Vite) avec tests ajoutés dans `intermediateActors.test.ts` et `createTerrainStudy.test.ts`.
-  - Vérification visuelle Chrome WebGL2 sur `http://127.0.0.1:5173/terrain.html` à `0 px`, `250 px`, `500 px` et `736 px` (curseur jusqu’à `736 px`, tours texturées, niches en creux, tuyau affleurant, vague et drapeaux `GOAL`).
-  - **Reste à confirmer par Michel** : essai en jeu live sur le Niveau 3 (défilement fluide au-delà des amibes + visibilité et animation des amibes acides).
-
-## Niveau 3 (étapes 1, 2 et 3 : terrain, tuyau cuivre, vague turquoise, GOAL et branchement live) — 19 novembre 2026
-
-Avancement complet des 3 premières étapes du **Niveau 3** (descripteur arcade `0x2cd9e`, 192 diagonales, clé interne `'level3'`) :
-
-- **Relevé MAME 0.271 + tuyau cuivre (`local-roms/level3-terrain.json`, `scripts/add-level3-pipes.mjs`)** : grille complète `118 × 118` (`2 260` cellules actives, scroll d’ouverture `-16176`, départ J1 `(180, 76, 16408)`) enrichie des 333 triangles de coque + 9 triangles intérieurs du tuyau vertical en cuivre extraits de `lev3.ase.mesh`.
-- **Nettoyage des bordures & décors (`createLevel3Materials.ts`, `createPracticeGoal.ts`, `createTerrainStudy.ts`)** :
-  - Lissage des deux tours de départ (`4 × 4` sans dents de scie) et des deux rampes courbes (`[a, b, b, a]` et `[a, a, b, b]` lisses), suppression des falaises pleines sous ces deux tours/rampes (`stripLevel3OpeningCliffs`), et construction des deux **tours médiévales évasées** (`4×4 → 2.6×2.6`) avec **meurtrières sombres** et **arches ajourées** (`createLevel3OpeningTowers`).
-  - Restauration des 124 coins `sw` manquants sur les bordures `+Z` (suppression de toutes les dents de scie sur les parois verticales), redressement des 48 dalles de rampes tordues en X et aplanissement de la rampe droite des mini-vers (`x = 30..35, z = 43..44`).
-  - Lissage automatique des coins isolés échantillonnés dans un fossé profond (`level3DisplayTerrain`) + découpe des diagonales limites `±21`.
-  - Matériaux pierre kaki/sable (`level3-floor`), falaises gris-olive (`level3-cliffs`), tuyau vertical cuivre (`level3-pipe-shell` / `level3-pipe-interior`, shadow casters), **vague turquoise animée** à double crête (`level3-wave`, sans allocation par frame), et zone d’arrivée `level3-finish` (`GOAL` en `x=92..95, z=100..109`) avec drapeaux jaune/noir.
-- **Branchement live (`practicePose.ts`, `createLivePracticeView.ts`, `feasibility.ts`)** :
-  - Reconnaissance du descripteur `0x2cd9e` dans `readPracticePose` et `readModernPhase`, lecture des acteurs natifs (`readIntermediateActors`), préchargement automatique en dev de `level3-terrain.json`, et bascule transparente en 3D au passage Niveau 2 → Niveau 3.
-- **Page d’étude (`terrain.html`, `src/terrain.ts`, `src/dev/localRoms.ts`, `src/emulation/localStudy.ts`)** :
-  - Service dev local `/__local-roms/level3-terrain.json` et bouton **« Voir le niveau 3 (étude) »**.
-- **Vérification visuelle Chrome WebGL2** : captures vérifiées sur `Cadrage arcade` (`0 px` et `250 px`) et `Vue libre` — fossés de départ nettoyés, tuyau cuivre en place, vague turquoise et `GOAL` + drapeaux visibles sans erreur runtime.
-- **Prochaine étape** : finitions visuelles du Niveau 3 d’après les retours de Michel (arêtes de zigzag `sw === null`, revêtement turquoise des montagnes russes, pointes et acteurs spécifiques mini-vers / amibes, checkpoint rapide `F3`).
-
-## Finitions ombres 4096, fosses, rembardes, piston auxiliaire, pointe L1 et alcôve L2 — 19 novembre 2026
-
-Corrections suite aux 8 captures de Michel :
-
-- **Ombres Practice Race & Intermediate Race (`createPracticeSun.ts`)** : shadow map portée à `4096 × 4096` sur les deux niveaux et calibration fine `bias` (`0.00045` / `0.0005`) + `normalBias` (`0.01` / `0.011`) pour éliminer à la fois les jours blancs aux jonctions mur/sol et l’auto-ombrage sur les parois des 5 puits.
-- **Bassin glacé hexagonal (`intermediateIceMaterial.ts`)** : remplacement des polygones 2D `screenX/screenY` (qui débordaient hors du bassin sur la glace plate) par un ombrage en coordonnées hexagonales du bassin (`dx = x - 9, dz = z - 6, radius = max(|dx|, |dz|, |dx - dz|) < 5`) laissant une ligne de marge plate tout autour, fidèle à l’original et à Rolling Madness 3D.
-- **Appuis du tuyau bleu en Y (`intermediateLandmarks.ts`, `createTerrainStudy.ts`)** : masquage des cellules internes de collision (`z = 85..86` aux deux embouchures hautes et `z = 91..94, x = 82..84` sous le fût bas), recalage de l’alcôve (`z = 76..83`) et plancher intérieur trapézoïdal strictement inscrit dans la sortie évasée (`x = 82.75..84.25` à `z = 92.9` → `82.05..84.95` à `z = 95`). Vérifié visuellement en direct dans Chrome WebGL2.
-- **Fosses de départ niveau 1 (`createTerrainStudy.ts`)** : redressement à `(0, 1, 0)` des normales des extensions de rebord ajoutées par `extendPracticePitRims`, qui penchaient à l’opposé du soleil (`(-0.24, 0.94, 0.24)`) et créaient un triangle gris sombre façon ombre fantôme à droite de chaque fosse.
-- **Rembardes rouges (`createPracticeGuardrail.ts`)** : diamètre augmenté de `0.27/0.29` à `0.36/0.38` pour coller à l’épaisseur arcade.
-- **Mécanisme sous le pont niveau 2 (`createIntermediateBridgeMechanism.ts`)** : ajout d’un plongeur (`auxiliary-plunger`) et animation du petit piston droit (`auxiliary-cap` + `auxiliary-plunger`) en va-et-vient rapide à `4,5 Hz` (plusieurs coups par seconde).
-- **Pointe en fin de niveau 1 (`practiceChannelTerrain.ts`)** : ajout de `[82, 62, 63]` dans `channelRims` pour fermer l’angle en creux sur la cellule `(62, 82)` sous la flèche `3 4 5 6`.
-- **Alcôve derrière la glace niveau 2 (`intermediateLandmarks.ts`)** : élargissement de `5` à `7` dalles (`z = 77..84`, pilier droit de 2 dalles aligné sur l’embouchure gauche du tuyau), abaissement de la tablette grise (`alcoveTopY - 10.2`) et épaississement de la traverse médiane (`2.8`) pour correspondre au cadrage original.
-- **Appuis du tuyau bleu en Y (`intermediateLandmarks.ts`, `createTerrainStudy.ts`)** : masquage des cellules internes de collision (`z = 86` aux deux embouchures hautes et `z = 91..94, x = 82..84` sous le fût bas) et ajout du plancher intérieur affleurant uniquement dans la sortie évasée (`z = 92.8..95`) afin que le tuyau soit parfaitement jointif sans dalles ni pilier bleu débordant dessous. Vérifié visuellement en direct dans Chrome WebGL2 via DevTools.
-
-## Acné d’ombres, bille spéculaire, tuyau, vagues, glace et alcôve — 19 novembre 2026
-
-Corrections suite aux 15 captures comparatives de Michel :
-
-- **Suppression de l’acné d’ombres et correction des fosses du niveau 1 (`createTerrainStudy.ts`, `createPracticeSun.ts`, `createPracticeSurfaceMaterial.ts`)** :
-  - Retrait de `floor` (`terrain-surface`) de la liste des shadow casters sur Practice Race et Intermediate Race (cause directe des rayures noires diagonales sur le dallage).
-  - Relèvement de `shadows.bias` (`0.001` / `0.0012`) et `shadows.normalBias` (`0.04` / `0.045`) pour supprimer le mouchetage d’auto-ombrage sur les parois verticales `backFaceCulling = false`, tout en gardant les ombres mur-sur-mur.
-  - Séparation des parois des deux fosses latérales de départ (`splitPracticePitWalls` → `terrain-pit-walls`, `receiveShadows = false`) afin de préserver leur dégradé arcade brun/orange/jaune sans corruption d’ombre.
-- **Rendu de la bille inspiré de Rolling Madness 3D (`createMarbleMaterial.ts`)** :
-  - Remplacement des points jaunes « boule de bowling » par un damier bicolore bleu/rouge doux (façon `player.png` de Rolling Madness 3D) combiné à une carte d’environnement sphérique (`Texture.SPHERICAL_MODE`, façon `env "player_env.jpg"`) et un fort reflet spéculaire pour des reflets stables en vue pendant que la bille roule.
-- **Ombre intérieure du tuyau niveau 2 (`createIntermediatePipes.ts`, `createTerrainStudy.ts`)** :
-  - Assombrissement du revêtement intérieur (`diffuseColor(0.26, 0.26, 0.28)`, `emissiveColor(0.05, 0.05, 0.06)`) et ajout de `interior` comme shadow caster pour retrouver l’ombre franche à l’intérieur de l’embouchure.
-- **Contraste des pentes et géométrie de fin de vagues niveau 2 (`intermediateRims.ts`, `intermediateLandmarks.ts`, `createTerrainStudy.ts`)** :
-  - Suppression de la déformation de la rangée plate `z = 81` dans `intermediateWaveCell` (la vague s’arrête proprement à `z = 80` et les dalles d’arrivée restent plates).
-  - Ajout de couleurs par sommet (`intermediateSlopeColors`) sur le dallage d’Intermediate Race pour retrouver le fort contraste arcade blanc/gris moyen/gris foncé entre pentes face au soleil et pentes opposées.
-- **Glace et alcôve arrière niveau 2 (`intermediateIceMaterial.ts`, `intermediateLandmarks.ts`, `createTerrainStudy.ts`)** :
-  - Ajout des bandes verticales bleu-vert sombres (`joint(z - x) < 0.11`) alignées sur les joints des murs bleus vus par transparence à travers la glace plate.
-  - Découpe de l’alcôve rectangulaire en creux dans le grand mur bleu (`x = 88`, `z = 80..85`, `carveIntermediateAlcove`) et ajout de la tablette dallée grise (`intermediate-alcove-shelf`, `receiveShadows = true`) avec poutre intermédiaire et second renfoncement inférieur.
-- **Page d’étude `terrain.html` (`src/terrain.ts`)** :
-  - Vérification du transform Vite et du chargement `createTerrainStudy` sur le relevé réel `local-roms/intermediate-terrain-pipes.json` en `NullEngine` (OK) ; ajout d’une remontée d’erreur explicite (`console.error` + `#terrain-status`) au lieu du `.catch(() => {})` silencieux.
-
-## Ombres mur-sur-mur, falaises jaunes, glace et mécanisme du pont — 19 novembre 2026
-
-Corrections suite aux 12 captures comparatives de Michel :
-
-- **Ombres portées des murs et plateformes (niveaux 1 & 2, `createTerrainStudy.ts`, `createPracticeSurfaceMaterial.ts`)** :
-  - Sur **Practice Race**, les parois verticales n’utilisent plus de bandes alternées jaune/orange/marron : elles portent un **jaune vif uniforme** avec joints sombres, une teinte d’ombre orange-brun (`emissiveColor(0.36, 0.1, 0)`), `backFaceCulling = false`, **`cliffs.receiveShadows = true`**, et `cliffs` + `floor` sont ajoutés comme shadow casters sur `key` (ombres portées mur-sur-mur et plateforme-sur-mur/sol).
-  - Sur **Intermediate Race**, suppression de la lumière additionnelle `intermediate-pipe-wall-light` qui lavait les parois bleu marine `+Z` (pont et renfoncement derrière la glace), et ajout de `floor` comme shadow caster sur `key` pour des ombres de plateformes et parois franches.
-  - Profondeur des falaises prolongée (`base = lowest - 18` sur Intermediate, `lowest - 10` sur Practice) pour éliminer la coupure flottante du grand mur bleu derrière la glace et les fonds noirs dans les fosses.
-- **Mécanisme sous le pont (`createIntermediateBridgeMechanism.ts`)** :
-  roue à 4 rayons + moyeu orientée **parallèle à la pente / bordure turquoise** (`rotation.set(0, 0, Math.PI / 2)` au lieu de vue par la tranche), positionnée à gauche du piston (`dx = +0,88, dz = -0,78`), palette violet/acier foncé plus fidèle à l’arcade.
-- **Glace d’Intermediate Race (`intermediateIceMaterial.ts`)** :
-  joints de grille plus nets, reflets diagonaux blancs plus marqués dans la cuvette, ombre intérieure plus profonde et tramage cristallin sur la rampe haute.
-- **Billes (`createMarbleMaterial.ts`)** :
-  passage de 48 points serrés à **12 points jaunes icosaédriques espacés** (3–5 points visibles à la fois comme sur l’original) pour que le roulement 3D soit immédiatement lisible.
-
-Validation : `npm run format && npm run check` réussi (530 tests Vitest, couverture V8, lint, typecheck, build). Recette visuelle à confirmer par Michel dans Chrome.
-
-## Finitions niveaux 1 & 2, balai, pont synchronisé et caméras — 19 novembre 2026
-
-Livré sur les demandes de retour de Michel (niveaux 1 et 2) :
-
-- **Balai synchronisé et recalé (`practicePose.ts`, `createRollingActor.ts`, `createMarbleAnimation.ts`)** :
-  lecture des pointeurs natifs de casse (`base + 0x72`, table `0x20fde`, indices 0..31)
-  et du script secondaire du balai (`base + 0x7a`, table `0x215f6`, indices 0..43,
-  drapeau actif `base + 0x7f`), vérifiés sur les dumps RAM MAME `/tmp/mm-animation-review/broken/`.
-  Le groupe `broom.jpg` de `player_broken` est séparé des débris `player.png` :
-  masqué avant l’activation native du balai, réduit à l’échelle `0,84` autour de son
-  centre XZ et recalé au sol (`y = -5,67` en repère modèle), sans toucher aux débris.
-- **Pont articulé synchronisé et roue visible à gauche (`practicePose.ts`, `createIntermediateBridge.ts`, `createIntermediateBridgeMechanism.ts`, `createLivePracticeView.ts`)** :
-  les mots RAM `0x772` (`0x6fc8..0x6fd4` par pas de 2) et `0x774` (`0xf048..0xf054`)
-  fournissent les 7 paliers natifs du pont (0..6, vérifiés sur `/tmp/mm-worm-reference/ram-*.bin`).
-  En jeu (`live = true`), `createLivePracticeView` pilote la hauteur du tablier et du
-  mécanisme depuis `pose.bridgeStep` (le cycle d’étude 144 images reste actif dans `terrain.html`).
-  La petite roue à rayons (`intermediate-bridge-wheel-hub`) est déplacée à gauche du piston
-  en vue arcade (`dx = +1,05, dz = -0,85`), orientée face à la caméra.
-- **Ombres portées des tuyaux sur les parois bleues (`createTerrainStudy.ts`)** :
-  une lumière directionnelle statique dédiée (`intermediate-pipe-wall-light`,
-  `includedOnlyMeshes = [cliffs]`, shadow map 1024 rendue une seule fois via
-  `REFRESHRATE_RENDER_ONCE`) projette les ombres de `intermediate-pipes-shell`
-  sur les parois bleues orientées `+Z` et `+X` derrière les deux tuyaux, sans modifier
-  le soleil principal (`key`) ni introduire d’auto-ombrage des falaises.
-- **Caméra « Derrière la bille » (`createCameraOcclusion.ts`, `practiceCameraSettings.ts`, `createLivePracticeCamera.ts`, `practiceCameraControls.ts`)** :
-  (1) le couloir d’occlusion préserve le sol aux pieds de la bille (`mmAboveFoot` + `mmClearFoot`)
-  tout en continuant à effacer les murs et rebords surélevés entre la caméra et la bille ;
-  (2) le cadrage `chase` est réservé au mode 1 joueur (option désactivée, sautée par **C**
-  et repli automatique sur `arcade` dès qu’un second joueur est actif).
-- **Texture des billes (`createMarbleMaterial.ts`)** :
-  remplacement des chiffres `'1'`/`'2'` équatoriaux par six anneaux symétriques de 8 points
-  jaunes projetés sans distorsion sphérique sur toute la bille (équateur et pôles),
-  avec un reflet spéculaire adouci pour rendre le roulement 3D immédiatement lisible.
-- **Niveau 1 — Bords diagonaux & cadre GOAL 4 lignes (`practiceChannelTerrain.ts`, `createPracticeGoal.ts`)** :
-  découpe des coins extérieurs le long des deux diagonales limites `wx - wz = ±21`
-  du relevé complet (suppression des dents de scie) ; extension du cadre du panneau GOAL
-  de Practice Race sur les 4 lignes de la rigole (`y = 0..63`, lettres sur les 2 lignes
-  supérieures, fond et bordure inférieure englobant les 2 lignes du bas), en gardant
-  le format compact pour Intermediate Race.
-- **Out of time / Game over en 3D (`practicePose.ts`, `practiceHud.ts`, `ui/practiceHud.ts`)** :
-  `mode === 4` reste en rendu 3D (`readModernPhase` retourne `'level'`, `readPracticePose`
-  conserve la pose) ; `readPracticeHud` lit les bandeaux natifs `OUT OF TIME` et `GAME OVER`
-  dans l’alpha-RAM (`$A03000`, lignes 4..27) et les affiche sur le canvas HUD 3D ;
-  le retour à la vidéo arcade s’effectue ensuite pour les résultats (`mode === 2`) et l’attract (`mode === 1`).
-- **Balayage d’introduction linéaire fin → début (`createLivePracticeCamera.ts`)** :
-  la caméra part au-dessus de l’arrivée (fin du niveau) et glisse linéairement vers
-  la pose exacte de la caméra de jeu au départ (y compris raccord VP direct sur le cadrage
-  orthographique arcade), sans retour en arrière.
-
-Validation : `npm run check` réussi (530 tests Vitest, couverture V8, lint, typecheck, build).
-Limite de cet environnement : les tests Playwright Chrome sont bloqués dans la sandbox réseau
-(`net::ERR_ACCESS_DENIED` sur `127.0.0.1:5173`) et le Chrome utilisateur n’avait pas le
-débogage distant activé. À vérifier visuellement par Michel sur `http://127.0.0.1:5173/`
-(et `PLAYWRIGHT_CHANNEL=chrome npm run test:browser`).
-
-Prochaine action : après retour visuel de Michel sur ces ajustements niveaux 1 & 2,
-démarrer le **Niveau 3 (Silly Race)** avec `MM_original_levels_full_views/MarbleMadness_Level3.png`,
-le relevé terrain MAME et les modèles locaux (`lev3.ase.mesh`, `lev3_wave.ase.mesh`, amibes, mini-vers).
-
-## Matériaux, récompenses et visibilité — 19 novembre 2026
-
-Livré : matériau commun aux billes normales, étourdies et cassées des deux
-joueurs (`createMarbleMaterial.ts`). Peinture procédurale bleue/rouge à marques
-jaunes et numéros, éclairage et spéculaire partagés. Les UV des modèles privés
-vont de V=1 à V=2 : les deux textures doivent répéter, sinon les marques
-sont remplacées par une couleur uniforme. Test de non-régression ajouté.
-Le modèle normal `player` est ajouté au convertisseur et au JSON local ;
-la sphère procédurale reste le repli si cette géométrie manque.
-
-`practicePose` lit l'état magique 8 : compteurs natifs, pointeur d'animation,
-étirement 0,75/1,5. `createMagicWand.ts` affiche une baguette fine ivoire/or et
-ses étoiles, sans changer le temps. Elle se retire à l'indice natif 42.
-Le message +10 SEC vient de l'avis natif 0x22446, actif en 0xf0.
-Les récompenses de score viennent de la table 0x22386..0x22422 ;
-la disparition de la boule noire a produit **1000 points** (0x223aa) dans le
-rejeu original, pour les deux joueurs. `createScoreAward.ts` affiche ces avis
-sans déduire les points d'un delta de score. Le −5 SEC exige maintenant son
-pointeur 0x2243a et son drapeau actif : il ne se superpose plus aux bonus.
-
-Le GOAL Intermediate ne possédait pas les matériaux de victoire. Ils sont
-créés, colorés et émissifs, avec priorité au premier arrivé lu dans le cœur.
-La couleur est réinitialisée au nouveau départ. Le diamètre du corps des vers
-passe de 0,47 à 0,60, celui des extrémités de 0,58 à 0,72 ; cadence/appuis natifs
-inchangés. Le mécanisme du pont est avancé de +2,4 X et +0,7 Z vers la pente :
-le piston et la base sont dégagés depuis l'angle arcade. Son cycle reste celui
-de l'étude, à synchroniser avec le cœur ultérieurement.
-
-En caméra Derrière, `createCameraOcclusion.ts` crée un couloir de visibilité
-entre l'œil et la bille suivie, limité aux matériaux des murs/tours. Masque
-fragmentaire à bords progressifs et transparence tramée ; le grand mesh de
-falaise ne disparaît pas entièrement. Ouverture rapide (environ 0,2 s),
-restauration en sortant du couloir, retrait immédiat du masque hors caméra
-Derrière. Plugin scene-owned, buffers/vecteurs réutilisés, pas de tri alpha.
-`registerForExtraEvents` doit être défini AVANT `_enable(true)` pour que les
-uniforms soient transmis au GPU. Aucun effet sur collisions ou gameplay.
-
-Validation : `npm run check` réussi, 515 tests Vitest ; 32 tests Chrome des vues,
-commandes et occlusion réussis. Test GPU : bille cachée puis visible, couloir
-déplacé et paroi restaurée. Rejeu réel F2 : départ stable huit secondes, V,
-F2 sous capture, C et commandes derrière ; aucune erreur JS. Captures WebGL
-inspectées des matériaux J1/J2, du pont à l'angle arcade, de la baguette et des
-avis issus des RAM natives 2526/2580/2690/2710/2936.
-
-Recharger `terrain.html`, F2 pour jouer et C pour changer de caméra.
-Le JSON local a été régénéré avec :
-`node scripts/extract-rolling-actors.mjs '/tmp/mm-rolling-research/extracted/data/{app}'`.
-Les modèles restent locaux. Les couleurs, le diamètre des vers et la visibilité
-en parcours complet restent à apprécier par Michel ; Safari réel non retesté.
-La baguette a été isolée dans le banc MAME par activation du drapeau pending,
-puis déroulée par le programme original : ne pas parler d'apparition spontanée
-vérifiée. La présentation ne l'active jamais elle-même.
-Prochaine action : comparer le timing du balai au script natif secondaire,
-puis synchroniser le pont ; conserver l'unique cœur comme arbitre.
-
-## Vers, fin de partie et clic de capture — 19 novembre 2026
-
-Les vers utilisent désormais `rendering/createWorm.ts`, un maillage articulé
-procédural, et `game/modern/wormPose.ts`, qui interprète script/indice/fraction
-natifs. La marche de huit poses conserve le premier appui, pose l'autre extrémité,
-puis relève le plus ancien appui. Le script donne la direction même quand la
-vitesse native est nulle. Les buffers géométriques sont réutilisés ; la scène
-possède les meshes, nœuds et matériaux. La boule noire garde son modèle local.
-
-Un nouveau rejeu MAME de l'attaque a montré la succession : flexion, redressement,
-bouche aplatie, cloche de déglutition, retour droit, bouche/langue tardive.
-Ces phases sont représentées et synchronisées avec les indices natifs, plutôt
-qu'avec une animation temporelle du remake. L'état joueur 7 cache la bille :
-le morph de fonte qui créait un grand disque bleu a été supprimé de ce cas.
-Les formes 3D restent une interprétation géométrique, à apprécier en jeu par Michel.
-
-Le « gel » de fin de chrono était un maintien indéfini du terrain 3D pendant
-les écrans natifs. `readModernPhase` distingue les phases de niveau des menus,
-résultats et game over. Ces derniers rendent la vidéo originale visible.
-Le maintien 3D pendant les introductions est conservé. Un essai réel de 82 s
-après F2 confirme le passage 0 → 4 → 1, la vidéo native puis l'attract, cœur
-non pausé et aucune erreur JS. Aucun changement de physique, score ou timer.
-
-Cliquer sur une image 2D ou 3D reprend et capture via le même chemin que le
-bouton Capturer. Les clics sur les commandes UI et la borne interactive gardent
-leur fonction. Le listener est nettoyé avec les contrôles ; aucun deuxième moteur.
-Le traitement en capture évite le toggle pause propre au canvas EmulatorJS.
-
-Validation : `npm run check` passe, 505 tests Vitest ; 31 tests Chrome passent.
-Trois cycles de clic/capture/Échap ont aussi été vérifiés avec le cœur réel. La validation navigateur
-et les limites sont détaillées en tête de `docs/VALIDATION.md`.
-Les anciens points ouverts baguette/+10s, balai et matériau normal/cassé restent
-à terminer ; voir `docs/ANIMATION_AUDIT.md`. Ne pas annoncer ces sujets corrigés.
-Références temporaires : `/tmp/mm-worm-reference/` (rejeu natif et RAM),
-`/tmp/mm-native-worm-strip.png`, `/tmp/mm-worm-*.png`, `/tmp/mm-timeout.json`.
-
-## Balayages et raccord caméra — 18 novembre 2026
-
-Le balayage rejoint progressivement la caméra choisie (arcade, suivi, dessus,
-derrière) : interpolation de position, cible et projection dans les derniers
-40 % de la séquence. La projection perspective devient orthographique pour
-le cadrage arcade, sans coupure finale. C interrompt la séquence.
-
-`createVideoView` prépare le terrain préféré dès sa disponibilité, garde la
-présentation 3D entre les états natifs dessinables et sélectionne le terrain
-suivant automatiquement. `practicePose` expose également le niveau 2 pendant
-son introduction native (mode 3, objet joueur initialisé), avant le gameplay.
-Chaque nouvelle scène compatible reçoit un balayage de 180 frames natives ;
-le compte à rebours natif de Practice conserve sa progression propre.
-F2 réarme le balayage même sur le même terrain. En pause, son temps reste figé.
-**F2 restaure toujours un état déjà jouable** : son balayage de trois secondes
-accompagne donc les premières secondes du cœur, sans suspendre son chrono ;
-C permet de prendre immédiatement le cadrage de jeu. Aucun patch ROM/physique.
-
-V conserve le choix explicite des vues arcade/comparée. Une pose temporairement
-indisponible conserve le dernier terrain 3D, avec les acteurs cachés, plutôt
-que d'afficher brièvement l'arcade. Un terrain partiel hors relevé conserve son
-repli précédent. Une future course sans relevé reste à gérer explicitement :
-le lecteur expose aujourd'hui uniquement Practice et Intermediate.
-
-Les vérifications et limites de cette livraison figurent en tête de
-`docs/VALIDATION.md`. Les demandes de conformité des vers, de la baguette,
-du balai et des matériaux bille normale/cassée restent en cours d'analyse :
-aucune correction de ces animations n'est incluse dans ce lot caméra.
-Les relevés natifs et l'extraction de la baguette sont conservés temporairement
-sous `/tmp/mm-animation-review/` ; ne pas les présenter comme des assets livrés.
-Les résultats détaillés sont conservés dans `docs/ANIMATION_AUDIT.md`.
-Prochaine action : synchroniser la baguette sur l'état natif 8 et le balai sur
-son animation secondaire, puis comparer les poses du ver à pieds alternés.
-
-## Départ F2 corrigé, relevés et acteurs automatiques
-
-Recharger `terrain.html`. F2 ouvre Intermediate Race directement en 3D.
-Les ROM, le BIOS, les relevés complets Practice et Intermediate et les modèles
-locaux se chargent automatiquement. **V** fait défiler 3D → comparaison →
-arcade, **C** les caméras, **H** l’aide. Le trackpad et le boost utilisent le
-repère de la caméra active. La vue derrière garde son cap vers l’aval.
-
-Le point de reprise précédent était incomplet. Le cœur conservait la RAM
-de partie sans restaurer deux accumulateurs analogiques et la banque Atari
-Slapstic. La reprise ne retrouvait donc pas le même terrain de collisions.
-`emulation/intermediateCheckpoint.ts` ajoute ces états au format MM2 version 2.
-Les adresses sont propres au hash WASM vérifié par le chargeur.
-`local-roms/intermediate-web.state` a été régénéré. Le départ reste à
-(220, 108), hauteur 16378, pendant huit secondes sans commande dans Chrome.
-F2 en cours de capture et V sont également vérifiés sur la session réelle.
-
-`scripts/extract-rolling-actors.mjs` convertit les meshes de l’installateur
-local extrait. `local-roms/rolling-actors.json` contient les textures et poses
-des vers (repos, flexion, départ du saut et saut), de la boule noire, de la
-bille étourdie, de la casse avec balai et de la disparition. Les étoiles et
-la langue sont complémentaires et procédurales. `intermediateActors.ts`
-lit le noir en 0xa20 et les quatre slots de créatures en 0x1302, pas 0x60.
-La présentation sélectionne les modèles d’après les états natifs et utilise
-le compteur de frames du cœur. Les deux relevés restent disponibles quand
-le niveau change. Les fichiers locaux sont exclus du build.
-
-`npm run check` passe avec 490 tests Vitest. Les 51 tests Chrome passent.
-Un parcours automatique en session Web atteint les vers et affiche les deux
-rendus, positions natives et étoiles synchronisées. Les modèles du ver,
-de la bille étourdie et du balai ont été observés dans un vrai contexte WebGL.
-La course complète reste à jouer. Les timings fins des sauts des vers,
-du nettoyage et de la langue sont à comparer en partie aux animations arcade.
-Le pont conserve son cycle d’étude et reste à synchroniser.
-
-## Intermediate Race jouable
-
-Ouvrir `terrain.html` sur le serveur de développement. Les ROM et le BIOS
-sont vérifiés au chargement. **F2** ouvre le jeu dans la page d’étude.
-Après **Démarrer l’émulation**, **Capturer le trackpad** reprend le chrono.
-**F2** en cours de partie rétablit le départ solo avec 60 secondes.
-Le relevé et le point de reprise restent dans `local-roms/`.
-`node scripts/record-intermediate-checkpoint.mjs` régénère le point avec Chrome,
-les ROM locales et le parcours normal de Practice Race.
-
-Le cœur pilote les deux vues. La caméra **Derrière la bille** suit la
-position de la bille avec un axe horizontal fixe vers l’aval.
-Le pont utilise un vérin épaissi, un cylindre auxiliaire, une conduite et une
-tranche turquoise à trois rivets affinées d’après la nouvelle capture.
-Prochaine action concrète. Relever la phase du pont dans le cœur pour
-synchroniser son rendu, puis identifier les états des vers et de la casse.
-Ces événements restent visibles sur la vue arcade du comparatif.
-
-`npm run check` passe avec 478 tests Vitest. La suite Chrome passe avec
-50 tests. Dans Chrome avec les archives locales, la restauration, la capture,
-le mouvement de la bille et le retour au départ par F2 ont été vérifiés.
-La course complète en 3D reste à jouer.
-
-## Finitions de la glace et caméra derrière la bille
-
-Le rendu de la cuvette utilise des joints visibles dans les reflets,
-une trame diagonale hors de la cuvette, et des coulures raccordées
-aux falaises près du trou et sur le bord droit. Regarder le cadrage
-**Glace et arrivée** dans `terrain.html` avec le relevé local.
-L’installateur de Rolling Madness 3D contient le pont en 16 poses,
-ses textures et le matériau de glace. L’inventaire est dans les
-décisions. Dans le niveau 1 jouable, **C** permet maintenant d’atteindre
-**Derrière la bille**. `npm run check` passe avec 474 tests Vitest
-et les 49 tests Chrome passent. La prochaine étape est de synchroniser la
-vue jouable d’Intermediate Race avec le cœur arcade.
-
-## Glace et arrivée d’Intermediate Race
-
-Dans `terrain.html`, charger `local-roms/intermediate-terrain-pipes.json`
-puis choisir **Glace et arrivée**. La cuvette a sa texture turquoise,
-ses reflets stylisés et sa lèvre verticale. Le marquage GOAL gris et les
-drapeaux bleu et noir réutilisent les fonctions de Practice Race.
-Les tuyaux reçoivent l’ombre de leur coque sur un fond jointif au dallage.
-Le mécanisme du pont est recentré sur l’embase violette et sa tranche
-turquoise ne déborde plus du tablier.
-`npm run check` passe avec 470 tests Vitest. Les 49 tests Chrome passent.
-
-La synchronisation du rendu 3D d’Intermediate Race avec le cœur reste
-la prochaine étape. Le GOAL de l’étude est gris.
-
-## Ombres et sorties des tuyaux d’Intermediate Race
-
-La lumière est recalée sur l’ombre de la pyramide centrale dans
-`intermediate-reference-306.png`. Les falaises bleues reçoivent les
-ombres, avec une carte sans flou et un biais vérifié en vue arcade.
-Le chapeau des trois pyramides s’arrondit près du sommet. Une surface
-grise sans texture couvre le dallage sous les deux bouches de tuyau.
-Elle conserve le dallage extérieur. Charger
-`local-roms/intermediate-terrain-pipes.json` dans `terrain.html`.
-Le choix **Tuyaux et rampes** montre les sorties en vue libre.
-`npm run check` passe avec 469 tests Vitest. Les 49 tests Chrome passent.
-
-Prochaine action : connecter les états de l’arcade à la vue jouable
-d’Intermediate Race, notamment les vers et la casse de la bille.
-
-## Finitions d’Intermediate Race
-
-Le relevé local `local-roms/intermediate-terrain-pipes.json` a été
-régénéré avec les normales de Rolling Madness 3D. Les reflets des deux
-tuyaux suivent leur surface lissée, les soudures sont visibles et
-les sorties ont un fond gris. Le pont montre un flanc turquoise
-riveté, des guides, une roue à rayons et un piston télescopique
-animé avec le tablier. Les jonctions au palier près du premier
-tuyau et à la cuvette finale ont été retouchées dans
-`intermediateRims`. La page `terrain.html` permet de vérifier
-les deux cadrages. `npm run check` passe avec 466 tests Vitest et
-les 49 tests Chrome passent.
-
-L’étape suivante reste la lecture des poses et événements d’Intermediate
-Race pour animer la vue 3D jouable.
-
-## Prototype 04 — terrain 3D
-
-La [spécification du rendu moderne](MM_NEW_3D_GRAPHICS.md) fixe les tâches
-et critères de validation. Le cœur MAME reste la référence pour la même
-partie dans les deux présentations.
-
-Le banc `scripts/measure-terrain.mjs` vérifie les hauteurs contre le jeu
-et a produit `local-roms/practice-terrain.json` (20 × 14 cellules).
-Dans `/terrain.html`, charger ce relevé puis `local-roms/practice-reference.png`
-pour superposer la capture arcade au cadrage fixe. Le rejeu confirme la
-projection au départ à 2,14 pixels natifs près sur les points contrôlés.
-La silhouette du tronçon et la profondeur des falaises restent approchées.
-Voir [PROTOTYPE_04.md](docs/PROTOTYPE_04.md).
-
-Dans **Affichage** sur la page de jeu, charger le relevé
-`local-roms/practice-complete-terrain.json` (91 × 91 cellules), sélectionner
-**3D moderne · Practice Race**, puis démarrer J1. Le relief va du départ à
-la bande d’arrivée, repérée par le texte GOAL. Les relevés précédents restent
-utilisables. Le rendu moderne s’affiche pendant la course, puis MAME
-affiche le bilan et Intermediate Race sur le canvas arcade.
-
-Le banc MAME 0.271 en mode `--finish` vérifie le relevé à cinq moments de
-la course et mesure un défilement maximal de 360 pixels. Le navigateur
-atteint un défilement de 359 pixels sur le rejeu vérifié. Les vues arcade et moderne concordent
-sur les données MAME relevées pendant 948 itérations de J1.
-`npm run check` passe avec 349 tests Vitest et les 46 tests Chrome passent.
-La chute de J1
-sur la première rampe avait aussi été validée avec les ROM locales.
-La reconstruction arcade se traduit par l’absence temporaire de la bille.
-
-Après chargement d’un relevé, en capture, **V** bascule entre jeu original
-et 3D moderne. **Maj+V** active la comparaison côte à côte ou revient au jeu
-original. Le menu **Affichage** est également disponible dans le HUD de la vue
-immersive. En dehors du relevé, la comparaison garde l’arcade visible et
-affiche un message à la place du rendu moderne. Essai réussi dans Chrome
-avec le vrai cœur, `npm run check` passe avec 356 tests Vitest et les
-47 tests Chrome passent.
-
-Le départ de Practice Race reprend les marges noires de 24 pixels
-mesurées de chaque côté du rendu MAME. La caméra fixe conserve la
-projection des coordonnées arcade. Le terrain moderne utilise une
-texture de pierre et des parois striées. Les cinq sections de
-garde-corps rouges et les deux pointes du départ sont positionnées
-d’après la capture locale. Les marches sont fermées par leurs faces
-verticales et les ouvertures conservent leur contour relevé.
-Les proportions du décor et la profondeur des trous sont approchées.
-La comparaison a été vérifiée dans Chrome avec le vrai cœur.
-`npm run check` passe avec 362 tests Vitest et les 47 tests Chrome passent.
-
-Retouche des matériaux du trou central à partir des captures de Michel
-et des pixels du rendu MAME. Les dalles et les pointes utilisent des
-gris neutres, les faces des parois alternent jaune et orange, et les
-joints sont sombres. Les flèches rouges sont appliquées au maillage des
-deux rampes. Les rails ont un reflet plus large et la lumière étire
-davantage les ombres vers la droite. Les bandes sont alignées sur la
-grille du parcours. Le relief des marches reste approché.
-`npm run check` passe avec 364 tests Vitest et les 47 tests Chrome passent.
-
-Les deux fosses latérales utilisent maintenant un motif calé sur les
-colonnes visibles de la capture arcade. Le motif place l’orange foncé
-du côté gauche de chaque fosse, puis l’orange vif et le jaune.
-La transition oblique est approchée par une texture procédurale.
-Le reste des parois utilise toujours les bandes alignées sur la grille.
-
-Le gris de chaque panneau de 3 × 3 suit la pente mesurée. Les deux fosses
-latérales conservent leur découpe colorée et leur lèvre en dallage. La fosse
-centrale a des marches planes et un fond assombri. Les garde-corps sont
-plus épais et leurs pieds s’enfoncent dans le sol. Les dalles complétées au
-bord inférieur droit donnent à la paroi orange une arête continue. La
-palette et la géométrie exacte du trou central restent approchées.
-La comparaison arcade et 3D a été vérifiée en jeu sous Chrome avec le cœur
-et le relevé locaux. `npm run check` passe avec 370 tests Vitest et les
-47 tests Chrome passent à la relance en série.
-
-Une lumière directionnelle à environ 17° du sol remplace la carte de gris.
-La direction est estimée d’après les garde-corps et leurs ombres dans
-l’image arcade 1199. Elle s’applique à la vue d’étude et à la vue de jeu
-avec le même matériau gris pour les dalles. Le raccord gauche entre les
-tours a été fermé, les sommets resserrés et les deux pointes détachées
-des flèches agrandies. La comparaison a été vérifiée en jeu sous Chrome.
-L’orientation est une estimation et les silhouettes d’ombre dépendent
-encore de la géométrie reconstruite.
-`npm run check` passe avec 373 tests Vitest et les 47 tests Chrome passent.
-
-Sous la rambarde gauche de la fosse centrale, trois dalles complétées
-rejoignent la paroi sur une seule arête. Le poteau haut a été recalé sur
-ce rebord et sa hauteur est distincte de celle de la marche voisine.
-L’orange sombre longe le rebord, avec une transition vers le jaune sur
-le retour. Les tours reposent sur leur palier et leurs socles portent
-des joints de pierre. L’éclairage directionnel des dalles est conservé.
-Comparaison vérifiée sous Chrome avec le cœur arcade. `npm run check`
-passe avec 375 tests Vitest et les 47 tests Chrome passent.
-
-Les pieds des garde-corps suivent désormais la hauteur des triangles
-du dallage, avec un léger recouvrement pour le contact. Les socles des
-pyramides ont deux pierres en relief par pan, séparées par un joint en
-retrait. Le retour adjacent à la rambarde porte une bande jaune oblique
-sur fond orange. Le reste du pan suit la palette des marches.
-Comparaison vérifiée en jeu sous Chrome avec le relevé complet. Le profil
-des pierres reste approché. `npm run check` passe avec 376 tests Vitest
-et la suite Playwright passe avec 47 tests Chrome.
-
-Le socle de chaque pyramide couvre son palier de 3 × 3 jusqu’au bord.
-Les neuf dalles du palier utilisent la même altitude de présentation,
-partagée avec le socle. La marche parasite du relevé de collision sous
-la pyramide est ainsi supprimée du rendu. Les marches en contrebas et
-les hauteurs utilisées par le cœur restent distinctes du palier.
-Le raccord a été contrôlé en jeu sous Chrome. `npm run check` passe
-avec 376 tests Vitest et les 47 tests Chrome passent.
-
-Le socle des pyramides compte trois pierres par face sur une emprise de
-3 × 3. Le bas du socle et le palier sont descendus à 16366 dans le relevé
-arcade. L’épaule abaissée et resserrée accentue la différence de pente
-entre le chapeau et le socle. Trois dalles sous chaque pyramide sont
-abaissées dans le maillage de présentation pour dégager le flanc du palier.
-Le matériau dessine le contour et la séparation diagonale du chapeau.
-La construction des garde-corps est isolée de leurs ancrages
-dans le parcours. Les constructeurs de pyramides et de garde-corps
-reçoivent un matériau et sont réutilisables avec d’autres couleurs.
-L’[inventaire du décor](docs/SCENE_ELEMENTS.md) indique les noms dans la
-scène, les points d’ancrage, les dimensions et les modules à réutiliser.
-Le nouveau profil a été contrôlé en jeu sous Chrome. `npm run check`
-passe avec 379 tests Vitest et les 47 tests Chrome passent.
-
-Le tronçon après les deux grandes pyramides inclut la flèche rouge
-centrale, les deux petites pyramides sur leurs rebords et les garde-corps
-de la rigole. `practiceChannelTerrain` raccorde les hauteurs des dalles de
-la rigole et complète les coins manquants des rebords rectilignes. Le cadre
-de référence pour cette portion est l’image 1500, à un défilement de −16020.
-Comparaison vérifiée sous Chrome à la pose du rejeu MAME, qui atteint
-Intermediate Race. `npm run check` passe avec 384 tests Vitest et les
-47 tests Chrome passent.
-
-À la demande de Michel, les ombres portées de Practice Race sont limitées
-au dallage, à la rigole et aux marquages. Les bandes verticales gardent
-l’éclairage directionnel. Cela corrige les silhouettes projetées sous
-le bord des plateformes.
-Le comparatif avant/après sous Chrome confirme la disparition de ces
-silhouettes. `npm run check` passe avec 385 tests Vitest et les 47 tests
-Chrome passent.
-
-Dans la descente après la rigole, les raccords de sommets sont prolongés
-jusqu’à l’arrivée. Les bords rectilignes retrouvent leurs coins de dalles
-et les décrochements du parcours restent visibles. Le damier prend ses
-hauteurs dans le même maillage que la rampe. Les images 1740, 1860 et
-1920 du rejeu MAME 0.271 servent au contrôle de cette zone.
-Les trois poses ont été comparées sous Chrome. `npm run check` passe
-avec 390 tests Vitest et les 47 tests Chrome passent.
-
-Les trois marquages 3–4–5–6 sont posés sur les plateformes et les
-deux drapeaux à damier flottent au bord de l’arrivée. La bannière GOAL est grise
-avant le passage, puis bleue quand le cœur envoie l’animation 6. Les
-textures sont dessinées par le rendu à partir du rejeu local. Les drapeaux
-s’animent pendant le rendu BabylonJS.
-Les deux palettes et le mouvement de la toile ont été vérifiés sous
-Chrome. `npm run check` passe avec 394 tests Vitest et les 47 tests
-Chrome passent.
-
-Les joints du dallage restent légèrement visibles sous les marquages
-GOAL et 3–4–5–6 grâce à une transparence localisée aux bords des dalles.
-Les deux palettes GOAL et les marquages ont été inspectés sous Chrome.
-`npm run check` passe avec 394 tests Vitest.
-
-La vue 3D de Practice Race affiche le score et le chrono de J1, en solo
-et en comparatif. `emulation/practiceHud` lit directement les tuiles
-affichées par le cœur Web épinglé. `ui/videoComparison` livre le HUD HTML
-et le masque lorsque la pose sort du relevé ou que le bilan prend la main.
-Le rejeu natif va de 0 point et 58 secondes au départ à 1 270 points et
-47 secondes à l’arrivée. Voir les adresses et le décodage dans
-`docs/DECISIONS.md`. La partie Web vérifie le départ, le décompte et
-les changements de vue en pause. L’arrivée dans Chrome reste à rejouer
-avec le vrai cœur. `npm run check` passe avec 398 tests Vitest et
-les 47 tests Chrome passent.
-
-Le HUD solo reprend l’emplacement et la palette arcade avec une police
-bitmap redessinée à la résolution native. Le chrono a des chiffres
-plus grands avec un contour noir. Le marquage numéroté orienté vers la
-gauche utilise la version miroir des chiffres dans leurs dalles. La flèche,
-les cases et les joints gardent leur calage. Les autres marquages
-partagent la seconde variante de matériau. Le HUD a été vérifié avec le
-vrai cœur et les trois décals sur la pose d’arrivée dans Chrome.
-`npm run check` passe avec 399 tests Vitest et les 47 tests Chrome passent.
-
-GOAL utilise un lettrage à empattements et une bordure limitée au premier
-pan de la rigole. Les deux drapeaux ont un damier 3 × 2. Les deux palettes
-de la bannière ont été contrôlées dans Chrome.
-Le soulèvement au départ sélectionne cinq maillages locaux et leurs
-parois d’après les codes de relief lus par `emulation/practicePose`.
-`rendering/createPracticeStartLift` prolonge le profil mesuré sur trois
-dalles. Le comparatif avec le vrai cœur Web montre la pente au maximum,
-et la trace confirme son retour à plat. Voir `docs/DECISIONS.md`.
-`npm run check` passe avec 402 tests Vitest et les 47 tests Chrome passent.
-
-Pendant le compte à rebours solo, la vue moderne propose un survol du
-relevé jusqu’à la bille. Le champ `PracticePose.opening` suit le compteur
-arcade et rend la main au cadrage choisi quand la course démarre.
-En capture, C passe par le cadrage arcade, le suivi et la vue du dessus.
-Les touches + et − règlent le champ ou le zoom. Les mêmes réglages sont
-accessibles en pause. Le vrai cœur dans Chrome a confirmé le survol,
-le chrono à 60 au départ et la pose inchangée pendant les réglages.
-`npm run check` passe avec 408 tests Vitest et les 47 tests Chrome passent.
-
-Le duo affiche les deux billes, scores et chronos dans Practice Race.
-Le module `createPracticeMarble` partage la construction et conserve
-un roulement indépendant pour chaque bille. La chute et la réapparition
-de J2 ont été contrôlées dans Chrome avec le vrai cœur. Le panneau H
-affiche les commandes et reprend les touches configurées pour J2.
-La vue moderne garde le terrain pendant une excursion hors du relevé
-complet. La régression est couverte par une pose synthétique dans Chrome.
-Le geste exact de la vidéo reste à refaire avec le boost.
-`npm run check` passe avec 412 tests Vitest et les 48 tests Chrome passent.
-
-Après une chute, quatre éclats rejoignent le point de reprise d’après
-le compteur du cœur. La trajectoire 3D est redessinée et la cadence est
-mesurée dans l’arcade. La chute de J2, les éclats en pause et la reprise
-ont été vérifiés sous Chrome avec le vrai cœur. Les ombres du décor
-sont nettes avec un soleil à 24°. **Ombre des billes** les ajoute
-sur demande et reste désactivée par défaut.
-`npm run check` passe avec 413 tests Vitest et les 48 tests Chrome passent.
-
-Les éclats de réapparition suivent le même cercle antihoraire, centré
-sur la bille et visible dans le plan de la caméra. Le rayon décroît
-avec le compteur arcade et chaque éclat porte la couleur de son joueur.
-La pyramide droite réemploie toujours le constructeur de gauche, et
-ses deux dalles de support à coins manquants sont complétées avant
-le maillage du palier. Les deux retouches ont été contrôlées dans
-le comparatif Chrome avec le vrai cœur.
-`npm run check` passe avec 414 tests Vitest et les 48 tests Chrome passent.
-
-L’animation de réapparition utilise maintenant huit éclats par joueur.
-Le rejeu solo MAME 0.271 a servi à ajuster leur orbite dans
-`src/rendering/createPracticeRespawn.ts`. Elle est plus large que haute,
-et son centre part au-dessus du point de reprise avant de redescendre
-sur la bille. Le test de scène vérifie le nombre, l’emplacement et
-l’envergure de l’orbite au compteur 16, ainsi que sa convergence.
-Le comparatif Chrome a été vérifié lors d’une chute de J2 avec le vrai
-cœur. `npm run check` passe avec 414 tests Vitest et les 48 tests Chrome
-passent.
-
-La lecture de pose dans `src/emulation/practicePose.ts` conserve les
-fractions X, Z et hauteur pour J1 et J2. Un cas de stabilisation a été
-reproduit dans MAME 0.271. Les écarts de 0,56 et 0,44 unité en Z
-devenaient deux déplacements d’une unité entière. Le test de régression
-reprend ces trois valeurs du cœur.
-`npm run check` passe avec 415 tests Vitest et les 48 tests Chrome passent.
-La chute et la réapparition de J2 ont été rejouées dans Chrome avec le
-vrai cœur. Le cas intermittent de Michel reste à confirmer en jeu.
-
-Deux rejeux MAME 0.271 valident l’arrivée en duo dans les deux ordres,
-le bilan et le passage à Intermediate Race. GOAL garde la couleur
-du premier joueur, lue dans `src/emulation/practicePose.ts`. Dans
-la vue moderne, le dallage utilise une texture 16 × 16 avec des joints
-en escalier et un tramage léger. Les falaises de la dernière descente
-se prolongent sous le cadrage, selon les captures arcade. La comparaison
-Chrome confirme les deux retouches visuelles. Les instantanés natifs
-rejoués dans Chrome confirment GOAL dans les deux ordres d’arrivée et la
-sortie de la vue moderne au bilan. Un parcours en duo au clavier avec
-le cœur Web reste à refaire en jeu. `npm run check` et les 48 tests Chrome
-passent, avec 418 tests Vitest.
-
-À Practice Race en duo, `practicePose` lit le déclenchement et le décalage
-du message de rattrapage. `createPracticeCatchUpLabel` affiche « −5 SEC »
-au-dessus du joueur concerné, à partir du retour de la bille. Le chrono
-garde une colonne de séparation entre les contours des chiffres.
-Le rattrapage a été reproduit dans MAME natif et les poses ont été
-rejouées dans Chrome. Le test en jeu complet avec le cœur Web reste à
-faire. Le bonus « +10 SEC » sera à relever dans Intermediate Race.
-`npm run check` passe avec 420 tests Vitest. Les 48 tests Chrome passent.
-
-La page `terrain.html` charge le relevé d’Intermediate Race dans
-`local-roms/intermediate-terrain.json`. Le benchmark
-`node scripts/measure-terrain.mjs --intermediate` reproduit le relevé avec
-MAME 0.271. Le cadrage couvre 0 à 306 pixels de défilement et la vue libre
-montre la grille complète. Les parois bleues, la rampe et les trois
-pyramides donnent la première scène d’étude.
-`npm run check` passe avec 422 tests Vitest. Les 49 tests Chrome passent.
-
-`intermediateRims` rétablit les rebords rectangulaires des cinq fosses du
-départ et les coins des dalles aux jonctions droites avec les falaises.
-Le raccord de la grande rampe est prolongé jusqu’au plateau haut.
-Les cadrages 0, 218 et 306 px ont été revus dans Chrome avec le relevé
-existant. `npm run check` passe avec 428 tests Vitest.
-
-`intermediateRims` complète les 16 blocs isolés de 2 × 2 dalles autour
-des rampes, y compris celui coupé par la limite du relevé. La hauteur
-du dessus vient de la première dalle échantillonnée de chaque bloc.
-Les quatre groupes ont été inspectés dans Chrome. `npm run check` passe
-avec 432 tests Vitest et les 49 tests Chrome passent.
-
-Les pyramides d’Intermediate Race ont leur propre maillage dans
-`createIntermediateTower` et un socle de 14 dalles dans
-`intermediateLandmarks`. Les rangées suivent le motif 3–4–4–3 avec
-une dernière rangée décalée d’une dalle. Le test contrôle l’empreinte
-et les proportions sur les trois pyramides.
-Le cadrage arcade à 218 px a été revu dans Chrome. `npm run check`
-passe avec 433 tests Vitest. Les 49 tests Chrome passent.
-
-`intermediateRims` coupe les dalles de la limite latérale sur une
-diagonale continue et prolonge les dalles incomplètes le long des
-rebords rectilignes relevés. Le même contour sert à générer les parois
-verticales. Les tests couvrent les deux diagonales et les raccords
-dans la deuxième moitié du relevé.
-
-Le rejeu MAME confirme le mouvement du premier pont autour de (63,58).
-Le tablier de quatre dalles sur quatre pivote visuellement autour de
-Z 60. Son bord libre monte de 16 unités sur un cycle de 144 images.
-`createIntermediateBridge` anime le tablier, ses bordures turquoise
-et le mécanisme violet dans la scène d’étude. L’animation tourne en
-boucle dans l’étude. La phase du cœur reste à raccorder dans la vue
-jouable. Le traitement du terrain enlève la pointe parasite voisine
-et remet les dalles d’angle isolées au niveau de leur plateforme.
-Les falaises et le pont projettent des ombres sur le dallage.
-`npm run check` passe avec 439 tests Vitest. Les 49 tests Chrome
-passent. Le pont a été vérifié à 306 px et en vue libre, à plat
-puis levé. Les captures Chrome montrent les ombres à l’intérieur
-des fosses et sur les rampes.
-
-Le pont a maintenant un tablier épais et un cadrage bas pour son
-mécanisme. Les voies de la zone d’ondulations partagent le même profil.
-Le fichier local `local-roms/intermediate-terrain-pipes.json` ajoute les
-triangles des deux tuyaux de Rolling Madness 3D, recalés dans la grille
-arcade et habillés avec des matériaux BabylonJS. Charger cette copie
-dans `terrain.html`, puis choisir **Pont articulé** ou **Tuyaux et rampes**.
-`npm run check` passe avec 458 tests Vitest. Les 49 tests Chrome passent,
-et les deux cadrages ont été inspectés avec le maillage local des tuyaux.
-
-Les rejeux MAME `--intermediate` et `--intermediate-impact` isolent
-respectivement l’étourdissement et l’engloutissement de J1, et la casse
-de J2 suivie du passage du balai jaune. Repères dans
-`docs/PROTOTYPE_04.md`. Le cœur Web restaure bien un état de Practice
-Race après une itération, essai privé dans Chrome. Les points de
-départ des six courses et le sélecteur restent à créer.
-
-Prochaine action concrète : brancher d’abord la pose de la bille et
-les états d’animation d’Intermediate Race sur la vue jouable, puis
-relever les poses des vers pour synchroniser leur rendu 3D. Le relevé
-de la baguette reste à faire.
-
-### Référence externe Rolling Madness 3D
-
-L’installateur de Luca Elia a été lu sur macOS sans lancer le programme,
-avec `xtinno` de Binary Refinery 0.11.3. Il contient 47 fichiers
-`.ase.mesh`, dont les six terrains et des modèles séparés pour les billes,
-ennemis, ponts et obstacles. `level/level1.txt` et `actor/world1.txt`
-associent Practice au maillage `model/lev1.ase.mesh`. Ce fichier binaire
-référence 9 textures et 6 textures d’éclairage. Aucun code source du jeu
-n’a été trouvé dans l’installateur ni sur la page publique de l’auteur.
-La licence incluse exige une permission pour modifier ou redistribuer
-le logiciel. L’extraction complète est désormais dans
-`3D_assets_for_animated_entities/`.
-
-[MeltyTool](https://github.com/MeltyPlayer/MeltyTool#supported-formatsgames)
-dispose d’un importeur `.ase.mesh` et d’un export GLB de référence pour
-le niveau 1. Les six maillages de l’installateur correspondent aux fichiers
-du dépôt par SHA de blob Git. L’amélioration des animations et des
-textures d’éclairage est proposée dans la
-[PR 116](https://github.com/MeltyPlayer/MeltyTool/pull/116), ouverte lors
-de la vérification. La conversion des fichiers locaux et le recalage sur
-les coordonnées arcade restent à tester si cette piste est reprise.
-
-## Vue immersive Safari
-
-Michel confirme que la capture fonctionne en fenêtre. Le plein écran natif
-interrompt la capture et le son. Le bouton de jeu ouvre la vue immersive
-avec HUD dans Safari antérieur à 18.2 pour contourner le bug WebKit 272136.
-Recharger, choisir Jouer en plein écran 3D puis Capturer. Confirmer que la
-partie avance et que le son reste stable en vue immersive dans Safari.
-
-## Capture et grésillement Safari
-
-Michel signale que Capturer mettait le jeu en pause et que le son grésillait.
-Le raccord Pointer Lock attend désormais l'événement de confirmation si
-le navigateur renvoie une valeur sans promesse. Pour Safari, le tampon
-RetroArch demandé passe de 64 à 128 ms. Recharger dans Safari, démarrer,
-cliquer sur Capturer et vérifier le mouvement de la bille et le son.
-
-## Recette sur le Mac de Michel
-
-Michel valide le jeu à deux, le son et la lisibilité du CRT. Safari présente
-parfois des écrans noirs et un démarrage plus lent que Chrome. La cause exacte
-reste à isoler dans Safari. Le diagnostic chronomètre les ZIP, le frontend et
-le lancement du cœur. Une perte du contexte graphique BabylonJS ramène en
-vue directe dans la même session. Une perte du contexte du cœur est signalée
-séparément. Au prochain écran noir, relever la vue concernée et copier les
-diagnostics depuis la page.
-
-## Saut du niveau 1
-
-Michel n'a pas réussi le saut vers les plateformes latérales avec Espace
-et le trackpad. Le boost maintenu passe de 128 à 256 unités de trackball par
-itération. À départ et durée égaux, le vrai cœur montre une accélération
-horizontale plus forte. Le saut lui-même reste à reproduire.
-Recharger la page, lancer une partie et vérifier le franchissement à partir
-de la rampe. Les conditions de l'essai comparatif sont dans
-[VALIDATION.md](docs/VALIDATION.md).
-
-## Écran cathodique
-
-Dans Borne et bar 3D, cocher Effet CRT sous Écran cathodique. Les curseurs
-règlent la courbure, les lignes de balayage et les parasites horizontaux.
-Le HUD reprend l'interrupteur en plein écran. Les préférences sont locales.
-L'effet et les parasites sont initialement désactivés.
-`src/rendering/createCrtMaterial.ts` contient le maillage et le shader du
-tube. `src/ui/crtControls.ts` synchronise les réglages.
-Le tube reste au format 4:3 quel que soit le rapport du canvas vidéo.
-La courbure du verre et du raster a été renforcée sur les deux axes.
-`npm run check` passe avec 297 tests et Chrome avec 38 tests. La partie réelle
-a été observée de face et en vue inclinée avec le filtre actif. Recharger
-Vite sur le port 5173, activer le CRT et comparer les deux cadrages.
-
-## Deux joueurs
-
-J1 utilise le trackpad ou la souris. J2 utilise ZQSD par défaut, avec WASD,
-flèches, remappage et désactivation dans Périphériques de jeu.
-Le filtre dans le glue réserve la souris à J1. Le clavier atteint J2 par
-les directions D-pad du cœur. Chaque trackball suit son entrée.
-Essai du vrai cœur dans Chrome avec deux crédits et Start joueur 2.
-Vérifier le confort de jeu à deux sur le Mac de Michel.
-
-Dernière mise à jour le 14 novembre 2026.
-
-## Moniteur incliné et trackballs
-
-C parcourt Frontale, Moniteur incliné, Écran et commandes, Borne et Bar.
-Le moniteur remplit l’essentiel de la vue rapprochée, avec son pourtour en
-perspective. Les marbrures rendent la rotation des boules visible. En jeu,
-la bleue suit les deltas de J1. Hors capture, cliquer et glisser sur la rouge
-pour vérifier son animation dans la scène.
-
-## Reproduction Atari System I
-
-Le `marble.skp` de Gozer est intégré dans le bar après conversion locale.
-La géométrie utilise les cotes du modèle en mètres. Les textures WebP
-reprennent les flancs, le panneau et l’enseigne. La vitre et l’image fixe du
-moniteur cèdent la place au plan incliné qui reçoit la vidéo MAME.
-`src/rendering/createCabinet.ts` construit les zones cliquables et les
-deux trackballs. La bleue suit J1. La rouge représente J2. Les deux boutons
-Start et les deux retours de monnaie sont actifs hors capture.
-`npm run check` et la suite Chrome passent. Le vrai jeu a été observé dans
-les quatre cadrages.
-
-Ouvrir la scène Borne et bar 3D, choisir Borne pour voir le meuble entier,
-puis Écran et commandes pour inspecter les deux boules. Vérifications dans
-[VALIDATION.md](docs/VALIDATION.md) et sources dans
-[le registre des assets](public/assets/README.md).
-
-## Raccourci caméra pendant la partie
-
-Dans Borne et bar 3D, C parcourt Frontale, Écran et commandes, Borne puis Bar.
-Le cadrage rapproché montre l’écran, la boule et les boutons. Le cycle
-est défini dans `src/game/cameraPreset.ts` et passe par le même changement
-de caméra que les sélecteurs du HUD et de la page. Le test navigateur
-vérifie la capture et le boost pendant les transitions. La vue rapprochée
-a été examinée dans Chrome avec le vrai cœur. `npm run check` passe avec
-289 tests et la suite Chrome avec 34 tests. Pour essayer, capturer le
-trackpad en vue 3D puis appuyer sur C à chaque changement de cadrage.
-
-## Correctif de la boule 3D
-
-`src/rendering/createCabinet.ts` compose les rotations dans les axes du meuble.
-Le sommet roule dans le sens du geste, y compris après une diagonale.
-L’amplitude visuelle maximale est de 45° par échantillon. Le raccord au cœur
-garde les mêmes deltas. `npm run check` passe avec 288 tests, et Chrome avec
-33 tests. Des gestes sous Pointer Lock ont confirmé les axes dans la scène
-avec le vrai cœur. Les essais optiques séparés au début du niveau 1 confirment
-la direction principale dans les quatre sens. Voir
-[les mesures](docs/VALIDATION.md#sens-de-rotation-de-la-boule-3d--10-novembre-2026).
-
-Pour la recette de Michel, recharger le serveur Vite local 5173, choisir
-Caméra → Borne, cliquer sur Capturer, puis comparer des gestes courts
-verticaux et horizontaux après un geste diagonal.
-
-## Prototype 03 — état actuel
-
-Michel a autorisé les cinq évolutions de
-[la spécification 03](Marble_Madness_Prototype_03_SPEC.md). Elles sont
-implémentées. La scène conserve une seule session MAME et ses vues de référence.
-
-- Explorer le bar avec ZQSD, WASD ou les flèches. Le trackpad oriente le regard.
-  E à proximité transfère Pointer Lock du canvas BabylonJS au canvas arcade.
-  Échap met en pause et purge les entrées. Quitter la borne revient au bar.
-- Borne à l’échelle, graphismes latéraux, grains de matière et ombres statiques.
-  La boule tourne selon les deltas natifs observés. Choisir Borne puis Capturer
-  dans le HUD pour la voir pendant le jeu.
-- Son positionnel débrayable pendant la visite. L’adaptateur réutilise le master
-  OpenAL. En jeu le routage stéréo d’origine est rétabli.
-- Qualité Éco, Équilibrée ou Retina, avec plafonds de DPR 1, 1,5 et 2.
-  Le diagnostic expose les appels de dessin et les temps CPU/GPU disponibles.
-
-Points d’entrée pour la reprise du code dans `src/ui/videoComparison.ts`,
-`src/input/barExplorer.ts`, `src/app/createVideoView.ts`,
-`src/rendering/createScreenStage.ts`, `src/audio/spatialOutput.ts` et
-`src/emulation/emulatorjs.ts`. Tests navigateur dans `navigation.spec.ts` et
-`spatialAudio.spec.ts`, tests unitaires à côté des règles.
-
-Chrome a validé les 33 scénarios. Un parcours avec le vrai cœur a mesuré le
-signal positionnel, le transfert de capture, les deltas natifs et la rotation
-du mesh, puis la pause stable. Les quatre cadrages ont été examinés. Le
-réglage de résolution a été vérifié à DPR 2. Voir [VALIDATION.md](docs/VALIDATION.md).
-
-Recette de production terminée avec dix minutes actives, dix pauses stables,
-36 094 copies vidéo, une source audio, zéro erreur JS et zéro requête distante.
-`npm run check` et les trois tests preview réussis. Les deux preuves numériques
-sont dans `third_party/prototype03-evidence.json` et
-`third_party/prototype03-endurance-evidence.json`. Le banc se relance avec
-`npm run measure:endurance -- --local-files` sur un preview via
-`MARBLE_TEST_URL`. Voir le [protocole](docs/ENDURANCE.md).
-
-Prochaine action manuelle dans Safari et sur un écran 120 Hz. Ouvrir le
-serveur Vite local 5173, lancer le cœur, Explorer → E → Échap, puis essayer
-les trois profils et écouter le son à différentes distances. Safari WebDriver
-a refusé la session car l’automatisation à distance est désactivée. Le WebKit
-de secours n’a pas ouvert d’onglet dans le délai imparti.
-
-## Historique prototype 02
-
-Michel a explicitement autorisé les cinq étapes : borne, cadrages/transition,
-interactions, matériaux/éclairage, premier bar. **Toutes sont implémentées**.
-Lire Marble_Madness_Prototype_02_SPEC.md ; AGENTS et spec01 renvoient à cette
-extension. Les anciennes exclusions borne/bar dans l'historique ne bloquent plus.
-
-Nouvelle option **Borne et bar3D**, HUD Caméra **Bar / Borne / Frontale**.
-Meuble complet et enseignes, trackball et boutons, monnayeur, haut-parleurs ;
-première pièce avec sol/murs, comptoir, bouteilles/étagères, table/tabourets et
-suspensions. Matériaux originaux procéduraux, éclairage chaud/froid, aucune
-dépendance ou asset externe ajouté. Pas de navigationFPS ou audio spatial.
-
-Hors capture : boutons/monnayeur Crédit, Start1/2 ; écran ou trackball → transition
-frontale et capture synchronique. Même session et mêmes méthodes d'impulsion.
-Pendant capture les clics3D sont ignorés ; HUD et raccourcis conservés. Caméra
-unique sans contrôles attachés. Transitions0,65s même en pause, rAF temporaire
-propriétaire du rendu, copie vidéo toujours après dessin natif. Resize du HUD
-retargete sans casser l'animation ; blur/Échap/visibilité/dispose annulent.
-
-Fichiers : rendering/createCabinet.ts, createBarRoom.ts, decorTools.ts,
-createScreenStage.ts, createVideoScene.ts ; app/createVideoView.ts ;
-game/cabinetAction.ts, cameraTransition.ts ; ui/videoComparison.ts et playControls.ts.
-Protocole/usage : docs/PROTOTYPE_02.md. Texte des enseignes corrigé verticalement
-et panneau abaissé pour que la boule reste sous l'image ; test de non-recouvrement.
-
-Validation : npm run check réussi, **250 tests/27 fichiers**, couverture99,48 %
-instructions,99,34 % branches,100 % fonctions,99,45 % lignes. **29 tests Chrome**,
-**3 preview** réussis. Picking réel des boutons, monnayeur et boule, survol,
-capture et blocage des clics, pixels vidéo et destruction textures/meshes/
-matériaux/lumières/caméras à zéro vérifiés. Premier passage avec nouvelles
-dépendances : navigations de test et helper sans scène ; stabilisation puis
-correction du scroll du banc pour mettre les points cliqués dans le viewport.
-Aucun test ignoré/seuil réduit. Helper d'inspection dans tests seulement.
-
-Vrai runtime Chrome157.0.8103.40 : Crédit/Start par meshes, capture depuis la boule,
-transition bar en pause, puis frame1115 stable,402 copies, frontale, boost et
-pending purgés, boutonsJ1/J2 vides, source audio1, zéro erreurJS. Trois captures
-finales /tmp/marble-prototype2-{bar,cabinet,game}.png examinées. Preuve numérique
-à conserver dans third_party/prototype02-evidence.json. Écoute et confort physique
-non certifiés. Les métriques du callback vidéo excluent le rendu rAF des transitions.
-
-**Endurance02 terminée sur build production isolé** : dix nouveaux intervalles,
-**600,02s actives**, frame36772,36063 copies, zéro erreurJS ou requête distante.
-Dix pauses stables, pending(0,0), boost et boutons des deux ports purgés, source
-audio1. Listeners721 au premier relevé puis720 constants ; heapJS16,73–28,87Mio
-avec retours après GC, nodes4646–4693. Aucun incident bloquant observé, pas de
-preuve générale d'absence de fuite GPU/WASM. Callback vidéo moyen0,459–0,550ms,
-max9ms ; hors rAF de transition et fin GPU, pas benchmark comparatif fin.
-
-Recette : npm run build puis preview local4175, MARBLE_TEST_URL=http://127.0.0.1:4175/
-PLAYWRIGHT_CHANNEL=chrome npm run measure:endurance -- --local-files. Le banc
-sélectionne les ZIP fixes du dossier roms via les champs locaux ; aucune copie
-dans dist/upload. Rapport temporaire test-results/endurance.json, preuve complète
-third_party/prototype02-endurance-evidence.json, localFileSelection=true,
-scene=prototype-02-cabinet-bar, complete=true. Preview4175 arrêté après recette ;
-serveur dev5173 conservé. Une série2min avait été arrêtée pour le survol et une
-série6min interrompue par HMR ; aucune de leurs minutes n'a été réutilisée.
-
-**Picking aussi vérifié en production** sans helper dev : clics projetés à partir
-du cadrage déclaré sur Crédit/Start produisent les quatre appels natifs attendus,
-puis la boule capture et choisit Frontale. Échap met en pause, pending nul,
-64 copies sur ce court essai, zéro erreurJS. Preuve :
-third_party/prototype02-production-evidence.json. Captures finales du vrai jeu
-examinées comme indiqué plus haut. La preuve01 reste historique, non écrasée.
-
-Prochaine action concrète : Michel recharge dev5173, ouvre Jouer en plein écran3D,
-choisit Caméra→Bar/Borne/Frontale et essaie les boutons/monnayeur/boule/écran.
-Recette humaine du rendu et du confort, puis priorisation des finitions ;
-écoute complète, Safari/120Hz et coût GPU restent ouverts. Les cinq étapes
-autorisées sont réalisées, pas de navigationFPS ni de spatialisation ajoutées.
-Pas de nouvelle dépendance, Git initialisé ou déploiement.
-
-## Historique prototype01 — état avant l’extension02
-
-Marble Madness original fonctionne avec EmulatorJS 4.2.3 + MAME 2003-Plus.
-Crédit, Start, trackpad relatif, pause/reprise, volume, diagnostics et nouvelle
-session sont disponibles. La page principale affiche la même session en direct,
-en comparaison côte à côte, sur un plan BabylonJS seul ou sur un écran en scène 3D. La scène `scene.html`
-reste une ancienne démo indépendante.
-
-Michel a joué jusqu'au niveau 3. Il confirme le 8 novembre : **« ok, c'est bon »**
-après correction du clignotement et du filtrage vidéo. Ce retour valide ce
-problème visuel ; ne pas l'étendre à l'endurance ou à l'écoute audio complète.
-Le confort de freinage dans la pente en sortie des vagues, fin du niveau 3,
-reste un point ouvert. C est implémenté, sa recette humaine complète reste ouverte.
-D est implémenté et l'image corrigée est confirmée par Michel. E est préparé et
-vérifié techniquement ; détails et procédure finale dans `docs/RELEASE.md`.
-
-Michel a rejeté **0,50× comme injouable** et demandé un boost sur Espace,
-puis la poursuite du rendu 3D. Ce retour remplace la recommandation historique
-de calibration ci-dessous. La section 15 de la spécification et AGENTS.md
-consignent cette évolution autorisée. Ne pas redemander de capture identique.
-
-Le gain normal par défaut/reset est **1,70×**. Une préférence enregistrée à
-0,50× est migrée vers 1,70× ; les autres gains valides sont conservés.
-Maintenir **Espace**, puis guider au trackpad : commande native continue de
-norme L1 128 counts par itération, remplaçant les deltas pendant le maintien.
-Relâcher revient au contrôle normal. Échap, blur, onglet masqué et destruction
-purgent le boost ; Espace ne reprend pas la pause. La physique reste dans MAME.
-Confort, freinage et saut ne sont pas encore validés humainement.
-
-Choisir **Écran en scène 3D** : même vidéo animée sur un écran avec cadre,
-support, socle, éclairage et sol quadrillé. Même session, texture et boucle,
-caméra fixe ; aucun niveau reconstruit en meshes ni asset externe ajouté.
-Détails : docs/COMFORT_AND_3D.md. **Plein écran et HUD maintenant livrés** :
-Jouer en plein écran 3D → Crédit/Start/Capturer ; Pause et Reprendre/son présents.
-Retour à la page quitte en pause. Échap libère/purge et peut quitter le fullscreen
-selon le navigateur. Refus API : repli immersif dans la fenêtre. Entrée en pause,
-aucune reprise implicite. Même session/texture ; boutons délégués aux contrôles
-communs, states/messages synchronisés, observers/listeners nettoyés.
-Michel confirme le 10 novembre que le plein écran fonctionne bien, puis autorise
-les deux caméras fixes. **Caméra Frontale/Perspective livrée** dans le HUD et sur
-la page, sélecteurs synchronisés, actifs en scène 3D. Perspective initiale ; choix
-conservé pendant la session, sans stockage. Frontale orthographique droite et
-agrandie, plan complet visible ; socle en partie hors champ pour privilégier le jeu.
-Même caméra/texture/session ; aucun appel aux commandes ou changement lecture/
-pause. Échap libère le trackpad pour utiliser le sélecteur, Capturer reprend.
-Michel confirme les vues puis demande les raccourcis de capture et la recette
-suivante. **Raccourcis implémentés** : 5/(=Crédit, 1/&=StartJ1, 2/é=StartJ2,
-uniquement en capture active/non suspendue, hors champs et Ctrl/Alt/Meta.
-Une impulsion120ms, répétitions absorbées. StartJ2 utilise le port1 (pas de
-nouvelle commande relative J2) ; deux jeux de timers, tous purgés à l'interruption.
-Aide dans le HUD et le statut de capture. Section16 de la spec : demande autorisée.
-
-**Endurance automatique terminée**, complete=true : dix intervalles, **600,40s
-actives**, frame finale36794,36090 copies vidéo, zéro erreurJS et requête distante.
-Les dix pauses sont stables, boost/pending/boutons des deux ports purgés. Les
-six alias ont produit exactement les douze appels natifs attendus. Moyenne CPU
-cumulée de soumission copie+rendu0,144–0,177ms, max10,2ms ; pas du temps GPU.
-Listeners718 constants, une source audio et contexte suspendu en pause. HeapJS
-19,73–21,58Mio : variation avec hausse sur les derniers relevés, pas une preuve
-d'absence de fuite ; mémoire GPU/WASM hors mesure. Une partie puis états arcade/
-attract automatiques, pas dix minutes de parcours humain ni écoute certifiée.
-
-Commande reproductible : PLAYWRIGHT_CHANNEL=chrome npm run measure:endurance,
-serveur dev et ROMs locales requis. Rapport test-results/endurance.json ; preuve
-numérique sauvegardée dans third_party/endurance-evidence.json. Protocole et
-résultat : docs/ENDURANCE.md. Les premiers intervalles ont coexisté avec les
-vérifications build/navigateur ; ne pas utiliser cette série comme benchmark
-comparatif fin. Pas de modification ROM ou préférence utilisateur réelle.
-Prochaine action concrète : bilan prototype01 avec Michel, en distinguant recette
-technique acquise et écoute/confort/120Hz/Safari encore ouverts, puis définir
-le périmètre du prototype02 avant de modéliser une borne détaillée ou un bar.
-
-Validation actuelle : **npm run check réussi, 231 tests / 25 fichiers**.
-Couverture : 99,48 % instructions, 99,31 % branches, 100 % fonctions,
-99,44 % lignes. Chrome dev **27 tests réussis**, preview **3 tests réussis**.
-Tests purs des six alias/modificateurs et deux ports indépendants ; Chrome teste
-capture, répétition, saisie, pause/hors capture et démontage. Premier passage
-bloqué par Playwright.press(é) : CDP clavier natif utilisé pour cette touche,
-les autres touches restent des frappes Playwright ; vrai runtime vérifie les
-douze appels attendus. Les dix intervalles d’endurance sont maintenant terminés.
-Avertissement de chunk BabylonJS >500 ko conservé ; aucune dépendance ajoutée,
-aucun déploiement ni dépôt Git initialisé. Les sections suivantes conservent
-l'historique ; l'état actuel ci-dessus remplace leurs prochaines actions.
-
-## Lancer et vérifier
+# Handoff
+
+## Level 6 (complete visual polish), cross-game shader fix, and infinite timer — November 23, 2026
+
+- **Cross-game shader cache collision fix** ([terrainPalettePaint.ts](src/rendering/terrainPalettePaint.ts), [arcadeTerrainPaint.ts](src/rendering/arcadeTerrainPaint.ts), [intermediatePipePaint.ts](src/rendering/intermediatePipePaint.ts), [createLevel5Terrain.ts](src/rendering/createLevel5Terrain.ts), [createCameraOcclusion.ts](src/rendering/createCameraOcclusion.ts), [arcadeTerrainPaint.test.ts](src/rendering/arcadeTerrainPaint.test.ts)):
+  - Added a unique `#define` key via `prepareDefines()` on each `MaterialPluginBase` subclass to prevent any collision in `engine._compiledEffects` across multiple games (purple L1 guardrails, blue L3 pipe, brown L1 floor).
+- **Infinite timer (`T` key, disabled by default)** ([emulatorjs.ts](src/emulation/emulatorjs.ts)):
+  - Fixed Work RAM timer offsets at `0x82` (P1 = `0x400018 + 0x6a`) and `0x164` (P2 = `0x4000fa + 0x6a`).
+- **Complete visual polish for Level 6 (_Ultimate Race_)** ([level6DisplayTerrain.ts](src/rendering/level6DisplayTerrain.ts), [level6DisplayTerrain.test.ts](src/rendering/level6DisplayTerrain.test.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts), [createPracticeGoal.ts](src/rendering/createPracticeGoal.ts)):
+  - **Animated amoeba plateaus**: `Level6ShimmerPaint` shader (`MM_LEVEL6_SHIMMER`) wired live to the Playfield 1 bank (`0xb00420..0xb0042c`, indices `16..22`) synchronized to MAME's 60 Hz palette cycle.
+  - **Exact starting mound (`6×5`)**: continuous shared vertices (`startMoundVertexY`, zero red facets), soft speckled amber texture, removal of gray tile rows at the foot of the red walls.
+  - **Hollow square pit island**: outer border and inner rim in gray tiling, golden inner walls with cast shadow (`receiveShadows = true`), and visible chocolate-brown floor (`bottomY = topY - 0.92`).
+  - **Open yellow mouths**: hollow triangular tunnels offset over the true MAME trenches (`z = 31..32` and `z = 39..40`), inner shadow gradient, and thin front arch.
+  - **1-block-thick floating slabs and gray joints**: entire upper section suspended in space (`isLevel6FloatingSlabEdge`), gray vertical joints on red walls (`apJoint` index `6`), exact 4-tile cyan ice strips (`x = 42..45` and `z = 42..45`), gray stone ramps, and cast shadows from static surfaces onto the cliffs.
+  - **Worm platforms and narrow walkways**: embossed `4×4` metallic micro-checkerboard, exact 3-flat-face geometry on the left bump (`x = 67..68, z = 59..62`) and right hollow (`x = 59..62, z = 69..70`), vertical viaduct decals (`createViaductWindowSlots`) on the tall red cliffs.
+  - **Cyan ice diamond (`11×11`) and 4 hexagonal pyramids**: 2-tile gray borders at top-left/top-right, 4 hexagonal-base pyramids (`createLevel6HexPyramid`, height `9.5` arcade units), removal of the 3-tile gray ears around the `6×6` entry platform.
+  - **Final maze and `GOAL` zone**: out-of-corridor clipping (`Math.abs(x - z) > 21`), anti-spike guard on `(103, 82)`, cream-gold `GOAL` pad (`palette: 'level6'`) + orange-red/black flags placed on the top-right edge (`x = 88.05, z = 88.05 / 90.05`), gold/peach/gold low wall behind on the right, cyan ice on the isolated block, solid charcoal-gray tiles with light-gray joints.
+- **Validation & deployment**:
+  - `npm run check` + `npm run build:beta` succeeded (all tests pass, V8 coverage OK).
+  - WebGL2 visual checks in Chrome (`terrain.html` Side-by-side PNG + 3D) across all of Level 6.
+  - Committed and pushed to `main`, `dist-beta/` deployed to `gh-pages`.
+
+## GPU/CPU optimizations (Intel UHD 630 & battery) and study tools — November 23, 2026
+
+- **Static Shadow Map cache + 2048×2048** ([createPracticeSun.ts](src/rendering/createPracticeSun.ts), [createTerrainStudy.ts](src/rendering/createTerrainStudy.ts), [createLivePracticeView.ts](src/rendering/createLivePracticeView.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts)):
+  - Shadow map capped at `2048 × 2048` (4× less fillrate than `4096 × 4096`).
+  - `REFRESHRATE_RENDER_ONCE` enabled on static levels (1, 2, 3, 6) with targeted invalidation (`invalidatePracticeShadows`) only when `startLift`, `bridgeStep`, or `level6MazePhase` changes; `half-rate` mode (1 frame in 2) on `Eco` quality for levels with moving shadows (4, 5, or marble shadows).
+  - Expensive PCF disabled in `Eco` mode (`applyPracticeShadowQuality`).
+  - World matrix freezing (`freezeWorldMatrix`) and `isPickable = false` on static terrain meshes.
+- **3D rendering decoupling and adaptive _frame-skip_** ([createVideoView.ts](src/app/createVideoView.ts)):
+  - `refreshModern()` no longer renders BabylonJS synchronously inside `marbleOnVideoFrame`: it schedules a dedicated `requestAnimationFrame` (`runModernFrame`) and automatically adapts a 3D _frame-skip_ (`0..2`) if a frame exceeds `14 ms`, keeping MAME, WebAudio, and trackball polling locked at 60 Hz without audio glitches or trackpad latency.
+- **`Eco / Balanced / High` quality selector + Intel UHD auto-detection** ([betaState.ts](src/beta/betaState.ts), [beta.html](beta.html), [beta.ts](beta.ts)):
+  - WebGL `UNMASKED_RENDERER_WEBGL` detection automatically switching to `Eco` on Intel HD/UHD Graphics or software rendering, toggleable at any time via the Attract Mode menu or the **`G`** key in-game.
+
+## Level 6: Ultimate Race and 4-phase dynamic maze — November 23, 2026
+
+- **68010 ROM analysis and native MAME survey** ([scripts/survey-level6.mjs](scripts/survey-level6.mjs), `local-roms/level6-terrain.json`, `local-roms/level6-web.state`):
+  - ROM descriptor `0x2e790` (`recordBase = 0x8136a`, `maxDiag = 0xc8`, `122 × 122` grid, start `scroll = -16168`, `x = 92, z = 132, h = 16384`).
+  - All **112 dynamic slots** (`0x40076e..0x40084c`, 317 mutable cells in `x = 76..117, z = 78..117`) are driven by the **4-phase** cyclic table in ROM `0x24e2a..0x24e42`:
+    - `0x24e2a` → phase `0` (`0x24e4e`, 112 words)
+    - `0x24e32` → phase `1` (`0x24f32`, 112 words)
+    - `0x24e3a` → phase `2` (`0x25016`, 112 words)
+    - `0x24e42` → phase `3` (`0x250fa`, 112 words)
+    - Measured cadence in real gameplay: **41–42 frames per phase** at 60 Hz (`~0.683 s`, full cycle `~2.75 s`), looped by sentinel `0xffffffff` at `0x24e4a` and exposed in Work RAM `0x400978`.
+  - The 9 actors of Level 6 (1 black marble on the ice diamond, 4 worms on the striped slopes, 4 amoebas on the peach plateaus) are already read directly by `readIntermediateActors`.
+- **Real-time reading and BabylonJS 3D presentation** ([practicePose.ts](src/emulation/practicePose.ts), [practiceTerrain.ts](src/game/modern/practiceTerrain.ts), [level6DisplayTerrain.ts](src/rendering/level6DisplayTerrain.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts), [arcadeTerrainPaint.ts](src/rendering/arcadeTerrainPaint.ts), [createPracticeGoal.ts](src/rendering/createPracticeGoal.ts)):
+  - `readPracticePose` recognizes `0x2e790` (`level: 'level6'`) and exposes `level6MazePhase` (`0 | 1 | 2 | 3`) read live from `0x400978` (100% locked synchronization on the 68010 core, zero drift).
+  - `createLevel6Terrain` builds the carmine-red cliffs, speckled amber starting plateau and smoothed white ramp, hollow square island with amber floor, 2 orange triangular tunnels, turquoise ice strips, 2 peach diamond plateaus, 2 striped gray slopes, ice diamond with 4 gray pyramids (`createPracticeTower`), `GOAL` marking and its 2 orange/black checkerboard flags.
+  - The 4 maze phases (dark-gray blocks, amber block, turquoise ice block, and their red cliffs + shadows) are **pre-built once** in `level6-maze-phase-0..3` and toggled in O(1) via `setLevel6MazePhase` with zero per-frame allocation. In the `terrain.html` study view, a dedicated timer automatically cycles through the 4 phases at the exact arcade cadence (`41 / 60 s`).
+- **Integration in `terrain.html`, `index.html` (`F6`), and `beta.html` (`6 · Ultimate`)** ([terrain.html](terrain.html), [src/terrain.ts](src/terrain.ts), [index.html](index.html), [src/ui/feasibility.ts](src/ui/feasibility.ts), [beta.html](beta.html), [src/beta/betaState.ts](src/beta/betaState.ts), [src/beta.ts](src/beta.ts), [scripts/build-beta.mjs](scripts/build-beta.mjs)).
+- **Validation**:
+  - `npm run check` succeeded (format, lint, typecheck, V8 coverage, Vite build) + `npm run build:beta` succeeded.
+  - Chrome WebGL2 visual verification on `terrain.html`: start/orange tunnels, ice diamond + 4 pyramids, and 2 maze screenshots 0.75 s apart confirming smooth toggling of appearing/disappearing blocks and their shadows.
+  - CI fix included: `expect.poll` timeout raised to `15 000 ms` in [tests/browser/terrain.spec.ts](tests/browser/terrain.spec.ts).
+  - Next action: full playthrough test of Level 6 in side-by-side view (original vs 3D) in `beta.html` or `index.html`, then commit/push and GitHub Pages redeployment on request.
+
+## Level 5: "Monument Valley"-style Escher finish (Option 1) — November 23, 2026
+
+- **Removal of the artificial viaduct and yellow wall under the marble** ([level5DisplayTerrain.ts](src/rendering/level5DisplayTerrain.ts)):
+  - The elevated deck at `H = 16416` on the approach bridge now covers only the 6 native tiles of the walkway (`X = 29..34, Z = 21..23`) instead of `X = 29..43`. Beyond `X = 35`, the floor remains at its true low height `H = 16368`, perfectly flush with the rest of the plateau around the towers: no more yellow wall under the blue marble.
+  - `level5FinishDepth` shifts the marble by `(+6, +6, +48)` along the isometric view ray over a widened area in `Cadrage arcade` (`X < 33 * 8, Z < 21 * 8`, pixel-identical projection with no clipping of the marble by the upper deck edge), and tightly (`X < 29 * 8 + 6, Z < 18 * 8 + 4`) in other views around the `?` floor marker (`level5-escher-hint`, automatically hidden in `Cadrage arcade` via `scene.onActiveCameraChanged`).
+- **`+3 SEC` bonus when squashing minis and yellow spark when birds hit walls** ([practicePose.ts](src/emulation/practicePose.ts), [createPracticeCatchUpLabel.ts](src/rendering/createPracticeCatchUpLabel.ts), [createLivePracticeView.ts](src/rendering/createLivePracticeView.ts), [level5Actors.ts](src/emulation/level5Actors.ts), [createLevel5Actors.ts](src/rendering/createLevel5Actors.ts)):
+  - Verified in the 68010 ROM (`0x19348: ADDQ.W #3, $6a(A2)` then `JSR 0x285b0` with index `14` → pointer `0x2242e` in `player+0xec`). `practicePose` now reads `0x2242e` (`timeBonusSeconds: 3`) in addition to `0x22446` (`10`), and `createLivePracticeView` displays the **`+3 SEC`** 3D banner above the marble.
+  - Verified in the 68010 ROM (`0x19d2c → 0x224e2..0x22542` for wall collision and `0x19e04 → 0x22546..0x22556` for player collision): `level5Actors` exposes `birdSpark` (`'flash'` during `0x224f2..0x22526`, then 3-step yellow explosion `1/3..1` over `0x2252a..0x2253e` / `0x2254a..0x22552`), rendered in `createLevel5Actors` by a bright-yellow star mesh calibrated to the native `16×16` footprint (`outer = 0.42`, max radius `~0.50` tile, pre-allocated and owned by the scene).
+- **Strict alignment, height, and spherical joints on Level 1 red guardrails** ([createPracticeLandmarks.ts](src/rendering/createPracticeLandmarks.ts), [createPracticeGuardrail.ts](src/rendering/createPracticeGuardrail.ts), [createPracticeLandmarks.test.ts](src/rendering/createPracticeLandmarks.test.ts)):
+  - Realigned the first 5 red guardrails (`rails[0..4]`) onto the exact tile joint lines (`X = 17/25`, `Z = 17/25`) instead of the skewed values `16.7`, `25.4`, `24.98`, `25.15`: in top-down view, each segment is strictly parallel to the floor joints.
+  - Raised post heights (`railHeight = 0.78`, `leftUpperPost = 0.62`) to match the original arcade height and cast shadow length in `Cadrage arcade` view.
+  - Added a spherical joint (`practice-rail-*-joint-*`, diameter `0.38`) at the top of each post in `createPracticeGuardrail` so every corner between horizontal and vertical tubes joins seamlessly without a notch.
+  - Filled in the missing `SW` corner on the edges of the two upper pits (`Z = 12, X = 25..27` and `Z = 24, X = 13..15`) to remove jagged triangles near the guardrails, as well as on the step `(X = 27, Z = 31)` beneath the foot of the right tower so it is complete and symmetric to `(X = 31, Z = 27)`.
+- **Static beta distribution (`dist-beta/`) and GitHub repository `micbuffa/MM-experiments`** ([beta.html](beta.html), [src/beta.ts](src/beta.ts), [src/beta.css](src/beta.css), [src/beta/betaState.ts](src/beta/betaState.ts), [vite.beta.config.ts](vite.beta.config.ts), [scripts/build-beta.mjs](scripts/build-beta.mjs)):
+  - `npm run build:beta` produces a 100% static English distribution in `dist-beta/` (`base: './'`, `index.html` + `beta-data/` + `vendor/emulatorjs/`), testable locally via `npm run preview:beta`.
+  - Initialization screen with progress bar and 3 startup optimizations: (1) Attract Mode savestate `local-roms/attract-web.state` (`4.6 KB` compressed) restored on startup via `session.restoreRawState` to skip the Atari System 1 POST; (2) Cache-First Service Worker (`scripts/beta-sw.js` → `dist-beta/sw.js`) + IndexedDB cache (`src/beta/betaCache.ts`) for the assembled `marble.zip`; (3) compressed binary encoding `rolling-actors.bin` (`src/emulation/rollingActorsBinary.ts`) replacing the 6.7 MB JSON.
+  - Automatic switch to **full-screen side-by-side view** with pixel-aligned `4:3` frames and identical scanline CRT effect on both views (original on the left, 3D on the right), without double-resetting the flyover on Level 1, and semi-transparent top banner (`V` View, `C` Camera, `Space` Boost, `Esc` Pause).
+  - Git repository initialized and linked to `https://github.com/micbuffa/MM-experiments.git` with `.gitignore` excluding Rolling Madness (`Rolling Madness 3D 2005/`, `3D_assets_for_animated_entities/`, `local-roms/rolling-actors.json`) and generated artifacts, while versioning `roms/` (ROM/BIOS), terrain/checkpoint surveys, and developer/AI documentation.
+- **Bird cast shadows in 3D view** ([createRollingActor.ts](src/rendering/createRollingActor.ts), [createLevel5Actors.test.ts](src/rendering/createLevel5Actors.test.ts)):
+  - Automatic registration of bird meshes (`bird`, `bird_fast`, `bird_expl`) as shadow casters on the `key` light's `ShadowGenerator` (`addShadowCaster(mesh, false)`), with `receiveShadows = false` to avoid self-shadowing on their animated wings.
+- **Level 5 intro flyover without clipping through the 3D model** ([createLivePracticeCamera.ts](src/rendering/createLivePracticeCamera.ts), [createLivePracticeView.test.ts](src/rendering/createLivePracticeView.test.ts)):
+  - Realigned `startCenter` onto the true start depth (`startDepth = Vector3.Dot(startAim, arcadeDir)`) instead of the `dot = 0` plane passing through the origin: on Level 5 (which ascends from the bottom-right), the final `startEye` is now properly above and in front of the starting platform instead of buried beneath the cliff.
+  - Added an elevated flyover arc (`flyoverArc = 18` on Level 5, `finishEye` pulled back to `34` units) that progressively zooms into the starting arcade framing, paired with a dynamic clearance floor `keepClearOfTerrain` along the `arcadeDir` view axis to prevent any clipping through terrain or towers.
+- **Alignment of the `GOAL` decal at the end of Level 3** ([createLevel3Materials.ts](src/rendering/createLevel3Materials.ts), [createPracticeGoal.ts](src/rendering/createPracticeGoal.ts), [createLevel3Materials.test.ts](src/rendering/createLevel3Materials.test.ts)):
+  - Shifted `level3Goal` from `z = 100` to `z = 101` (`{ x: 92, z: 101, width: 4, length: 10 }`) to cover the final row `z = 110` with no beige floor showing on the right, and to free the two end tiles of the turquoise curbs (`z = 100`).
+  - Kept the two checkered flags on the ends of the turquoise curbs (`flagZ = goalRegion.z - 1`, i.e., `z = 100`) in `createPracticeGoalFlags`.
+- **Ogival domes and thick joints on the 3 Level 2 towers** ([createIntermediateTower.ts](src/rendering/createIntermediateTower.ts), [intermediateLandmarks.ts](src/rendering/intermediateLandmarks.ts), [createIntermediateTower.test.ts](src/rendering/createIntermediateTower.test.ts), [intermediateLandmarks.test.ts](src/rendering/intermediateLandmarks.test.ts)):
+  - Hexagonal `outline(2, 2)` base exposing the two gray lateral tiles of the blue plinth, continuous curved ogival profile in 9 rings (`0 → 5.5 → 11 → 16 → 19.5 → 22.5 → 24.5 → 25.5 → 26`) with a slightly rounded crown and cast shadow faithful to the original curve.
+  - Dedicated procedural material `createIntermediateTowerMaterial` (`intermediateTowerStone`) with thick dark joints, pronounced horizontal belt at `h = 16`, and panels aligned from bottom to top across both tiers.
+- **4-quarter-pyramid castles without central spike** ([createLevel5Terrain.ts](src/rendering/createLevel5Terrain.ts), [createLevel5Terrain.test.ts](src/rendering/createLevel5Terrain.test.ts)):
+  - Removed the erroneous 5th central pyramid on the 3 castle blocks (`[36, 27]`, `[11, 28]`, `[48, 36]`): the gray peak visible in the background in the original arcade is the 4th rear corner of the crown, not a central spike.
+- **Cantilevered vaulted arch cut along the Escher seam** ([level5Bridge.ts](src/rendering/level5Bridge.ts), [level5Bridge.test.ts](src/rendering/level5Bridge.test.ts)):
+  - `openLevel5Bridge` also removes the vertical end wall at `X = 35, Z = 21..24` so it does not close off the Escher seam.
+  - `level5BridgeGeometry` builds a true continuous barrel vault over `Z = 21..24` (`alongStart = 30`, `alongSpan = 3.5`, `crownArcade = 16408`, `springArcade = 16376`) clipped along the isometric line `H = 16368 + 8 * (X - 29)` so no part of the arch protrudes below the gray floor in arcade view.
+- **Validation**:
+  - Chrome WebGL2 visual verification on `terrain.html` (Level 5 at scroll `940 px`, screenshot `/tmp/l5_escher_arcade_v3.png`).
+  - `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run build`, and `630/631` Vitest tests passing (including all Level 5 tests: `level5Bridge.test.ts` and `level5DisplayTerrain.test.ts`). One unrelated pre-existing test in `src/rendering/createPracticeLandmarks.test.ts:77` fails (`expected 1.80 to be less than 1`).
+  - The historical open issue of circles hidden under the pipe/clock remains open.
+
+## Level 5 / Level 1: finish, symmetry, and walls — screenshots 16:06–17:47 on November 22, 2026
+
+This entry supersedes the 8-unit corner descriptions and the earlier visual coordinates of GOAL in previous entries.
+
+### Symmetry and height
+
+- `createPracticeTower` used a plinth centered at **(0.5, 0.5)**, then shifted the shoulder and tip back toward (0, 0). All rings and the tip now share the plinth center on both Levels 1 and 5. The Level 1 front-joint calibration test is updated for the four-pixel projected shift resulting from this centering; its height is unchanged.
+- The three four-corner towers have a **dedicated roof and four walls**, `level5FortGeometry`, with the same construction on each side. The surveyed floor remains at their foot; the corners no longer depend on its triangulation. Vertical faces remain yellow with shared joints.
+- The four corner spikes rise by **12 arcade units**, visible in the native survey (e.g. 16380 → 16392), rather than the 8 units of the Rolling Madness model used in the previous fix. The central spike keeps its center at (cx+0.5, cz+0.5).
+- Symmetry tests via 90° and 180° rotations on roof, wall, and classic tower positions; apex centering test.
+
+### Sawtooth edges
+
+The Level 5 collision domain is bounded by **X−Z=±21**. A full tile at the edge protruded past this domain by one triangle; cuts are no longer limited to the first screens. The extraneous NE corner is removed from the +21 boundary, and the SW corner from the −21 boundary, across the entire course. The heights of the three valid corners are preserved, without using the extraneous corner to extrapolate SW.
+
+General preservation of missing SW corners, introduced during this task, also cut **interior walls** into sawtooth edges (row Z=28, X=42..48 in particular). That is removed: the three coherent samples complete the tiles of those rows; only the outer boundary is cut. Tests on both diagonals and on a full interior row. Chrome inspection confirming the straight interior wall behind the tower and the outer edges.
+
+### GOAL, small slope, and arch
+
+The GOAL shape remains 4 × 10 cells. Its presentation depth is realigned to **X=25..28, Z=24..33, H=16416** instead of the collision strip X=19..22, Z=18..27, H=16368. The +48 offset on X, Z, and H **preserves the arcade projection exactly**, while allowing the Z=34 facade to meet the Z=34..35 slope directly. The old isolated volumes are integrated into the two continuous platforms. The flags use the presented terrain height. The marking dimensions are unchanged.
+
+`level5FinishDepth` applies the same presentation realignment to both marbles on the finish strip and approach bridge; no core coordinates are written. The integration test keeps native poses and checks the 3D position; the pure test verifies projection identity.
+
+`archBridgeGeometry` extracts the geometry previously built into Level 4, without changing that level's two arches. `level5Bridge` reuses the profile (crown at −9, springing at −15 units below the deck), oriented along X, X=29..35, Z=21..24: six panels in total. The central opening measures **three cells**, X=30.5..33.5, with two solid 1.5-cell supports. The intrados profile is not stretched across the entire span. Solid passage faces are removed, and a lower floor receives shadows. Ends and neighboring walls are preserved. All these meshes and materials belong to the scene; no new loop or shadow map.
+
+### Validation and next steps
+
+**`npm run check` succeeded: 628 tests / 100 files**, format, lint, typecheck, coverage, and build. Business-logic coverage unchanged: 99.45% statements, 98.60% branches, 99.01% functions, 99.41% lines. Usual chunk size warning. **Chrome: 10/10 terrain tests succeeded**.
+
+Screenshots actually inspected: `/tmp/mm-1747-fort-top.png`, `/tmp/mm-1747-fort-front.png`, `/tmp/mm-1747-fort-back.png`, `/tmp/mm-1747-pyramid-top.png`, `/tmp/mm-1747-level1-top.png`, `/tmp/mm-1633-final-arcade.png`. The final views show the straight interior wall after restoring the tiles. Lighting differences between faces are expected; the claimed symmetry applies to positions. The local session harness loads F5 and also shows the end of the level; it is not a full played game. No Safari/audio/comfort test run added.
+
+No Git initialized; no changes to the core, collisions, ROMs, dependencies, or input gain. Visual fidelity remains subject to Michel's comparison. The historical issue of circles hidden under the pipe remains open, as noted in the previous entry; do not mark it resolved.
+
+## Level 5: fixes from screenshots 15:26–15:31 — November 22, 2026
+
+- The three towers near GOAL now have **four closed gray stone volumes**, generated by `level5FortCorners`. Each quarter has two inward slopes, two gray vertical cuts, and a base. The old terrain corner heights are removed: they produced yellow cuts via the wall generator. Edge-closure test, split vertices for normals. The terrain beneath these elements is flat.
+- The three central spikes are centered on the 3 × 3 plinth, narrowed (half-width 0.54 cell), with projected height preserved. Matte stone, shared sun lighting and shadows. The five bird pyramids retain their shared construction with Level 1.
+- Small arena ramp: two strips Z=95..96, X=90..92; native profile 16244 → 16242 → 16240 → 16238. Both strips share the exact same edges, rounded to 1e−9. The test enforces flatness and joins.
+- Squashed minis: anchoring computed from the bottom of the model so the surface is no longer buried in the floor; margin 0.025, width 1.35×. Squashed amoebas are opaque; their colors and those of other flat fills are strengthened with no specularity. Normal poses restore their dimensions and position. Timings remain those of the core.
+- Birds: yellow beak cross-section 1.8×, feather tips shortened and brought closer together; each pose keeps its native motion. Normals recomputed once on the adjusted copies, without modifying the local library.
+
+Validation: `npm run check` **617 tests / 98 files succeeded**, business-logic coverage unchanged (99.45 / 98.60 / 99.01 / 99.41%), build and typecheck succeeded. **Chrome: 10/10 terrain tests succeeded.** Actual screenshots inspected: `/tmp/mm-level5-fort.png`, `/tmp/mm-level5-compare-arena.png`, `/tmp/mm-level5-compare-birds.png`, `/tmp/mm-1531-squashed.png`. The squash harness initializes contacts then leaves transitions to the core; it is not a played traversal. No Git initialized.
+
+**Remaining issue: circles under the pipe/clock entrance.** The current mask was checked against the native framebuffer: 2,292 of the 2,296 pigment pixels surveyed in framing `/tmp/mm-1531-clock-ejs-full.png` match the full map exactly, with vertical offset 1292 and scroll −15462. However, this screenshot does not reveal the parts behind the pipe. No assumed circle or unverified extra pixels were added. Next action: isolate the target facade in a native framing where it is uncovered and complete only its proven contour. Human validation of silhouettes remains open. Do not present this issue as fixed.
+
+## Level 5: arena, pyramids, and bird death — November 22, 2026, screenshots 14:49–14:53
+
+This entry corrects and completes the initial implementation below.
+
+- The gray areas came from UVs doubled vertex-by-vertex at an incorrect height (16232, whereas the arena floor is at 16238). A single tile could span much of the atlas and turn gray due to mipmapping. `level5Surface` now assigns uniform per-cell density: **2× in X=90..103, Z=91..104**, both floor AND block tops, 1× on ramps and adjacent paths. UVs are recomputed from positions, without repeated multiplication of a shared vertex.
+- The two large slopes have a diagonal ridge: X−Z=9 for X=106..111 and X−Z=−11 for X=96..101. Their ridge cells remain folded along NW–SE with SW=NE. The previous flat extension artificially raised SW and produced sawtooth edges. Tests verify max ridge height and edge equality with neighboring cells.
+- The wall mask now reconnects pigment only in the small **gray mortar** breaks of the reference. Yellow separations between distinct motifs remain intact; 3D gray joints are applied afterward. The yellow line in the middle of the ellipses is thus removed. Local library regenerated with `extract-rolling-actors.mjs`.
+- The **five pyramids in the bird zone** now reuse `createPracticeTower` from Level 1: three-stone skirt, shoulder, joints, and tip. 3 × 3 footprint and height adapted to Level 5. Their underlying terrain is flat. The three small towers near GOAL keep their two-facet quarter-pyramid corners.
+- Bird beak: the four faces share UV vertex U≈0.0004, V=1.49. `birdParts` isolates them in a matte, slightly emissive yellow material; the purple texture no longer dilutes them in mipmaps. The model points toward −Z: π rotation fix to follow the native direction. Chrome on the real asset: 110 body triangles + 4 beak triangles.
+
+### Animations verified in 68010 and in the Web core
+
+- Fatal contact: `0x19e14` puts the player in **state 0x0b** with counter `player+0x57=0x66`. Dispatcher `0x254ba` leads to `0x25876`, then `0x13ade`: sentinel 102 → 36 → 0, eight expanding fragments. `birdDeath` reads their already-computed projected coordinates in the two player groups at +0x38 and +0xa4 (glyphs 0x10b..0x112), relative to center +0x1e/+0x20. Off-screen fragments or old records at the sentinel are not displayed. `createBirdDeath` displays these positions without an independent clock, then hides its meshes as soon as this state exits.
+- Minis: routine `0x192e2` squashes the actor, stops its velocity, and keeps state 2. **Black marble**: lists 0x21f7a → 0x21f7e → 0x21f82, then held frame via 0x21f8a. Rendering keeps the first two stages via vertical mesh compression, then uses `blacky_squashed_mini`. **Worm**: static frame via 0x21a62 (`stick_squashed_mini`). **Amoeba**: static frame via 0x21efe (`amoeba_squashed_mini`). No invented squash cycle.
+- Chrome probe: controlled contact initialization, then native code alone. All three squashes are observed; the death counter steps from 102 to 35, 34, 33… with eight fragment records (six still visible at end of expansion, others clipped). The core then returns to player state 0 and `birdDeath` disappears. The marble is off-screen after returning to the safe point in this teleported harness; no full traversal or trackpad comfort sign-off is claimed.
+- The official MAME driver consulted sets up the machine/Slapstic; the sequences above come from the local 68010 program and are confirmed in the pinned core. See `docs/DECISIONS.md` for the driver reference.
+
+Validation: **`npm run check` succeeded, 614 tests / 97 files**; business-logic coverage unchanged: 99.45% statements, 98.60% branches, 99.01% functions, 99.41% lines. **Chrome: 10/10 terrain tests succeeded**. No changes to ROM, physics, dependencies, or loops. Each new mesh/material belongs to the scene; reset on missing pose and scene disposal.
+
+Useful files: `level5DisplayTerrain`, `createLevel5Terrain`, `birdParts`, `level5Actors`, `createLevel5Actors`, `birdDeath`, `createBirdDeath` and their wiring in `practicePose`/`createLivePracticeView`. Tests on UVs, ridges, pigment/mortar mask, squashes, P1/P2, fragments, and cleanup.
+
+Screenshots inspected: `/tmp/mm-1449-arena.png`, `/tmp/mm-1453-birds.png`, `/tmp/mm-1453-bird-death.png`, `/tmp/mm-1453-bird-death-late.png`, `/tmp/mm-1453-bird-rebuild.png`, `/tmp/mm-bird-beak-close.png`. Native log `/tmp/mm-1453-native-cycle.log`. The latest harness screenshots replay real contacts without directly forcing squash or death states. No Git initialized. No Safari/audio/P2 test run played.
+
+Next action: reload the app to pick up the local mask, then F5 and playtest Level 5. Keep native fragment reading, per-cell tiling density, and folded ridges; do not reintroduce the height-based UV condition. Level 6 next, on request.
+
+## Level 5 — Silly Race, original motifs, and towers — November 22, 2026
+
+Michel validated the closed Y of Level 2 and the waves of Level 3 before moving on to Level 5. Level 6 is not part of this task.
+
+- Local survey `level5-terrain-v1`, 141 × 141, 3,825 active cells, native heights 16168..16416. 68010 descriptor `0x2de1e`, start `(1004,996,16168)`, scroll −15212. Reversed scrolling: F5 and the Level 5 button restore the local checkpoint; `/terrain.html` also offers Level 5, the reversed slider, and free view. The study limit −16152 frames the finish; it is not a measurement of the native limit.
+- `scripts/survey-level5.mjs` verifies the sampler against the Level 4 survey, then lets the core initialize the next race in a diagnostic session. It only writes a derived survey and a normal checkpoint in `local-roms/`. The harness's transition RAM writes are not integrated into the game. No changes to the core or collisions.
+- `createLevel5Terrain` includes floors, walls, shadows, GOAL, and decorative clock. `level5DisplayTerrain` fixes the fourth samples that produced sawtooth edges on ramps. Eight 3 × 3 cell plinths carry their central pyramids. The four corners are **two-facet quarter pyramids**: diagonal adapted to the raised corner, split vertices for normals. The test includes a triangular cell before the towers to verify that their detection does not depend on a multiple-of-six index.
+- The repeating Rolling Madness motif is replaced by a **pigment mask extracted from `MarbleMadness_Level5.png`**. Only ellipse pixels are kept; no shadows, joints, or floors are copied. Projection calibrated on the 576 × 2286 map: `uPixels=270+2*(nativeZ-nativeX)`; `vPixels=nativeX+nativeZ-2*(nativeHeight-16384)-256`. Wall UVs use this transform, respecting PNG data orientation. The circles on the GOAL facade match the same positions as in the native view. Colors are driven by the core's PF banks: orange 31/29, pink 27/28, yellow 15/14/13, joints 4. The mask describes surfaces visible on this reference; hidden faces have no independent visual proof.
+- `level5Actors` reads **9 minis**, RAM base `0x1890`, stride `0x28`, types 7/8/9 at +0x25, and **10 birds**, base `0x19f8`, stride `0x38`. 16.16 fixed-point positions at +0xc/+0x10/+0x14; activity +0x18, state +0x1a, sprite list +0x1c, counter/period +0x24/+0x25. Cycles are read from native lists, without a Babylon timer or recreated movement. Mini and bird models from Rolling Madness are added to the local library; squashed states use the corresponding poses. Adapting 3D poses to sprites remains a visual correspondence, not a mesh identity.
+- `readPracticePose`, local loading, comparison, and camera accept Level 5. A test prevents the regression where the camera remained stuck on GOAL due to the increasing scroll clamp. Level 4 vacuums remain procedural. No new dependency, engine, or render loop.
+
+Rebuilding local assets: `node scripts/extract-rolling-actors.mjs "3D_assets_for_animated_entities/data/{app}"`. This command also extracts the original mask via `scripts/level5-wall-pattern.mjs`. Library: 6,725,084 bytes before the latest code tweaks, under the 8 MB limit; none of these files are shipped in the build.
+
+Final validation: **`npm run check` succeeded, 605 tests / 93 files**; **Chrome: 10/10 terrain tests succeeded**, including Silly Race. Business-logic coverage 99.45% statements, 98.60% branches, 99.01% functions, 99.41% lines. See `docs/VALIDATION.md` for commands and results. Chrome comparison screenshots in `/tmp/mm-level5-compare-*.png`, tower view `/tmp/mm-level5-fort.png`. These views come from positions initialized in a temporary harness, not a full trackpad run. The colors of the full PNG differ from some native palettes: the PNG sets the motifs, RAM sets the in-game tints. The imported clock remains a static prop. No Git initialized.
+
+Next action: verify the played traversal and interactions with minis/birds; keep the original mask and corner facets. The next level to rebuild will be Level 6.
+
+## Closed and smoothed Y, interior/exterior — November 22, 2026, 11:40 screenshot
+
+This entry supersedes the hood-cutting reconstruction and local spout flattening described earlier. The audit shows that the Y extracted from Rolling Madness is a closed surface; the stray openings came from faces deleted and then replaced without a complete seam.
+
+- `refineIntermediatePipe` preserves the entire source surface and subdivides each triangle of the Y into four, with local branch relaxation. The thin lips of the three mouths are protected: independent relaxation caused the interior/exterior skins to intersect. Material boundaries and sharp edges are also preserved. A partial/non-closed surface is not subdivided. The separate J is neither moved nor subdivided.
+- `fitIntermediatePipeHoods` compacts the hoods to 85% above their base and keeps the junction lowering (1.45 units max) via a continuous deformation applied identically to coincident vertices. No hood, underside, lip, or seam faces are deleted anymore. Skin-classification flattening is removed: it also created degenerate triangles after subdivision.
+- Normals recomputed across coincident vertices of different faces and materials; J source normals preserved. `createIntermediatePipes` also uses the adjusted interior indices. Removed the special flat-normal calculation on the spout and the `normalW.z < -0.9` threshold that produced a sharp bright spot inside despite the matte material.
+- No changes to local extracted data, core, collisions, or timings. No new dependency, scene, light, or loop. Copies and buffers are owned/disposed by existing meshes.
+
+Reproducible audit, with Vite running: `node scripts/audit-intermediate-pipe.mjs`. It only reads the local pipe survey and prints numbers, without exporting geometry, ROM, or heap. On the real **Y**: 352 source triangles, 1,408 after subdivision; **0 open edges, 0 non-manifold edges, 0 degenerate triangles, 0 non-coplanar intersections detected between non-adjacent faces**, with an edge tolerance of 0.000001 units. Smallest double area after adjustment: 0.0197808653. The separate J is outside this targeted audit; its model has pre-existing intersections and remains unchanged.
+
+Validation: **`npm run check` succeeded, 596 tests / 89 files**; coverage 99.45% statements, 98.59% branches, 99.01% functions, 99.40% lines. The first pass flagged an unimported `console` usage in the new script; replaced with `stdout` imported from Node before succeeding. Non-regression tests: hollow tube with lips, preservation of closure and orientation, open mouths, absence of degenerate triangles, unit/continuous normals, duplicated vertices, and source immutability. **Chrome: 9/9 terrain tests succeeded**. Usual large-chunk warning. No Git initialized.
+
+WebGL2/SwiftShader inspection with no JS or shader errors: three arcade framings of Level 2, four close-ups around the intakes, three around the spout, and views actually inside the pipe toward the intakes/spout. For the latter only, the study camera distance limit is lowered in the harness without changing game navigation code. Screenshots: `/tmp/mm-l2-pipe-wall-closed3-*.png`, `/tmp/mm-y-sealed-intake-*.png`, `/tmp/mm-y-sealed-inside-*.png`. The initial arcade framings precede the removal of the bright-spot threshold; intake close-ups and interior views were retaken afterward. No new full game, Safari, audio, or trackpad test run.
+
+Next action: reload and inspect the intake from the behind-the-marble view and the spout in free view. Keep the closed source topology; do not reintroduce hood cuts or skin flattening.
+
+## Protruding floor, Y roof, and false spikes — November 22, 2026, 11:24–11:27 screenshots
+
+This entry supersedes the shelf extension added in the previous task: both alcove floors are completely recessed from the facade, each seven tiles by three. The lower shelf no longer protrudes three tiles in front of the wall or over the ice; its height is preserved. The build test now explicitly verifies its boundary at the x = 88 plane.
+
+The streaks on the Y mouth roof were geometric z-fighting: both the interior and exterior skins belong to `shell`, not two separate materials. The old `interior` criterion recognized only the interior floor, leaving both roof skins on the same plane. `fitIntermediatePipeHoods` now uses source normals to preserve their orientation and 0.11-unit separation. A test covers both skins in the same material without an interior list. Imported source files remain unchanged.
+
+The three small yellow/white spikes around the Level 1 central tower came from the SW corners of three tiles (x = 28..30, z = 24) that picked up the tower's collision profile. `practiceDisplayTerrain` extends the plane defined by NW/NE/SE when SW is abnormally raised. This removes the facets and triangular walls above the tiling. Legitimate gray spikes and arcade rules/collisions are preserved. Synthetic test for continuity, absence of raised wall, and immutability.
+
+Validation: `npm run check` succeeded, **591 tests / 88 files**, coverage 99.45% statements, 98.59% branches, 99.01% functions, 99.40% lines. `PLAYWRIGHT_CHANNEL=chrome npx playwright test tests/browser/terrain.spec.ts`: **9/9**. No dependency changes; usual large-chunk warning. No Git repository initialized.
+
+Chrome WebGL2/SwiftShader, with no JS exceptions or shader errors: three arcade framings of the end of Level 2, three close-ups of the Y spout (front, top, back), and three views of the Level 1 tower (back, top, side). Screenshots inspected: `/tmp/mm-l2-pipe-wall-inset-roof-fix-760.png`, `/tmp/mm-spout-skins-fixed-{front,top,rear}.png`, `/tmp/mm-opening-pits-after-{behind,top,side}.png`; before views available under `/tmp/mm-opening-pits-before-*.png`. No new full game, Safari, audio, or trackpad test run.
+
+Next action: reload the app and check the three framings flagged by Michel. Do not reintroduce a platform in front of the lower alcove.
+
+## Starting pits, alcoves/Y, and vacuum backs — November 22, 2026, 10:24–10:28 screenshots
+
+- **Level 1**: the black outline around the pits came from transparent pixels in the wall atlas being interpreted as opaque. The BabylonJS 9.33.2 shader enables `ALPHATEST_AFTERALLALPHACOMPUTATIONS` with vertex colors: `useAlphaFromDiffuseTexture = true` is required to include the atlas alpha in this final test. The fix preserves existing joints and geometry. The initial diagnosis of a gap in the tiling is disproved by the GPU readout: the black pixels had the exact joint tint (24). After the fix, the tiles behind the cutout reappear.
+- **Level 2**: both alcoves keep an identical width of seven tiles, verified on their world coordinates. The recess remains three tiles deep. The lower shelf is raised by 1.2 units and extended three tiles forward to form the visible horizontal platform, instead of disappearing behind the ice. The vertical distance between shelves is now 9.
+- The **Y** junction is lowered locally (maximum 1.45 world units) without moving its two hoods, its other pipe, or the outlet onto the terrain. Normals follow the deformation. The flared spout has flat roof and cheeks, a distinct facet reading from the rounded shaft, and keeps 0.11 units between interior/exterior faces to avoid overlap. Imported source geometry remains intact; the adjustment is done on a copy.
+- **Level 4 vacuums**: added a 90° procedural elbow between the vertical stem and the rear head intake, and closed the back of the head around this joint. The elbow is parented to the stand and extends slightly into the head to maintain a join during shaking. The mouth goes from 1.70 × 0.62 to 1.70 × 0.84 units; the shell is also taller (1.28 max). Native positions and triggers remain unchanged. No Rolling Madness asset added for the vacuums.
+
+Validation: **`npm run check` succeeded, 589 tests / 88 files**, coverage 99.45% statements, 98.59% branches, 99.01% functions, 99.40% lines. The first full check flagged a forbidden type annotation in the browser test and then an indexing requiring explicit typing; both were fixed before full success. Usual BabylonJS large-chunk warning kept. No dependency additions; Git repository not initialized.
+
+**Chrome: 9/9 terrain tests succeeded**, including a GPU regression that projects a transparent atlas texel onto an isolated surface: the near-black background reappears (channels < 5) instead of joint tint 24. Unit tests also verify the elbow, less-flattened mouth, seven-tile world width of both shelves, lower platform, junction lowering, spout thickness, and source immutability.
+
+WebGL2/SwiftShader inspection: arcade framings of Levels 1–3 and pipe/ice, three close-ups of the alcoves, vacuums in front and rear close-up. No JS exceptions or shader errors in these inspections. Local screenshots: `/tmp/mm-l1-followup3-0.png`, `/tmp/mm-l2-pipe-wall-followup6-{730,760,790}.png`, `/tmp/mm-vacuum-followup-{front,rear}.png`. Michel's screenshots and the full Level 2 PNG served as references. No new audio, Safari, or trackpad test run, nor full game; geometric adjustments remain 3D interpretations of arcade views, not pixel-for-pixel equality.
+
+Next action: reload and compare both alcoves / the Y spout against the 10:24 screenshot, then view the vacuums from behind in free view.
+
+## Level 2 recesses and Level 3 green details — November 22, 2026
+
+Fixes following the 05:04, 05:08, and 05:09 screenshots and clarifications on the two niches:
+
+- Level 2: two stacked openings, with two distinct shelves seven tiles long by three deep, back wall, and side returns. A solid strip separates the openings; the wall resumes beneath the second. The Y keeps its imported branches and spout, but its two hoods are replaced by extruded quarter cylinders. Old triangles crossing the seam are clipped at the base plane. The source remains intact. Purples come from playfield 52/54/57, without white highlight.
+- Level 3: removed wave height amplification (1.32×), fixed top normals, no shadows received on water and its skirts, removed overlapping tiled floor under its footprint. The live profile remains driven by arcade samples, with no new simulation; identical samples no longer rewrite buffers. Flat green is 63/126/99; reliefs use the wave sprite colors.
+- Green borders no longer receive stray cast shadows and remain matte; light tint 150/195/165. The small pyramidal cap in the V increases from 0.85 units to 16 arcade units (1.633 world units). Its footprint is unchanged. Level 1/3 flags become pale yellow and black, like Level 4; Level 2 flags remain cyan.
+- Dark faces of Level 3 walls now account for shadows: previously their color completely ignored the shadow term. A diagnostic ray confirms an occluding wall on the wall adjacent to the waves. Shadow contrast remains a presentation approximation.
+- Level 1–3 vertical joints: four pixels centered on sixteen, instead of two. Measured in the full PNGs: repeating 12 wall pixels then 4 joint pixels, notably Level 2 line 1750 and Level 3 line 2000.
+
+Bounded graphics readout: 64 playfield words at B00400, then 16 motion object words at B002a0. Indices 64–79 of the array correspond to MO colors 80–95. No heap, ROM, or state dump; no physics modified. Resources and plugins remain owned/disposed by the existing scene.
+
+Validation: `npm run check` succeeded, **587 tests / 88 files**, coverage 99.45% statements, 98.59% branches, 99.01% functions, 99.40% lines. Tests added for wave amplitude/normals/profile stability, cone height, local replacement and immutability of the pipe, joint thickness; tests extended for both shelves, flags, and palette banks. `PLAYWRIGHT_CHANNEL=chrome npx playwright test tests/browser/terrain.spec.ts`: **9/9** succeeded. The first run without a channel failed because Chromium was not installed; installed Chrome was used for the entire test run. The GPU expectation for the dark Level 3 wall is updated for its new shadow (15 instead of 24).
+
+Chrome WebGL2/SwiftShader: ten framings of Levels 1–3, pipe/ice views, three close-ups of the niches, then two comparisons with the living core at the starts of Levels 2 and 3; no JS exceptions or shader errors found. Local screenshots: `/tmp/mm-l2-pipe-wall-revision6-{730,760,790}.png`, `/tmp/mm-l{1,2,3}-corrected-*.png`, `/tmp/mm-native-level{2,3}-details.png`. Animated waves are inspected on the study page; a full human playthrough up to the waves remains to be done. Depths are exact as requested, but the height of the second recess and the hoods are visual adjustments, not a complete extraction of arcade geometry. No pixel-for-pixel equality claimed. Safari and trackpad feel were not retested. No Git repository initialized.
+
+Concrete next action: reload the app and compare both niches from the free view, then the waves in live gameplay on the framings provided by Michel. Keep the procedural vacuums on Level 4.
+
+## Native palettes for Levels 1, 2, and 3 — November 22, 2026
+
+The verification requested after Level 4 is applied to the three preceding courses. Colors come from the living core's palette, not from the full PNGs' palette. Comparative screenshots in a single session, original on the left / 3D on the right, for each start. The first level is reached with Credit/Start; the next two with their local checkpoints. No heap export, ROM modification, or physics change.
+
+- Level 1: gray floor 180/180/180; yellow walls 255/238/0, orange 238/119/0, dark face 170/51/0. Existing pit and strip motifs/UVs are preserved; dark-facing walls recover their brown instead of turning yellow after the palette fix.
+- Level 2: same gray floor; cyan walls 0/187/255, shadow 0/100/150, and dark face 0/54/90. Previously too-dark tiles are realigned. Ice keeps its basin atlas but uses the second bank's tints: cyan 0/135/135, highlight 0/255/255, shadow 0/45/45. White highlights are removed; highlights on blue pipes are reduced.
+- Level 3: sand floor 210/182/140; dark-gray walls 45/45/45, 36/36/36, 24/24/24, dark-sand joints. Towers and arches keep their motifs, realigned to this palette. Waves and green borders use the second bank (99/143/121 flat, 187/221/187 lit). The copper pipe keeps its model/position/diameter, with a softer highlight.
+
+`emulation/level4Palette.ts` becomes `terrainPalette.ts`: same bounded and verified 32-word readout, same reuse of the unchanged array, but available across all courses. `practicePose` publishes the palette for each level and `createLivePracticeView` forwards only its changes. `TerrainPalettePaint` shares uniforms and their updates; `ArcadeTerrainPaint` distinguishes floor, wall, tower stone, green, and ice. Level 4 keeps its own colors and local shadow mask. Grain remains procedural; inherited vertex colors no longer double-light floors. Stones are matte. PCF filtering and a 0.02 normal bias reduce shadow artifacts without a new sun or map; NullEngine uses the Poisson fallback provided by BabylonJS.
+
+Validation: `npm run check` succeeded, 584 tests / 86 files, format, lint, TypeScript, coverage, and build. Six new unit tests verify palette transport for the three courses, array reuse/immutability, and uniform updates for both banks without new resources. The terrain browser suite passes 9/9: three new cases measure floor and dark-face pixels (180/180/180 and 170/51/0; 180/180/180 and 0/54/90; 210/182/140 and 24/24/24) on synthetic terrains without ROMs. The Level 4 shadow/palette regression remains included and passing. An initial `check` hit concurrent recreation of `test-results` by Playwright; the full check was then run separately.
+
+GPU: Chrome WebGL2/SwiftShader; live comparisons at the three starts, then ten study arcade framings and the two dedicated Level 2 pipe/ice views, with no JS exceptions or shader errors. Screenshots `/tmp/mm-native-level{1,2,3}-after.png`, `/tmp/mm-l{1,2,3}-final-*.png`. Shadow silhouettes and material grain remain 3D approximations; full equality with original tiles is not certified. No new local shadow mask was added on these levels. Trackpad comfort and Safari were not retested.
+
+Next action: human comparison after reloading, notably Level 3 charcoal walls, Level 1 brown faces, and cyan ice.
+
+## Living core palette and left-side finish shadow — November 21, 2026, 22:14/22:16 screenshots
+
+This fix replaces the color calibration from the previous entry: the full PNG remains a geometric and shadow-silhouette reference, but its palette is not that of the Web core during gameplay. Michel's two views are indeed original on the left / 3D on the right. A local core screenshot confirms coral walls 255/68/51, their shadow 187/51/34, their dark face 119/34/17; finish walls are amber 255/187/0, with shadow 221/136/0 and dark face 153/102/0. Light floor is 180 and vertical joints 70. The initial ramp goes from brown 75/70/60 to beige 165/143/110 and light pink 255/204/204 depending on orientation, unlike the uniform bronze used previously.
+
+`level4Palette.ts` reads only the 32 useful entries from graphics RAM B00400, via the verified pointer of the pinned binary. It checks both tables B00000..B007ff, their handlers, the pointer, and its bounds. The `IIIIRRRRGGGGBBBB` decoding reproduces native intensity. An unchanged palette reuses its previous array. `practicePose` passes it to `createLivePracticeView`, then to the uniforms of `Level4CliffPaint` and `Level4GoldPaint`, only on change. The study scene uses the same measured tints as a fallback. Grays are brightened toward the native 180 floor. Stone and tracks remain matte. No ROM byte, input, or arcade rule is modified.
+
+The large left exterior wall X=90, Z=72..90 meets no obstacle toward the sun in the reconstructed geometry (rays verified). The shadow visible in the original tiles is therefore supplemented by a local mask fixed to this wall's coordinates. Its boundary is measured from the full PNG: H=16213/16203/16193 at Z=72.5/73.5/74.5; plateau H≈16187 at Z=75.5..78.5; diagonal resumes at Z=79.5. The mask combines via minimum with sun visibility; it removes no 3D shadows and adds no invisible wall, texture, shadow map, observer, or GPU pass. It stops before the posts of the second overpass.
+
+Validation: `npm run check` succeeded, 578 tests / 85 files, coverage, lint, TypeScript, and build. Three new unit tests cover decoding, invalid memory, palette change/reuse, immutability, and passing to uniforms of both materials without resource creation. The "large yellow wall" GPU test passes on a synthetic grid without ROMs and checks pixels 221/136/0 in shadow and 255/187/0 in the lit zone. The terrain browser suite passes all 6 tests, without personal ROMs.
+
+Chrome WebGL2/SwiftShader: six study framings with no JS exceptions and live comparison at start (same arcade session, arcade cameras, active capture). Screenshot `/tmp/mm-live-native-comparison.png`; study `/tmp/mm-l4-shadowpalette-{0,160,320,480,640,784}.png`. Live readout confirms starting palette words F721/FB32/FF43. No heap export was performed. The mask is a local restoration of the arcade shadow, not proof of missing geometric occlusion. Other silhouettes and tile grain remain procedural approximations.
+
+Next human validation: reload the view and compare the start and then the large left finish wall. The color reference is now the living core, not the full PNG with a different palette.
+
+## Level 4 palette and materials — November 21, 2026
+
+Comparison against `MM_original_levels_full_views/MarbleMadness_Level4.png` across six arcade framings covering the level (scrolls 0, 160, 320, 480, 640, 784). PNG color sampling, then comparison of pixel families after joint alignment and arcade aspect correction (5/3 in X, 1.75 in Y). This diagnostic is not pixel-for-pixel equality: shadows, filtering, procedural joints, and some silhouettes differ.
+
+`Level4CliffPaint` now uses native colors: orange 204/68/0, shaded orange 153/34/0, dark red 102/0/0, yellow 255/255/0, ochre 187/153/0, and dark-face yellow 136/102/0. Vertical joints remain gray 102. Existing friezes, low yellow walls, and geometry fixes are preserved. Light/shadow mixing uses the `key` map, removing the unshadowed hemisphere contribution. The palette limits brown shifts and blacks on dark faces; it is a presentation arcade treatment, not a core change or a new sun.
+
+Tiles become neutral, slightly brighter, and matte. Hemisphere fill for Level 4 alone is set to 0.30 with a neutral ground. Golden ramps keep lit normals but drop the per-vertex color boost inherited from Level 2, which washed out the right slope. Their diffuse/emissive component limits contrast and keeps the bronze tone. Stone has no specular; the imported catapult is fixed to pure red despite its pink 255/68/68 source texture, with a very faint red highlight. Imported hammers no longer have a white highlight. Procedural vacuums kept; no asset substitution, new texture, or new loop.
+
+Automated validation: 16 targeted tests succeeded, then `npm run check` (575 tests / 83 files, format, lint, TypeScript, coverage, and build). Tests notably check no specular on stones, gray neutrality, no vertex over-lighting on golden ramps, and the red material on imported catapult poses.
+
+GPU validation: Chrome WebGL2/SwiftShader, six framings, no JS exceptions. Measured medians in comparable families: orange 190/80/32 → 204/68/0; red 93/14/7 → 102/0/0; yellow 241/218/36 → 255/255/0; dark yellow face 68/65/7 → 136/102/0; light tile 144/144/146 → 168/168/168 (target 170/170/170). These numbers do not prove every shadow matches. In particular, some large yellow walls remain too bright compared to the reference ochre: shadow distribution still needs refinement. Tests with sun angle and adding main tiles to shadow casters did not improve this enough, so they were not kept.
+
+Local screenshots `/tmp/mm-l4-calibrated-{0,160,320,480,640,784}.png`; baseline `/tmp/mm-l4-before-*.png`, diagnostic `/tmp/mm-color-audit.py`. Next human validation: side-by-side comparison of deep yellow walls and mechanisms in gameplay. Palette calibration is complete; full fidelity of shadow silhouettes is not claimed.
+
+## Level 3 initial corridor floors and walls — November 21, 2026, 21:34/21:35 screenshots
+
+The defect is reproduced from behind the maze, as in Michel's screenshots. The survey contains 43 cells where SW samples the plateau at 16384 while NW/NE/SE belong to the lower corridor. `terrainMesh` then built an inclined tile triangle all the way up to the top of the wall, very bright under lighting: these false ramps appeared to slice through vertical walls and floors.
+
+`level3DisplayTerrain` now reconstructs SW from the plane of the other three coherent corners, only within maze X=16..42, Z=18..44, when that corner matches the plateau and the other three remain clearly below. The other three heights are unchanged: small native slopes are preserved. The large exit ramp and later reliefs keep their handling. Walls from the new edges are vertical, and neighboring floors join with no interior cliff or raised triangle. No changes to core, original survey, materials, or shadows.
+
+Validation: `npm run check` succeeded, 575 tests / 83 files, coverage, lint, TypeScript, and build. New tests reproduce two adjacent tiles with a stray corner, check floor and wall normals, absence of interior wall, preserved gentle slope, exit ramp, and no effect on a cell outside the sector. The source survey is unmodified. Chrome WebGL2/SwiftShader: wide free view, reversed close-up view, and opposite view, with no JS errors. The diagnostic on the real survey counts 43 fixes; it finds no such pattern outside the repaired sector. Screenshots `/tmp/mm-2135-after-wide.png`, `...-detail.png`, `...-reverse.png`, with corresponding `before` screenshots for the wide and reversed views. Final shadow filtering and bias remain existing settings: the fix addresses geometry triangles, not masking shadows.
+
+Next action: compare the reloaded free view to Michel's and traverse the corridors in gameplay to confirm visibility comfort.
+
+## Pipe and block shifted by one tile — November 21, 2026, 21:24 screenshot
+
+Michel's photo shows seven tiles before the side block, versus six previously. The pipe and block are moved together by one tile toward +Z (right on screen). The previous conduit width fix and procedural vacuums are preserved.
+
+- The three-row block now occupies Z=76/77/78, X=76..78, at 16320. The old row Z=75 returns to the lower level at 16196. This adds one tile on the edge of the large platform before the block (Z=69..75).
+- The opening still measures 3×4 tiles, but occupies Z=79..82. Its Z=83 end touches the existing high platform directly: no empty one-tile strip on the right. Stray corners from the old survey are flattened to the lower level beneath the funnel, without removing its low floor.
+- Pipe shell and liner receive the same `position.z = 1` offset. Imported data remain intact; widened diameter and height remain those from the previous fix. No changes to the arcade core.
+
+Validation: `npm run check` succeeded, 573 tests / 82 files, coverage, lint, TypeScript, and build. Tests for the seven approach tiles, the three shifted high rows, closure at Z=83, no modification to the source survey, and bounds of the two translated meshes. Chrome WebGL2/SwiftShader at 540 px, no JS errors. Screenshot `/tmp/mm-2124-level3-pipe.png`: three-tile block moved with the funnel, right lip joined to the platform.
+
+To do with Michel: compare the reloaded view to his 21:24 screenshot and verify the marble's passage in a real game after this visual realignment.
+
+## Inventory, Level 3 pipe, and procedural vacuums — November 21, 2026, 19:23/19:33 screenshots
+
+Michel explicitly asked to keep procedural vacuums. No Rolling Madness model, texture, or `hoover` sound is wired in. The actually used inventory is now at the top of `public/assets/README.md`, with loaded-but-unused models distinguished from selected models.
+
+- `widenLevel3Pipe` increases the vertical conduit diameter by 22%, with smooth transition to the preserved lip and bend/outlet. Positions and normals are copied; the original imported geometry remains intact. The octagonal conduit also needed to clear the marble between flats, not just have a large enough maximum radius.
+- The 19:33 photo shows three tiles between the left edge and the funnel, versus two in the scene. `level3DisplayTerrain` restores Z=75 to 16320 for X=76..78: the high rows are Z=75/76/77. The mouth still starts at Z=78; the pipe is not moved and its opening remains clear.
+- `createLevel4Vacuums` now owns the six procedural vacuums, their shared materials, and their meshes (disposed with the scene). Rectangular head with slight corner curvature, stepped lip, shallow golden back with four dots, flat-faced conduit, and three ribs. The top of the head stays near the old version's height.
+- `readLevel4VacuumMouthFrames` reads the two active frames emitted at +0x42: tables `0x22016/0x2201a` or `0x220a6/0x220aa` depending on type. The signal goes through `PracticePose.vacuumMouthFrames` and the existing setter. Only the head oscillates slightly (position/rotation/squash) when the vacuum is fully raised and in its active loop. Retraction and reset cancel the effect. No live clock or observer added; the vertical pipe remains fixed. Suction fragments follow the moving nozzle target.
+
+Validation: `npm run check` succeeded, 572 tests / 82 files, coverage, lint, TypeScript, and build. Tests for marble clearance against conduit flats, lip/outlet/source preservation, exact three rows, emitted frame distinct from next frame, head-only motion, reset, and live view wiring with fragments. Chrome WebGL2/SwiftShader: Level 4 at 180/250 px, Level 3 at 540 px, no JS errors. Both injected native phases give distinct visual positions; these tests are not a full suction replay. A sphere of diameter 1.35 placed inside the conduit at (18.5274, -9.5, 20.9958) is occluded: zero blue pixels detected; removing the pipe meshes reveals 2099 blue pixels, confirming the test sphere is rendered. Screenshots `/tmp/mm-1923-vacuum-180.png`, `...-250.png`, `/tmp/mm-1923-level3-pipe.png` (with the three rows), and `/tmp/mm-1923-tremor-0.png` / `...-1.png`.
+
+To be validated by Michel: likeness of the new vacuums against his photo, and actual marble passage through the pipe during a game. Rules and collisions remain those of the arcade core; only presentation is adjusted.
+
+## Profiles of the two arch pairs — November 21, 2026, 19:12 screenshot
+
+Profiles are realigned against the full arcade reference, using adjacent tiles as landmarks. Three-tile spans, spacing between the two piers, 0.1-tile thickness, and platform joins are kept.
+
+- First pair: lowered intrados, crown at 16255 and ends at 16249, for a top at 16264. The fascia was much too thin.
+- Second pair: raised intrados, crown at 16262 and ends at 16256, for a top at 16272. The fascia was too thick.
+- Curve changes from `sin(pi*t)^0.55` to `sin(pi*t)`: less-bulging shoulders, crown transition closer to the drawn profile. Thin tops are gray.
+- Previously restored end walls and shadows remain in place. No changes to physics, camera, or shadow resources.
+
+Chrome comparison at 570 px, same horizontal and vertical scale as the page framing (the full-level raster must be stretched vertically by 5% compared to uniform scaling). Overlay screenshots `/tmp/mm-arch-overlay-calibrated.png`, render `/tmp/mm-arch-model-after.png`, reference `/tmp/mm-arch-original-calibrated.png`. Do not draw conclusions from a uniform overlay: it adds a slope offset at joints. At 570 px: image left 76 px, top -2021.35 px, size 960×3580.5 px; check crop (450,250), 450×570 px in the 1120×840 window. Three checks on the front contour of the first pair give an error of 0/0/1 screenshot pixels, versus 20/18/21 before the fix. Two points on the second pair give 1/0 pixels, versus 27/25 before the fix. Pixel edges, lighting, and tint are not certified identical to the original.
+
+Validation: `npm run check` succeeded, 568 tests / 79 files. The new test measures seven profile points on each of the two pairs from vertices, with a one-arcade-height-unit tolerance for the native raster staircase. Chrome WebGL2/SwiftShader with no JS errors; both pairs and the curved shadow are visible in the screenshot. Next action: compare the reloaded view against Michel's 19:12 screenshot and the local overlay.
+
+## Curved shadow, axle, and Level 3 GOAL — November 21, 2026, 19:00 screenshots
+
+All three requests are fixed and verified in Chrome:
+
+- The `openLevel4Bridge` cutout also removed the end walls of the banks X=87/90, Z=91..95. They are preserved; only the large faces along the arches are opened. `level4-landing-cliffs` again receives shadows from the existing sun. The right wall now bears the curved silhouette of the pier. No new light or shadow map added. `splitLevel4LandingWalls` also keeps full quads, because wall colors depend on the upper edge of each face. The old per-triangle copy was incompatible with this classification.
+- `fitCatapultAxle` shortens the transverse ends of the imported axle. The mask is determined in the rest pose and kept for all poses: cup and arm remain intact, even during throw. The original local library is not modified.
+- The last study scroll of Level 3 moves from -15440 to -15336, i.e. a slider from 736 to 840 px. The full GOAL plate now fits in the arcade framing, with a 32-native-pixel margin below its bottom corner. Live scroll remains supplied by the core; it was not capped here.
+
+Validation: `npm run check` succeeded, 567 tests / 79 files, coverage, lint, TypeScript, and build. Tests for preserving both walls, receiving and casting on the same map, quads/colors, axle shortening across multiple poses without altering source/cup, GOAL in the final frame. Chrome WebGL2/SwiftShader at Level 4 scrolls 510/620 and Level 3 scroll 840, no JS errors. Removing only the low arches from shadow casters changes 4380 pixels in the right wall window (RGB > 6), confirming their contribution. Local screenshots `/tmp/mm-1900-level4-510.png`, `...-620.png`, and `/tmp/mm-1900-level3-goal.png`. The projection remains 3D-computed; its silhouette is not certified pixel-for-pixel identical to the arcade drawing.
+
+Next action: compare the reloaded app to the 19:00/19:01 screenshots. The existing Vite server remains available at `http://127.0.0.1:5173/terrain.html`.
+
+## Hammers, U-support, arches, and finish — November 21, 2026, 18:35 to 18:38 screenshots
+
+Michel's six points are addressed:
+
+- 68010 audit of hammers: the 15-entry table repeats sprites at steps 3/4 and 8/9/10/11 and returns to initial sprites at steps 13/14. Imported models and procedural fallback now respect these repetitions. The RAM reader mainly uses **+0x42/+0x44**, the frame actually emitted by `0x13334..0x13440`, rather than +0x3e, which `0x132e0` already advances to the next frame. Zone-change activation and waits remain in the core; no live clock added. Detailed evidence in DECISIONS.
+- The top of the six blocks of the U-support shares a solid gray material, without texture or joints (`level4-catapult-rim-top`), owned by the scene. Vertical face joints remain in place.
+- Both arch pairs receive sun shadows and remain in its shadow-caster list. The internal-face palette mask preserves their light reaction, instead of forcing the dark exterior red onto them. Approved geometry and dimensions are preserved.
+- Low finish faces (top <= 16228 and sector X+Z >= 146) are yellow across their entire height. Classification is constant per face; tall walls keep the boundary and red/yellow stippling.
+- Level 4 finish flags: pale yellow/black checkerboard and yellow poles.
+
+Validation: `npm run check` succeeded, 565 tests / 78 files, coverage, lint, TypeScript, and build. Targeted tests for the RAM reader (emitted frame distinct from next frame), pose repetitions, retracted end, procedural fallback, shared textureless gray material, both receiving arches, yellow low walls, and checkerboards. Chrome WebGL2/SwiftShader at scrolls 510/620/784, no JavaScript errors. A/B checks for sun, shadow reception, and shadow casting; see VALIDATION for measurements and limits.
+
+Limitation: Rolling Madness mesh poses remain an adaptation of the sprites; timings and triggers are those of the core. The MAME probe still confirms creation of the four objects; teleportation attempts did not produce a full native traversal/strike replay. Trigger and wait analysis therefore relies on disassembly, not such a replay. To do with Michel: a played traversal of the zone to visually assess strikes and collisions together. The app is available on the existing Vite server, `http://127.0.0.1:5173/terrain.html`.
+
+## Start: stray frieze, contact line, and large wall shadow — November 21, 2026, 18:00/18:02 screenshots
+
+Three presentation fixes based on Michel's new screenshots:
+
+- The yellow/stippled frieze is no longer applied to the cliffs of the first sector. The mask now requires X+Z >= 120. The leftmost wall remains orange all the way down; downstream zones keep their yellow and frieze.
+- The line under the left arm was a false contact self-shadow on facade X=22, Z=18..23. This facade resumes the uniform orange tint of the reference, with joints preserved. Other faces remain lit. Starting Z faces keep their dark red with no artificial dark diagonal; shadow driving in subsequent sectors is kept.
+- Deep walls of the crossing again receive the sun's (`key`) full shadow map. It includes the large cliffs, jump ramps, and their walls. The small local map excluded contributions needed for the large right wall: `createLevel4JumpShadows.ts` is removed, along with its exclusion of receivers from main lighting. This also removes an extra light and shadow texture. Large walls remain casters and receivers in the same map.
+
+The non-regression test verifies connection of the walls to the full map, presence of cliffs and jump ramps among casters, no receiver exclusion, and scene cleanup. Arcade rules, positions, and geometry dimensions do not change.
+
+Validation: `npm run check` succeeded, 563 tests / 77 files, coverage, lint, TypeScript, and build. Chrome WebGL2/SwiftShader: scrolls 0, 160, and 620, no JS errors. Image check finds no yellow pixels in the examined left-wall area and confirms yellow in the downstream sector. The facade under the left arm is orange at both check points that were dark. Sun shadows on/off comparison changes 6211 pixels in the examined right receiver area.
+
+Screenshots wait for the scene and then several frames of the normal loop; do not add a concurrent manual `scene.render()` during this check. Shadow layout remains a 3D projection, with no pixel-for-pixel identity with the arcade drawing. Next action: compare the reloaded app against the 18:00/18:02 screenshots, particularly the diagonal of the large right wall.
+
+## Slope join, lighting, and start comparison — November 21, 2026, 10:13 to 10:25 screenshots
+
+The X=82 join of the second zone no longer contains a red step: the X=80..82 landing is at 16264 and all four lines of the slope start at this exact height. Edges reach 16272 at X=87, center 16276. `level4LandingNormals` keeps a shared lighting normal for both triangles of each tile on the small landing/slope. Residual survey variations no longer form tint diagonals. This remains a presentation fix, with no modification to arcade rules.
+
+Analysis of the local `lev4.ase.mesh` showed that the large incoming walls had to continue to corner (22,23). Removing them had created the black cavity reported by Michel. They are restored, along with both faces of the lower gray paths. Only the outgoing arms remain cantilevered. The reference clearly distinguishes these arms from the incoming ramps.
+
+Lighting of visible back faces was incorrect: the cliff material now has `twoSidedLighting=true`. Visible X faces are orange, Z faces dark red, without the bright red patches introduced by the intermediate fix. Ambient paint remains modulated by shadows. RGB landmarks in the provided screenshots: original dark red 93/14/7, rendered 95/14/7; original orange 189/78/32, rendered 190/80/32. These are samples from the PNG images, not a display color calibration.
+
+Deep starting walls are now separated from the fascia into `level4-jump-ramp-walls`. They receive jump ramp shadows via `createLevel4JumpShadows`, directional light and 2048 local map owned by the scene. Sun direction remains that of the level. The wall is excluded from global directional lighting to avoid double lighting; it remains a caster in its global map. The local map contains the golden floors and their fascias, without self-shadowing from the large walls. Chrome comparison with/without local shadow gives 1420 modified pixels in the examined receiver area. Shadows are recomputed in 3D; their contour does not reproduce the arcade drawing exactly.
+
+Comparison with `MarbleMadness_Level4.png`: 5/3 scale overlay, translation (76,-1) on an 1120×840 screenshot. Outgoing golden arms measure 5 tiles on the left side of the screen and 3 on the right; underlying gray paths extend 9 and 7 tiles, i.e. 4 tiles longer each. Arm UVs repeat once per tile. Gray of vertical joints is raised to 102/255 and their strip to 4 texels out of 16, matching the 4-pixel bars on a 16-pixel pitch observed in the native full view. End-face joints are 0.085 wide and the same gray. Golden floor joints are ochre (min tone 122), not near-black.
+
+Validation: `npm run check` succeeded, 563 tests in 77 files, lint, typecheck, coverage, and build. Tests for shared edges, no step wall at slope join, identical normals per tile, preserved normals elsewhere, restored walls, tile counts via UV, local shadow reception and casting, resource disposal. Chrome WebGL2/SwiftShader: 0/160/620 px views, then start overlay comparison, no JS errors. Views 510/784 had also been verified during the batch. An arcade traversal is not a new validation of this task.
+
+Next action: compare the reloaded render to the 10:25 screenshot while keeping arcade framing. The control overlay is in the temporary file `/tmp/mm-start-original-overlay.png`; it serves to check landmarks, not to certify pixel-for-pixel identity.
+
+## Second arch joins and jump ramp joints — November 21, 2026, after 09:55/10:00 screenshots
+
+Previous fixes had flattened the strips on the wrong side of the overpass and added a slope above the arches. Original screenshots and survey heights show two flat tiles at 16260 in Z=92..94, framed by a one-tile slope on each side (Z=91..92 and 94..95), with outer edges at 16272. This profile is restored on X=90..94. Both arches of overpass X=87..90 now have a horizontal top at 16272, joining these edges flush. The longitudinal slope added on their first tile is removed.
+
+Both rows of the large inclined plane X=94..98 now share the same vertices, from 16260 to 16228. Erroneous SW corners no longer produce the triangular crease at the landing join or at the foot. The join of the other landing X=82..87 meets its outer edge at 16272 and picks up the upstream edge at 16264, with both bevels preserved.
+
+Local overpass paint is red on the longitudinal walls, with the red/yellow frieze at level 16228; the global diagonal lowering of the frieze no longer applies to this zone. The relief remains lit. `splitLevel4LandingWalls` isolates the small landing walls from global shadow-map reception: self-shadowing streaks observed in Chrome disappear, while the walls remain shadow casters onto the lower corridor. Their triangles are removed from the main cliff mesh.
+
+`createLevel4RampEndJoints` adds a gray mortar outline on the exposed vertical faces of the two suspended terminal cubes (Z=27 and X=28). Strips are 0.055 units wide with an outward offset of 0.003 to avoid face overlap. The unlit material preserves joint legibility against the red background. Mesh and material belong to the scene, with no extra observer.
+
+Validation: `npm run check` succeeded, 560 tests in 76 files, V8 coverage above thresholds, lint, TypeScript, and build. Non-regression tests for constant arch height, both flat tiles and slopes, top/bottom joins of the large inclined plane, joints and their cleanup, and separation without duplication of the landing walls. Chrome WebGL2 rendered scrolls 0/510/620/784 px with no JS errors; screenshots inspected. Rendering and geometry tests do not constitute a new arcade traversal. Next action: compare in the reloaded app the start and second overpass zones against the last two original screenshots.
+
+## Ramps, two overpasses, and hammers — November 21, 2026
+
+Requests from the 09:13 to 09:24 screenshots are addressed in presentation only. No changes to ROMs, collisions, or arcade simulation.
+
+- Start: removed both solid supports under the golden ramps. Fascias and undersides remain, with a single underside at the crossing. Supports of the lower gray path are preserved. Global shadow PCF filtering and removing self-shadowing from fascias reduce acne.
+- First overpass: top of both strips drops from 16268 to 16264 to meet the platform level. The inner ridge is preserved.
+- Second overpass: indices are flipped for the X axis. Normals were inverted relative to the Z-axis overpass; the front arch was lit like the background and lost its contour. Both bevels of landing X=82..87, Z=91..95 are rebuilt, with coherent joins to the central rows. The entry bevel of the strips meets the bank at 16272 then descends to 16260.
+- Hammers: rank moves from X=104 to X=105, with imported anchor at 105.45 and Z=102.5/104.5/106.5/108.5 (tiles 10/8/6/4 from bottom), orientation flipped from π to 0. Used model remains `hammer.ase.mesh` from Rolling Madness. The RAM reader converts integer coordinates by dividing by eight. Local live loop was removed; without an active native frame or after reset, hammers are hidden. Procedural fallback also receives native frames and no longer loops in game mode.
+
+**Correction to earlier handoff notes:** hammer creation follows scroll slices (table `0x1dfd4`, entry 40..64). Native entry into zone 10 then wakes their scripts. The old local animation "visible from F4" and the old reader comparing 102 directly to RAM coordinate 816 prevented proper synchronization. Evidence and MAME probe limits are in `docs/DECISIONS.md`.
+
+Validation: `npm run check` succeeded, 557 tests in 76 files, business-logic coverage above thresholds, lint, typecheck, and build succeeded. Tests added for front arch normals, first overpass height, both bevels, absence of overlapping undersides, and clockless hammer driving. Chrome WebGL2/SwiftShader: screenshots at scrolls 0, 510, 620, and 784 px, no JS errors. A second browser check injects RAM records in real format: all four poses 2/6/9/12 are visible at the new anchors and remain unchanged across 20 render notifications. This is a rendering test, not a full native game.
+
+Concrete next action: Michel can replay F4 and compare the zone 10 crossing against native strikes and collisions. Choice of Rolling Madness poses remains a visual match to arcade frames; in-situation motion fidelity still needs to be assessed on a played traversal.
+
+## Two thin-arch overpasses — November 20, 2026 evening fix
+
+`npm run check` succeeded with 553 tests.
+
+Reading of Michel's screenshots and local mesh `lev4.ase.mesh` from Rolling Madness 3D. Edge strips measure 0.1 tile in the reference model on both sides of the overpasses. Their intrados features tall jambs and a gently curved arch. The previous half-ellipse started from the floor and produced an overly bulky vault.
+
+First overpass borders remain at X=76 and X=79 on Z=78..81. Cliff removal is fixed for these faces, which were not the ones removed by the old filter. The profile is lowered in the center with tall ends, and top faces of the strips are closed. For the second overpass, the upper tiling added at X=87..89/Z=91..94 is removed. The lower corridor remains at 16228 and both thin strips border its crossing. Lower corridor walls have a single owner to remove overlapping surfaces.
+
+Strips receive directional lighting and cast shadows. Their self-shadowing via the level map is disabled: that map produced artifacts on these 0.1-unit faces. Height proportions are an adaptation of the reference model profile to the arcade survey. Chrome check at scrolls 510 and 620 px. Traversal and free view remain to be validated by Michel.
+
+## Side walls under second arch, deck bevel join, and jump ramps — November 20, 2026
+
+- **Walls under the lower corridor of the second arch (`X = 87..90, Z = 88..97`)** (`src/rendering/createTerrainStudy.ts`, `src/rendering/createLevel4ArchBridge.ts`, `src/rendering/createLevel4Materials.ts`):
+  - `createTerrainStudy.ts` now generates `level4-underpass-cliffs` for both outer walls of the lower corridor (`X = 87` and `X = 90` on `Z = 91..95` at height `16228`) so the lower tiling under the arch rests on real textured cliffs rather than floating in empty space.
+  - In `createLevel4ArchBridge.ts`, `openLevel4Bridge` removes the residual internal step at `X = 87` across the full width `Z = 91..95` of the upper bridge, and the crest of both `level4-lower-bridge-arches` follows the left bevel `X = 87..88` (`16276 -> 16260`) up to the flat deck `X = 88..90` (`16260`).
+  - In `createLevel4Materials.ts`, borders `Z = 91` and `Z = 94` on `X = 90..93` are kept flat at `16260` in exact alignment with the upper deck (`Z = 91..95`).
+- **Golden jump ramps detached from the floor (`X = 22, Z = 19..26` and `Z = 23, X = 19..27`)** (`src/rendering/createLevel4ArchBridge.ts`, `src/rendering/createTerrainStudy.ts`, `src/rendering/createLevel4Materials.ts`):
+  - In the 2D survey (`local-roms/level4-terrain.json`), a single height per tile (`16344`) overwrote both lower gray paths (`16320`) and generated solid cliffs beneath the two golden jump ramps crossing at `(X = 22, Z = 23)`.
+  - `level4DisplayTerrain` keeps the last tile `(X = 22, Z = 26)` horizontal at `16344` in mid-air; `createTerrainStudy.ts` extends both gray paths (`level4-floor` at `16320`) beneath the jump ramps to their corner-to-corner junction at `(X = 23, Z = 24)` and adds `level4-top-surface` to shadow casters (`shadows.addShadowCaster(topFloor, false)`).
+  - `openLevel4Bridge` removes solid walls under both cantilevered jump ramps and `createLevel4ArchBridge` builds `level4-jump-ramp-fascia`: thin side and end fascias (`0.85` units below `toY(16344)`), horizontal undersides for crisp cast shadows onto gray paths and cliffs, and recessed cliff walls (`X = 22, Z = 19..24` and `Z = 23, X = 19..23` under the upper crossing; `X = 23, Z = 24..31` and `Z = 24, X = 23..32` under the gray paths).
+- **Validation**:
+  - Visual check in Chrome WebGL2 on `terrain.html` (Level 4 at scroll `0 px`).
+  - `npm run check` (`prettier --check`, `eslint --max-warnings 0`, `tsc --noEmit`, `vitest run --coverage` with `553` passing tests across `45` files, `vite build`) completely green.
+
+## 3D hammers visible from F4, double-arch crossing, catapult bottom, and vacuum retraction — November 20, 2026
+
+- **3D hammers visible from `F4` and synchronized in zone `10`** (`src/rendering/createRollingHammers.ts`, `src/rendering/createRollingHammers.test.ts`, `src/emulation/level4Hammers.ts`):
+  - Until the marble reaches zone `10` (`0x23b28: X ≈ 102, Z ≈ 99`) in game mode (`F4`), the 68010 core has not yet instantiated the 4 RAM hammer slots (`kind = 0x0c`, `id = 0x0a`). `createRollingHammers` now animates a phase-offset local cycle on the 4 hammers while no RAM slot is active (`hasActiveRamHammers === false`), then automatically switches to native RAM pointers (`0x20c14` retracted under the track and `0x22346..0x2237e` striking) as soon as the marble enters zone `10`.
+  - In study mode (`terrain.html`), slots `0` and `2` (spaced `4` tiles apart) remain displayed in cocked pose (`pose 6`) at scale `0.088` per `MM_original_levels_full_views/MarbleMadness_Level4.png`.
+- **Upper/lower crossing of the second arch (`X = 87..90, Z = 91..95`)** (`src/rendering/createLevel4ArchBridge.ts`, `src/rendering/createLevel4ArchBridge.test.ts`, `src/rendering/createLevel4Materials.ts`, `src/rendering/createTerrainStudy.ts`):
+  - The 2D height-grid survey kept only one height per tile (`16228`, that of the lower corridor) at crossing `X = 87..89, Z = 91..94`, which cut off the upper deck (at `16260`) and left the arch flush against a red wall.
+  - `level4DisplayTerrain` restores the continuous upper deck at `16260` on `X = 87..89, Z = 91..94` (with the one-tile dark step at `X = 87` descending from `16276` to `16260`), `createTerrainStudy.ts` adds the lower corridor tiling (`level4-underpass-surface` at `16228`), and `createLevel4ArchBridge.ts` orients both `level4-lower-bridge-arches` along the `X` axis at `Z = 91` and `Z = 95` (`openLevel4Bridge` removing solid walls under the bridge).
+- **Catapult cup bottom at rest** (`src/rendering/createRollingCatapult.ts`):
+  - `baseHeight` raised to `2.1 * scale` so the cup rests above the tiling with no gray tile piercing the red bottom at rest, while keeping the `nativeThrowToPose` (`1..20`) table for the fast `3`-frame lift on launch.
+- **Vacuum setback and vertical travel** (`src/rendering/createLevel4Materials.ts`, `src/rendering/createTerrainStudy.test.ts`):
+  - Set the 6 vacuum stands back to `1.16` units from the center of the border tile (`0.66` units outside the cliff), reduced vertical retraction travel to `1.1` units, and hid below threshold `extension < 0.35` so the horn never appears to pass through the tiling on descent.
+- **Validation**:
+  - Visual check in Chrome WebGL2 on `terrain.html` (Level 4 at scrolls `280 px`, `500 px`, `620 px`, and `784 px`).
+  - `npm run check` (`prettier --check`, `eslint --max-warnings 0`, `tsc --noEmit`, `vitest run --coverage` with `553` passing tests across `45` files, `vite build`) completely green.
+
+## Reduced downstream arches and recessed cylinder heads — November 20, 2026
+
+Initial placement of the arches under the cylinder platform was wrong. The span is now placed under transverse section X=73..75, Z=78..80, at arcade height 16228. It measures three tiles and descends 2.3 presentation units. Both sides are oriented on constant Z and the high platform regains its solid faces.
+
+Red motifs start from the boundary between yellow and orange. Their lower edge is on this boundary and yellow forms a small raised lip around it. Retracted heads are now wider flat disks, with a dark-gray circular joint and no specularity. Minimum gray for Level 4 tiling joints is raised.
+
+Geometry tests adapted to the new location and reduced height. Bridge traversal and rendering from all angles remain to be validated in-game. Terrain geometry remains a visual adjustment from screenshots.
+
+## Arches, cliff paint, flush cylinders, and shadows — November 20, 2026
+
+`npm run check` succeeded with 551 tests.
+
+The scene displays two arches under the deck of tiles X=76..78, Z=72..77. Solid faces on both sides were removed in this section. All 36 cylinders have a metallic-gray circular head flush with the tiling, including while waiting. Shafts remain driven by native slots.
+
+`level4CliffPaint` colors walls orange at the top and yellow at the bottom, with a dashed border. Split height and downstream progression are presentation settings estimated from the full view. Their exact calibration remains to be compared. The plugin also applies to the arches and catapult support.
+
+The catapult support no longer adds a coplanar face under the top of the outer cliff at X=62. Joint textures are explicitly repeated in world coordinates to eliminate large gray areas. A directional light with the same direction and intensity as the sun illuminates only the two imported catapult meshes, with a 2048 local shadow map and PCF filtering. The general sun excludes these two meshes to avoid double lighting.
+
+Chrome displayed caps and arches at scrolls 440 and 510, no JS errors. Scene tests verify wall clipping, arch construction, and caps at rest. A full F4 playthrough and human tuning of the color split remain open.
+
+## Masonry support and extended conduit — November 20, 2026
+
+The catapult support is now a U-shaped relief in plan view, with three gray copings and walls descending to the base of the cliffs. Faces reuse the cliff material and align their joint UVs to the world grid. The old posts and small baseplate were removed. The imported catapult keeps its poses.
+
+Visual check in Chrome completed, no JavaScript errors. `npm run check` succeeded with 550 tests.
+
+Comparison with `hoover_down` shows a long conduit whose bottom stays fixed across poses. The procedural conduit was extended downward so its end remains below the track. The horn moves forward an additional 0.3 units. The throat back was also moved forward to clear the tube mouth. All six orientations follow the same assembly.
+
+Tests verify wall extension, support materials, pipe bottom, and horn advance. Next in-game check: observe extension and retraction of all six vacuums from F4.
+
+## Imported catapult with author's permission — November 20, 2026
+
+Michel confirms having contacted the author of Rolling Madness 3D and obtained permission to reuse his models. The catapult now uses `catapult.ase.mesh`, `catapult_throw.ase.mesh`, and `catapult.PNG` from local extraction. Other entries in the local library were preserved. The extraction script includes both models and resolves texture filename casing.
+
+`createRollingCatapult` installs scene-owned meshes and binds their poses to the native frame number. The procedural cradle remains visible. The procedural arm and cup remain available as a fallback when the library is missing. The old version is also preserved under `docs/backups/level4-catapult-procedural.ts.txt`.
+
+Integration is available in-game and in the study scene. The NullEngine test verifies rest, launch, return to rest, and fallback preservation. Chrome also verifies real poses at rest, during launch, and on return, with their local texture. `npm run check` succeeded with 550 tests. The study scene was inspected with no JS errors. Support geometry and alignment during a real game remain to be compared against Michel's screenshots.
+
+## Mechanism footprint and arcade comparison — November 20, 2026
+
+Conduits are thicker, shortened, and mounted entirely outside the tiling. Heads are wider and shorter. The procedural catapult has an elongated arm, a thickened cup, and two low walls with right-angle returns around the axle. Launch center remains the same. Cliff joints have their own gray tint, independent of the orange or yellow wall color.
+
+The old procedural catapult is preserved under `docs/backups/level4-catapult-procedural.ts.txt`. The mesh extracted from Rolling Madness 3D remains a local reference. 50% Chrome overlays use MAME screenshots 1177 and 1297, with native scrolls of 128 and 314 px. Overall framing still shows a contour offset in the scenery. The comparison served to widen the nozzle, with a model and support specific to the project. In-game verification remains open.
+
+## Rectangular nozzles, tiled support, and native cylinders — November 20, 2026
+
+Vacuum nozzles have a rectangular opening with rounded corners. The catapult arm is shortened and meets the underside of the cup. The catapult baseplate gets four tiles separated by joints. Post faces reuse the track material.
+
+The ROM defines 36 cylinders, not the two rows of the prototype. Tables at `0x24406`, `0x2442a`, and `0x2444e` give three 3 × 4 groups, at X/Z tiles 69..71/55..58, 69..71/63..66, and 76..78/74..77. `0x186ac` initializes table `0x401650` when an active marble enters zone 4 or 5. The routine resets the table to zero when no active marble remains there. The core staggers rises via counters and cycles through thirteen frame pointers (rise, hold, descent). In MAME, zone 4 activates at 1204 and the first slots rise at 1205. Other groups then start according to their own counters.
+
+Live rendering reads the native table. It displays only moving cylinders, with four presentation height levels. The study scene alone shows nozzles and catapult. Chrome checked both new meshes at 270 and 440 px. A test RAM in Chrome verified four slots observed in MAME at distinct heights. `npm run check` succeeded with 549 tests. A manual F4 traversal of the cylinder sector remains to be verified.
+
+## Procedural mechanism meshes — November 20, 2026
+
+Vacuums now have a hollow oval horn with a rounded lip and a tapered conduit. The fragment marker was moved back into the throat. The catapult includes a hollow cup, an inclined arm, and a fixed cradle with baseplate and two posts. The baseplate rests on the tiling level at the mechanism. The cup keeps the same horizontal center at rest, at the marble's starting point.
+
+Meshes are generated locally in `createLevel4Materials.ts`. Extracted Rolling Madness 3D files remain analysis references. NullEngine tests verify support seating, immobility during launch, and cup centering. Chrome screenshots inspected at 280 and 440 px. `npm run check` succeeded with 547 tests. Next in-game check: inspect mechanisms while traversing F4.
+
+## Suction fragments and Level 4 catapult — November 20, 2026
+
+Live view reads marble state `0x0a`, the native counter, and the vacuum index. Eight procedural fragments per player replace the marble during suction and converge toward the nozzle. The rebuild phase reuses existing rendering.
+
+The native catapult is a type `0x0a` object. Routine `0x29e22` requires distance strictly less than eight arcade units on each axis, zero vertical velocity, and a ready mechanism. It repositions the marble in X and Z onto the actor before the impulse. The MAME 0.271 probe observed point (504, 560), rest pointer `0x2111e`, then `0x210ca` at impulse (frame 1298, vertical velocity +10). Rolling Madness 3D meshes describe the rest model and 22 throw poses over 2.03 s, with material `catapult.png`.
+
+The procedural cup is centered at the native starting point and motion relies on the core's frame pointers. The study scene shows the catapult at rest. `npm run check` succeeded with 547 tests. Chrome WebGL2 verified marble framing in the cup and fragments from control poses. Next in-game check: pass successively through a vacuum and through the cup from F4.
+
+## Marble suction — comparison of both games — November 20, 2026
+
+Local Rolling Madness 3D files define two animations for the mechanism and one for the marble.
+
+| Mesh                     | Poses | Declared duration | Triangles | Material     |
+| ------------------------ | ----: | ----------------: | --------: | ------------ |
+| `hoover_down.ase.mesh`   |    12 |           0.333 s |       254 | `hoover.png` |
+| `hoover_on.ase.mesh`     |    12 |               2 s |       254 | `hoover.png` |
+| `player_hoover.ase.mesh` |    17 |               2 s |       224 | `player.png` |
+
+`actor/hoover.txt` plays retraction in reverse for exit. The active state loops on `hoover_on` with `hoover_72.ogg`. Nozzle bounds descend in `hoover_down` and fluctuate slightly in `hoover_on`. Texture `hoover.png` is a 16 × 16 flat RGBA (242, 198, 0, 255). Nozzle volume comes from the mesh and its lighting. In `player_hoover`, the marble stretches toward the nozzle and vertices converge to a single point at the last pose. This animation is already in the local library. Current rendering never selects it.
+
+Arcade, MAME 0.271, and TTL BIOS. After controlled upstream initialization of position and velocity, the core plays capture without further intervention. At frame 1178, the marble enters state `0x0a` at `player + 0x1a`, with `0x20` in counter `player + 0x57` and actor index at `player + 0x58` (P1 base at `0x400018`). Routine `0x13d38` emits successive sprites toward the nozzle. World coordinates of the marble stay fixed during this phase. Frame 1177 shows the intact sphere, 1184 and 1200 blue fragments, and 1232 disappearance near the nozzle. At 1242, the actor begins retracting and the marble transitions to state `4` (rebuild). Frames remain temporary.
+
+The `practicePose` reader does not forward state `0x0a`, so rendering has no distinct suction signal. For a future procedural effect, read this state, its counter, and the actor index. Animate presentation only from the frozen position toward the nozzle, then let the existing rebuild path take over. No modifications to scene meshes or simulation during this comparison.
+
+## Synchronized procedural vacuums — November 20, 2026
+
+The 3D view uses six procedural stands along the track edge. Outside gameplay, the study scene shows them deployed. In-game, frame pointers read from object slots of the pinned core drive nozzle height. Idle frame or inactive slot hides the vacuum. Rendering returns to hidden state after a missing pose. Vertical travel and dimensions are specific to the procedural models. Arcade rules remain in the core. Confirmation of a restore uses the level requested by F2, F3, or F4. F2 keeps its coordinate check.
+
+Targeted tests on both types, opening and retraction pointers, slot-independent ID, and hiding. Chrome WebGL2 on the local survey, with re-injection of pointers observed in MAME into a test RAM: six meshes created, zero visible at rest, then expected alternation between vacuums 0 and 2. Screenshot inspected, no JS errors. F4 resume was confirmed in Chrome with the real core. An artificial move to zone 31 changed the player's zone without initializing vacuum slots in this Web replay. A game following the course remains to be verified. `npm run check` succeeded with 545 tests.
+
+## Level 4 vacuums — arcade triggering — November 20, 2026
+
+Disassembly of the 68010 program and a MAME 0.271 probe with TTL BIOS confirm six vacuums, zone IDs `0x1e..0x23`, actor types `0x0b` and `0x0d`. The level's script table starts at `0x1dfd4`. Waiting actors have state `4` and frame pointer `0x20c14`, observed in RAM at initialization of all six.
+
+- `0x1365c` reads the level boundary table (`0x23ac0`) and compares the tile before/after a simulation step. Exit direction across a segment determines the marble's new zone ID. `0x13966` selects the opening script for the associated actor.
+- The object script checks at `0x12ca8` whether an active marble still occupies one of the two zones it monitors. Return to idle and the post-capture retraction script are two distinct paths. Suction goes through `0x13d38` and post-capture retraction through `0x25674` for type `0x0b`.
+- All six positions are specified in initialization scripts `0x1d7d0`, `0x1d7e6`, `0x1d7fc`, `0x1d812`, `0x1d828`, `0x1d83e`. In grid coordinates (X, Z), read anchors are (39, 36), (48, 36), (50, 46), (34, 42), (42, 42), and (44, 52), all at height 16300 in arcade units. Michel's screenshots show nozzles at the track edge. The two tile-centered plinths and continuous motion currently coded in `createLevel4Landmarks` explain the presentation discrepancy.
+
+Controlled probe with position and velocity initialized near two boundaries, then native simulation. Entry into zone 30 at frame 1122, opening of corresponding vacuum. Entry into zone 32 at 1140, opening of second type and retraction of first, which returns to the empty pointer at 1186. In a run without early crossing of the second boundary, the first alternated two active frames then the capture path triggered its retraction at 1242. Study concerns vacuums only. No modification to rendering or emulation.
+
+## Level 4 procedural mechanisms — November 20, 2026
+
+Both vacuums, the six pistons, the catapult, and both hammers take their height at the center of tiles present in the displayed mesh. Nozzles tilt, pistons retract to track height, and arms pivot on axes distinct from their plinths. Dimensions and cycles are presentation choices to be verified in-game. The arcade screenshot and actor definitions served as references to identify mechanisms.
+
+Validation in `createTerrainStudy.test.ts` with a synthetic grid. Visual check in Chrome on the study view at 315, 494, and 750 px. `npm run check` succeeded with 542 tests. Next useful check: observe interactions in-game from the F4 shortcut.
+
+## Local extraction of Rolling Madness 3D — November 20, 2026
+
+- All 329 files from the Inno Setup payload are in `3D_assets_for_animated_entities/data/{app}/`. The local folder also contains 4 resources embedded in the installer, including its license, and 6 metadata files exported by the extractor.
+- All 47 `.ase.mesh` meshes, textures, sounds, actor and level definitions were preserved in their original directory tree. For Levels 4 to 6, see `level/level4.txt` through `level/level6.txt` and definitions `actor/world4.txt` through `actor/world6.txt`.
+- All 329 files match the archive table in path, size, and Inno checksum. All 339 outputs pass `SHA256SUMS` verification. The existing converter produced a temporary JSON with its 11 models. Texture `amoeba.png` differs from the one in the current local library.
+- Next action for Level 4: start from `level/level4.txt` and definitions in `actor/`, then determine placements and check them against arcade RAM before wiring the meshes to BabylonJS rendering.
+
+## Quick shortcuts F3 (Level 3) / F4 (Level 4) and Level 4 (_Aerial Race_) — November 20, 2026
+
+- **`F3` (Level 3) & `F4` (Level 4) shortcuts** (`scripts/record-level3-checkpoint.mjs`, `scripts/survey-level4.mjs`, `src/dev/localRoms.ts`, `src/emulation/localStudy.ts`, `src/ui/feasibility.ts`, `index.html`):
+  - Local recording of native checkpoints `local-roms/level3-web.state` (Level 3 start `0x2cd9e`) and `local-roms/level4-web.state` (Level 4 start `0x2d648`).
+  - **"Niveau 3 · F3"** and **"Niveau 4 · F4"** buttons + `F3` / `F4` keyboard shortcuts and `?study=level3` / `?study=level4` parameters in `feasibility.ts`.
+- **Level 4 (_Aerial Race_, descriptor `0x2d648`, key `'level4'`)** (`src/rendering/createLevel4Materials.ts`, `src/game/modern/practiceTerrain.ts`, `src/emulation/practicePose.ts`, `src/rendering/createTerrainStudy.ts`, `src/rendering/createLivePracticeView.ts`, `src/rendering/createPracticeGoal.ts`, `src/terrain.ts`, `terrain.html`):
+  - Full arcade survey `130 × 130` (`1,492` active cells, scroll `-16152 → -15368`, i.e. `784 px`) in `local-roms/level4-terrain.json`.
+  - BabylonJS rendering faithful to `MM_original_levels_full_views/MarbleMadness_Level4.png`: golden/ochre crossed ramps at the top (`level4-top-floor`), stone-gray tracks (`level4-floor`), striped cliffs vermilion-orange at the top transitioning to gold-yellow at the bottom (`level4-cliffs` + `level4CliffColors`), sawtooth cleanup on pit edges (`level4DisplayTerrain`), `GOAL` zone (`x = 113..116, z = 104..113`) + animated flags, and **"Voir le niveau 4 (étude)"** button on `terrain.html`.
+  - Full live wiring (`0x2d648` in `readPracticePose` and `readModernPhase`, preloading in `feasibility.ts`).
+- **Validation**:
+  - `npm run check` green (**541 Vitest tests**, V8 coverage ≥ 90%, Prettier, ESLint `--max-warnings 0`, `tsc --noEmit`, Vite build).
+  - Chrome WebGL2 screenshots verified on `http://127.0.0.1:5173/terrain.html` (Level 4 at `0 px`, `380 px`, and `784 px`).
+  - **Animated 3D mechanisms & `player_hoover`** (`createLevel4Materials.ts`, `scripts/extract-rolling-actors.mjs`): extracted `player_hoover.ase.mesh` (`17` poses) into `local-roms/rolling-actors.json`; complete fix of white triangles on the central slot (`z = 62, x = 59..63` and `z = 66, x = 57..63`); initial temporary procedural models (`createLevel4Landmarks`).
+  - **Important discovery in `Rolling Madness 3D 2005/RollingMadness3D-Installer.exe`**:
+    - Automatic macOS cleanup of `/tmp` had purged files from `/tmp/mm-rolling-research/extracted/` older than 3 days (as well as `libboost_iostreams-mt.dylib` used by `innoextract`).
+    - Decompressing the Inno Setup 5.0.4 header (`0x10757e6` in `RollingMadness3D-Installer.exe`) confirms that **all true 3D models, animations, textures, and definitions for Levels 4 to 6 are indeed present in the installer**:
+      - Models & animations: `hoover_down.ase.mesh`, `hoover_on.ase.mesh`, `catapult.ase.mesh`, `catapult_throw.ase.mesh`, `hammer.ase.mesh`, `rod.ase.mesh` (pistons), `bird.ase.mesh`, `bird_fast.ase.mesh`, `bird_expl.ase.mesh`, `lev4.ase.mesh`, `lev5.ase.mesh`, `lev6.ase.mesh`, `lev6_bridge1..4.ase.mesh`, `amoeba_stretch_mini.ase.mesh`, `amoeba_squashed_mini.ase.mesh`, `blacky_mini.ase.mesh`, `stick_idle_mini.ase.mesh`, `stick_bend_mini.ase.mesh`.
+      - Textures: `hoover.png`, `catapult.PNG`, `hammer.PNG`, `rod.PNG`, `amoeba.png`, `bird.PNG`, `lev4_catapult.png`, `lev4_side.png`, `lev4_tile_glass.png`.
+      - World and actor definitions: `actor/world4.txt`, `actor/world5.txt`, `actor/world6.txt`, `actor/catapult.txt`, `actor/hammer.txt`, `actor/hoover.txt`, `actor/bird.txt`.
+  - **Level 4 next steps**: use the local extraction described above to prepare replacing the procedural models of `createLevel4Landmarks` with the animated meshes.
+
+## Level 3: exact ROM decoding of waves, V pyramid, and final slope tiles — November 20, 2026
+
+Fixes for the 3 points reported by Michel during live testing of Level 3:
+
+- **Turquoise wave 100% synced to ROM decoder `0x0d0a0` (`practicePose.ts`, `practicePose.test.ts`, `createLivePracticeView.ts`, `createLevel3Materials.ts`)**:
+  - Disassembly of 68010 routine `0x0d0a0` and its tables `0x24c7a..0x24df4`: for each tile `i = 0..20`, `word(0x76e + i * 6)` directly encodes the exact height `0x9ab4..0x9ad2` (`0..30` arcade units, i.e. `0` at rest until the marble arrives via the middle walkway); for end tile `i = 21`, `word(0x7f0)` encodes `0x8f84..0x8fa2` (`0..30`).
+  - Removed the `nearWave` heuristic in `createLivePracticeView.ts` (arcade RAM naturally stays at `0` when the marble is on the left).
+  - Realigned `waveRegion.z` from `75` to `76` (`z = 76..97`, aligned with both bridges `z = 81..82` and `z = 93..94`), exact physical height `waveMaxHeight = level3Height(16148 + 30) - waveBaseY`, and direct tracking without smoothing lag.
+- **Level 3 lighting, shadows, wall contrast, and mint highlights (`createTerrainStudy.ts`, `createLevel3Materials.ts`, `createTerrainStudy.test.ts`)**:
+  - Lowered `fill.intensity` (`0.34 → 0.18`), `fill.groundColor` (`0.14, 0.12, 0.10`), `level3-cliffs` `emissiveColor` (`0.025, 0.021, 0.016`), and `shadows.darkness` (`0.28 → 0.10`) to recover the charcoal-brown shaded walls and dense cast shadows of the original game.
+  - Restored a controlled mint specular (`specularColor = (0.55, 0.88, 0.76)`, `specularPower = 22`) and directional contrast `[0.42..1.48]` on the turquoise curbs (`level3CurbColors`).
+  - Boosted turquoise wave (`× 1.32`), brighter upper plateau (`diffuse 0.32, 0.90, 0.72`, `emissive 0.09, 0.26, 0.21`), and deeper shaded slope (`dark * 0.82`).
+- **Turquoise V pyramid (`createLevel3Materials.ts`)**: flipped triangle winding on the 4 triangles of `level3-turquoise-spike` to outward left-handed (`c1, tip, c0`, `c2, tip, c1`, `c3, tip, c2`, `c0, tip, c3`) — the 2 front faces are no longer hidden by backface culling.
+- **Folded tiles on the 3 final slopes (`createLevel3Materials.ts`)**: planar smoothing `[nw, ne, ne, nw]` on rows `z = 86, x = 96..99` and `z = 93, x = 89..92 / 95..98` (where `(99, 86)`, `(92, 93)`, and `(98, 93)` had `fold = 9` just below the `0.5` threshold).
+
+## Level 3: V pyramid, slope entry tile, arch openings, morphing amoebas, and flat wave before approach — November 19, 2026
+
+Fixes for the 5 points reported by Michel in the latest feedback on Level 3:
+
+- **Level 3 lighting, shadows, wall contrast, and mint highlights (`createTerrainStudy.ts`, `createLevel3Materials.ts`, `createTerrainStudy.test.ts`)**:
+  - Lowered `fill.intensity` (`0.34 → 0.18`), `fill.groundColor` (`0.14, 0.12, 0.10`), `level3-cliffs` `emissiveColor` (`0.025, 0.021, 0.016`), and `shadows.darkness` (`0.28 → 0.10`) to recover the charcoal-brown shaded walls and dense cast shadows of the original game.
+  - Restored a controlled mint specular (`specularColor = (0.55, 0.88, 0.76)`, `specularPower = 22`) and directional contrast `[0.42..1.48]` on the turquoise curbs (`level3CurbColors`).
+  - Boosted turquoise wave (`× 1.32`), brighter upper plateau (`diffuse 0.32, 0.90, 0.72`, `emissive 0.09, 0.26, 0.21`), and deeper shaded slope (`dark * 0.82`).
+- **Turquoise V pyramid (`createLevel3Materials.ts`)**: flattened base cell `(99, 92)` to `16124` under the pyramid + added per-vertex colors (`level3CurbColors`) and matte tint `(0.18, 0.58, 0.48)` on `level3-turquoise-spike` — no more overexposed neon-cyan triangle or protruding corner.
+- **Final slope entry tiles (`createLevel3Materials.ts`)**: planar smoothing `[nw, ne, ne, nw]` on cells `(92, 94)` and `(99, 87)` whose `sw` corner sampled the adjacent turquoise curb (`16148`) — removed the dark crease on the brown tile.
+- **Arch openings at the foot of starting bridges (`createLevel3Materials.ts`)**: added small dark ogival arches at the foot of both flying buttresses (`footYApex = 16384 - 8.5`, below `archProfile[5] = -6`), aligned with `68141cba.png`.
+- **Morphing amoebas (`scripts/extract-rolling-actors.mjs`, `createRollingActor.ts`, `createIntermediateActors.ts`, `createRollingActor.test.ts`)**: extracted the real animated mesh **`amoeba_stretch.ase.mesh`** from _Rolling Madness 3D_ (12 poses, 34 triangles) into `local-roms/rolling-actors.json`, per-pose Z recentering (`centerAmoebaPoses`) so stretching happens in place without double translation, semi-transparent acid-green material (`alpha = 0.62`, `disableDepthWrite = true`, showing floor joints through and blending overlaps), and continuous morph driving from distance traveled (with procedural fallback if the model is absent in tests).
+- **Flat wave until marble approach (`createLivePracticeView.ts`)**: kept a flat profile while the marble is outside the wave zone (`pose.scroll <= -15620 || pose.z >= 70 * 8`), then driven by the 22 RAM triplets `0x772 + i * 6`.
+- **Validation**:
+  - `npm run check` green (537 Vitest tests, V8 coverage ≥ 90%, Prettier, ESLint `--max-warnings 0`, `tsc --noEmit`, Vite build).
+  - Chrome WebGL2 screenshots verified on `http://127.0.0.1:5173/terrain.html` at `0 px` and `736 px` (V pyramid matte and crisp, slope entry tile completely flat, arch openings under the bridges).
+  - **Remains for Michel to confirm in live gameplay**: wave behavior on approach, amoeba deformation in motion, and melting in acid (`player_melt`). If needed, we can directly import `amoeba_stretch.ase.mesh` from Rolling Madness 3D or move on to **Level 4** (_Aerial Race_).
+
+## Level 3: fluid amoebas, RAM-synced wave + joints, flush pipe, and acid melting — November 19, 2026
+
+Fixes for the 4 points reported by Michel during live testing of Level 3:
+
+- **Level 3 live polish & rendering (`createIntermediateActors.ts`, `createMarbleAnimation.ts`, `createMagicWand.ts`, `createLevel3Materials.ts`, `createTerrainStudy.ts`, `practicePose.ts`)**:
+  - **Fluid, semi-transparent amoebas**: constant linear speed (`maxStep = 0.095` tile/frame) and deeper acid-green semi-transparent material (`alpha = 0.62` / `0.52`, `disableDepthWrite = true`) letting floor joints show through and visually merging overlapping amoebas.
+  - **Melting marble (`player_melt`)**: applied exact scale `0.675` (aligned with `player_broken` and the marble) with linear 60 fps progression over the 54 native frames of `state === 9`.
+  - **Magic wand (`createMagicWand.ts`)**: classic black wand with white tip and gold handle, thicker (`diameter = 0.13`), tilted diagonally (`tilt ≈ -0.95 rad`) beside the marble with bobbing and sparkles.
+  - **Copper pipe (`createLevel3Pipe`)**: `copper.backFaceCulling = true` on `level3-pipe-shell`, removing the stray triangle piercing the vertical wall of the tube.
+  - **Starting towers & turquoise pyramid (`createLevel3Materials.ts`)**: Gothic lancet arrowslits (tapering to a point at the top), flying-buttress arches descending to `base` on their lower half (`archDrop`), and single turquoise pyramid in the V (`x = 99, z = 92`) with 4 independent triangles + outward winding + solid material `level3-spike-turquoise`.
+  - **Turquoise wave**: removed `0.7` fallback (only `0xf004` = `1.0` and `0xbf84/0xdf84/0xcf84` = `0.42` raise the wave, `0` by default) and fast tracking (`lerp 0.55` without crushing smoothing) in `practicePose.ts` and `createLevel3Materials.ts`.
+  - **2 asymmetric bumps & sharp edges (`createLevel3Materials.ts`, `terrainMesh.ts`)**: 2-tile diagonal cut (`gx - gz <= 4` and `gz - gx <= 8`), separation of non-coplanar cells into 2 independent triangles in `terrainMesh.ts` (eliminating lighting sawtooth artifacts along the cut edge, now completely straight); restricted `isLevel3TurquoiseCurb` to `z >= 88` and `z >= 95`.
+- **Turquoise wave synchronized to arcade RAM + strong relief + vertical joints (`src/emulation/practicePose.ts`, `src/rendering/createLevel3Materials.ts`, `src/rendering/createTerrainStudy.ts`, `src/rendering/createLivePracticeView.ts`)**:
+  - Native reading of the **22 wave triplets in RAM (`0x76e..0x7f2`, word `+4` at `0x772 + i * 6`)** discovered in ROM (`0x1d370..0x1d3f2`: `0x9f84` flat, `0xbf84/0xdf84/0xcf84/0x8f84` slopes, `0xf004` crest) in `readPracticePose` (`waveProfile`, 22 values `0..1`).
+  - Real-time driving via `setLevel3WaveProfile(scene, pose.waveProfile)` in `live = true` mode (tall crest `2.25` + contrasted per-vertex colors light turquoise / deep pine-green based on normal); standalone animation remains active on `terrain.html` (`live = false`).
+  - Separated vertical sides `level3-wave-sides` with procedural striped turquoise/dark-joint texture (1 joint per tile along Z, faithful to `MarbleMadness_Level3.png`).
+- **Warm sand/brown tint, 2 symmetric amoeba bumps, and wall niches up to the edge (`src/rendering/createLevel3Materials.ts`)**:
+  - Harmonized `level3-floor`, `level3-cliffs`, and `level3-tower-stone` to the true warm golden-sand / slate-brown palette of the arcade CRT.
+  - Symmetric reconstruction of the 2 truncated pyramids on the amoeba terrace (`x=63..68, z=61..66` and `x=66..71, z=72..77`) in `level3DisplayTerrain` (no more white blades or staircase steps).
+  - Raised wall niches flush to the tiling (`lintelY = topY - 0.14`) and adjusted parities/ranges of all 6 facades up to the edge.
+  - Turquoise pyramid (`level3-turquoise-spike`) made more compact (`+0.72`).
+- **Copper pipe flush at top and complete at bottom (`src/rendering/createLevel3Materials.ts`)**: masked the 3 collision cells `z = 78, x = 76..78` in `level3DisplayTerrain` that bit into the upper funnel (`x = 76..79, z = 78..82`) and whose cliff at `z = 79` sliced through the shaft and lower bend.
+- **Marble melting animation in acid (`src/emulation/practicePose.ts`, `src/rendering/createMarbleAnimation.ts`)**:
+  - Native detection of `state === 9` (measured over 56 frames in MAME 0.271, `word(base + 0x74)` progression from `0x1062` to `0x107a` in 7 steps → `melt` in `0..1`).
+  - Routed `animation === 9` to the animated `player_melt` mesh (12 poses already present in `local-roms/rolling-actors.json`), synchronized to `pose.melt` + continuous smoothing.
+- **Validation**:
+  - `npm run check` green (536 Vitest tests, V8 coverage ≥ 90%, Prettier, ESLint `--max-warnings 0`, `tsc --noEmit`, Vite build), with new tests in `practicePose.test.ts` and `createTerrainStudy.test.ts`.
+  - Chrome WebGL2 visual verification on `http://127.0.0.1:5173/terrain.html` at `500 px` (funnel flush to the millimeter + complete shaft and bend) and `736 px` (crisp vertical joints on wave sides).
+  - **Remains for Michel to confirm in live gameplay**: amoeba fluidity, marble melting in acid (`player_melt`), and real-time synchronization of the turquoise wave with the original CRT.
+
+## Level 3: full scroll to GOAL, native amoebas, textured towers, niches, and shadows — November 19, 2026
+
+Fixes for the 5 points reported by Michel on Level 3:
+
+- **Scroll unlocked to amoebas and `GOAL` (`src/game/modern/practiceTerrain.ts`)**: `level3LastSurveyedScroll` raised from `-15870` (`306 px`) to **`-15440`** (`736 px`), covering the entire level up to the turquoise wave and `GOAL`.
+- **Native acid amoebas in live gameplay (`src/emulation/intermediateActors.ts`, `src/rendering/createIntermediateActors.ts`)**:
+  - Discovered via MAME 0.271 the 8 native amoeba/acid-puddle slots starting at `0x1482` with stride `0x42` (`byte(base + 0x18) === 1`, `id = 10..17`, `kind = 'acid'`).
+  - Rendered 8 animated neon-green puddles (`arcade-acid-0..7`, pulsing concentric disks driven by `pose.frame` with zero per-frame allocation).
+- **Textures for both starting towers (`src/rendering/createLevel3Materials.ts`)**:
+  - Procedural material `level3-tower-stone` (`64 × 128`) with fluted capital, collar band, khaki-olive corner/central pilasters, and slate shaft, with UV coordinates cleanly split between the capital (`v = 0..0.234`) and shaft (`v = 0.234..1`).
+- **Reliefs on the large vertical wall, copper funnel, solid wave & turquoise curbs (`src/rendering/createLevel3Materials.ts`, `src/rendering/createTerrainStudy.ts`)**:
+  - Generalized `carveLevel3WallNiches` to all **6 facades** visible in `MM_original_levels_full_views/MarbleMadness_Level3.png` (left zigzag `x=50`, right zigzag `z=60`, amoeba terrace left `x=73` and right `z=82`, pipe approach `x=76`, right pipe pillar `z=86`), all with horizontal sills.
+  - Raised copper pipe (`level3-pipe-shell` / `level3-pipe-interior`) by `+4` arcade units to sit flush with `16320` tiling, and less-fluorescent satin terracotta/copper tint.
+  - Added front/rear vertical sides on `createLevel3Wave` (solid, brighter double-crested turquoise wave).
+  - Extracted and transversely smoothed (`[nw, ne, ne, nw]`) the **wavy turquoise curbs** of the final roller-coaster (`level3-turquoise-curbs`, material `level3-curb-turquoise`) + added the **turquoise pyramid** at the center corner (`level3-turquoise-spike`, shadow caster).
+  - Raised `bentX` threshold to `> 0.5` in `level3DisplayTerrain` to preserve both bumps on the amoeba terrace.
+- **Lighter shadows on Level 3 (`src/rendering/createTerrainStudy.ts`)**:
+  - `fill.intensity = 0.34` and `shadows.darkness = 0.28`.
+- **Validation**:
+  - `npm run check` green (Prettier, ESLint `--max-warnings 0`, `tsc --noEmit`, Vitest + V8 coverage ≥ 90%, Vite build) with tests added in `intermediateActors.test.ts` and `createTerrainStudy.test.ts`.
+  - Chrome WebGL2 visual verification on `http://127.0.0.1:5173/terrain.html` at `0 px`, `250 px`, `500 px`, and `736 px` (slider up to `736 px`, textured towers, recessed niches, flush pipe, wave, and `GOAL` flags).
+  - **Remains for Michel to confirm**: live gameplay test on Level 3 (smooth scrolling past amoebas + visibility and animation of acid amoebas).
+
+## Level 3 (steps 1, 2, and 3: terrain, copper pipe, turquoise wave, GOAL, and live wiring) — November 19, 2026
+
+Full completion of the first 3 steps of **Level 3** (arcade descriptor `0x2cd9e`, 192 diagonals, internal key `'level3'`):
+
+- **MAME 0.271 survey + copper pipe (`local-roms/level3-terrain.json`, `scripts/add-level3-pipes.mjs`)**: complete `118 × 118` grid (`2,260` active cells, opening scroll `-16176`, P1 start `(180, 76, 16408)`) enriched with the 333 shell triangles + 9 interior triangles of the vertical copper pipe extracted from `lev3.ase.mesh`.
+- **Border cleanup & scenery (`createLevel3Materials.ts`, `createPracticeGoal.ts`, `createTerrainStudy.ts`)**:
+  - Smoothed both starting towers (`4 × 4` without sawtooth edges) and both curved ramps (`[a, b, b, a]` and `[a, a, b, b]` smooth), removed solid cliffs under these two towers/ramps (`stripLevel3OpeningCliffs`), and built the two **flared medieval towers** (`4×4 → 2.6×2.6`) with **dark arrowslits** and **openwork arches** (`createLevel3OpeningTowers`).
+  - Restored the 124 missing `sw` corners on `+Z` borders (removing all sawtooth edges on vertical walls), straightened the 48 twisted-in-X ramp tiles, and flattened the right mini-worm ramp (`x = 30..35, z = 43..44`).
+  - Automatic smoothing of isolated corners sampled inside a deep pit (`level3DisplayTerrain`) + clipping of `±21` boundary diagonals.
+  - Khaki/sand stone materials (`level3-floor`), olive-gray cliffs (`level3-cliffs`), vertical copper pipe (`level3-pipe-shell` / `level3-pipe-interior`, shadow casters), **animated double-crested turquoise wave** (`level3-wave`, zero per-frame allocation), and `level3-finish` arrival zone (`GOAL` at `x=92..95, z=100..109`) with yellow/black flags.
+- **Live wiring (`practicePose.ts`, `createLivePracticeView.ts`, `feasibility.ts`)**:
+  - Recognized descriptor `0x2cd9e` in `readPracticePose` and `readModernPhase`, native actor reading (`readIntermediateActors`), automatic dev preloading of `level3-terrain.json`, and seamless 3D switch on Level 2 → Level 3 transition.
+- **Study page (`terrain.html`, `src/terrain.ts`, `src/dev/localRoms.ts`, `src/emulation/localStudy.ts`)**:
+  - Local dev endpoint `/__local-roms/level3-terrain.json` and **"Voir le niveau 3 (étude)"** button.
+- **Chrome WebGL2 visual verification**: screenshots verified on `Cadrage arcade` (`0 px` and `250 px`) and `Vue libre` — cleaned-up starting pits, copper pipe in place, turquoise wave and `GOAL` + flags visible with no runtime errors.
+- **Next step**: Level 3 visual polish based on Michel's feedback (`sw === null` zigzag edges, turquoise roller-coaster coating, spikes, and mini-worm / amoeba specific actors, `F3` quick checkpoint).
+
+## 4096 shadow polish, pits, guardrails, auxiliary piston, L1 spike, and L2 alcove — November 19, 2026
+
+Fixes following Michel's 8 screenshots:
+
+- **Practice Race & Intermediate Race shadows (`createPracticeSun.ts`)**: shadow map raised to `4096 × 4096` on both levels and fine calibration `bias` (`0.00045` / `0.0005`) + `normalBias` (`0.01` / `0.011`) to eliminate both white gaps at wall/floor junctions and self-shadowing on the walls of the 5 pits.
+- **Hexagonal ice basin (`intermediateIceMaterial.ts`)**: replaced 2D `screenX/screenY` polygons (which spilled outside the basin onto the flat ice) with shading in hexagonal basin coordinates (`dx = x - 9, dz = z - 6, radius = max(|dx|, |dz|, |dx - dz|) < 5`) leaving a flat margin line all around, faithful to the original and Rolling Madness 3D.
+- **Blue Y-pipe supports (`intermediateLandmarks.ts`, `createTerrainStudy.ts`)**: masked internal collision cells (`z = 85..86` at both upper mouths and `z = 91..94, x = 82..84` under the lower shaft), realigned the alcove (`z = 76..83`), and added a trapezoidal interior floor strictly inscribed within the flared spout (`x = 82.75..84.25` at `z = 92.9` → `82.05..84.95` at `z = 95`). Visually verified live in Chrome WebGL2.
+- **Level 1 starting pits (`createTerrainStudy.ts`)**: straightened to `(0, 1, 0)` the normals of rim extensions added by `extendPracticePitRims`, which tilted away from the sun (`(-0.24, 0.94, 0.24)`) and created a dark-gray ghost-shadow triangle to the right of each pit.
+- **Red guardrails (`createPracticeGuardrail.ts`)**: diameter increased from `0.27/0.29` to `0.36/0.38` to match arcade thickness.
+- **Level 2 under-bridge mechanism (`createIntermediateBridgeMechanism.ts`)**: added a plunger (`auxiliary-plunger`) and animated the small right piston (`auxiliary-cap` + `auxiliary-plunger`) in fast back-and-forth motion at `4.5 Hz` (several strokes per second).
+- **Level 1 end spike (`practiceChannelTerrain.ts`)**: added `[82, 62, 63]` to `channelRims` to close the recessed corner on cell `(62, 82)` under the `3 4 5 6` arrow.
+- **Level 2 alcove behind ice (`intermediateLandmarks.ts`)**: widened from `5` to `7` tiles (`z = 77..84`, 2-tile right pillar aligned with the left pipe mouth), lowered the gray shelf (`alcoveTopY - 10.2`), and thickened the middle beam (`2.8`) to match the original framing.
+- **Blue Y-pipe supports (`intermediateLandmarks.ts`, `createTerrainStudy.ts`)**: masked internal collision cells (`z = 86` at both upper mouths and `z = 91..94, x = 82..84` under the lower shaft) and added the flush interior floor only inside the flared spout (`z = 92.8..95`) so the pipe joins seamlessly with no tiles or blue pillar protruding underneath. Visually verified live in Chrome WebGL2 via DevTools.
+
+## Shadow acne, specular marble, pipe, waves, ice, and alcove — November 19, 2026
+
+Fixes following Michel's 15 comparative screenshots:
+
+- **Shadow acne removal and Level 1 pit fix (`createTerrainStudy.ts`, `createPracticeSun.ts`, `createPracticeSurfaceMaterial.ts`)**:
+  - Removed `floor` (`terrain-surface`) from the shadow caster list on Practice Race and Intermediate Race (direct cause of diagonal black stripes on tiling).
+  - Raised `shadows.bias` (`0.001` / `0.0012`) and `shadows.normalBias` (`0.04` / `0.045`) to eliminate self-shadowing speckling on `backFaceCulling = false` vertical walls, while keeping wall-on-wall shadows.
+  - Separated the walls of both lateral starting pits (`splitPracticePitWalls` → `terrain-pit-walls`, `receiveShadows = false`) to preserve their brown/orange/yellow arcade gradient without shadow corruption.
+- **Rolling Madness 3D-inspired marble rendering (`createMarbleMaterial.ts`)**:
+  - Replaced "bowling ball" yellow dots with a soft two-tone blue/red checkerboard (like `player.png` in Rolling Madness 3D) combined with a spherical environment map (`Texture.SPHERICAL_MODE`, like `env "player_env.jpg"`) and strong specular highlight for view-stable reflections as the marble rolls.
+- **Level 2 interior pipe shadow (`createIntermediatePipes.ts`, `createTerrainStudy.ts`)**:
+  - Darkened interior lining (`diffuseColor(0.26, 0.26, 0.28)`, `emissiveColor(0.05, 0.05, 0.06)`) and added `interior` as a shadow caster to recover the crisp shadow inside the mouth.
+- **Slope contrast and Level 2 wave-end geometry (`intermediateRims.ts`, `intermediateLandmarks.ts`, `createTerrainStudy.ts`)**:
+  - Removed deformation of flat row `z = 81` in `intermediateWaveCell` (the wave stops cleanly at `z = 80` and finish tiles stay flat).
+  - Added per-vertex colors (`intermediateSlopeColors`) on Intermediate Race tiling to recover the strong arcade white/medium-gray/dark-gray contrast between sun-facing and opposite slopes.
+- **Level 2 ice and rear alcove (`intermediateIceMaterial.ts`, `intermediateLandmarks.ts`, `createTerrainStudy.ts`)**:
+  - Added dark blue-green vertical bands (`joint(z - x) < 0.11`) aligned with the blue wall joints seen transparently through the flat ice.
+  - Carved the recessed rectangular alcove into the large blue wall (`x = 88`, `z = 80..85`, `carveIntermediateAlcove`) and added the gray tiled shelf (`intermediate-alcove-shelf`, `receiveShadows = true`) with intermediate beam and second lower recess.
+- **Study page `terrain.html` (`src/terrain.ts`)**:
+  - Verified Vite transform and `createTerrainStudy` loading on the real survey `local-roms/intermediate-terrain-pipes.json` in `NullEngine` (OK); added explicit error reporting (`console.error` + `#terrain-status`) instead of silent `.catch(() => {})`.
+
+## Wall-on-wall shadows, yellow cliffs, ice, and bridge mechanism — November 19, 2026
+
+Fixes following Michel's 12 comparative screenshots:
+
+- **Wall and platform cast shadows (Levels 1 & 2, `createTerrainStudy.ts`, `createPracticeSurfaceMaterial.ts`)**:
+  - On **Practice Race**, vertical walls no longer use alternating yellow/orange/brown bands: they carry a **uniform bright yellow** with dark joints, an orange-brown shadow tint (`emissiveColor(0.36, 0.1, 0)`), `backFaceCulling = false`, **`cliffs.receiveShadows = true`**, and `cliffs` + `floor` are added as shadow casters on `key` (wall-on-wall and platform-on-wall/floor cast shadows).
+  - On **Intermediate Race**, removed the additional `intermediate-pipe-wall-light` that washed out `+Z` navy-blue walls (bridge and recess behind the ice), and added `floor` as a shadow caster on `key` for crisp platform and wall shadows.
+  - Extended cliff depth (`base = lowest - 18` on Intermediate, `lowest - 10` on Practice) to eliminate the floating cutoff on the large blue wall behind the ice and black bottoms in the pits.
+- **Under-bridge mechanism (`createIntermediateBridgeMechanism.ts`)**: 4-spoke wheel + hub oriented **parallel to the slope / turquoise border** (`rotation.set(0, 0, Math.PI / 2)` instead of edge-on), positioned to the left of the piston (`dx = +0.88, dz = -0.78`), purple/dark-steel palette closer to arcade.
+- **Intermediate Race ice (`intermediateIceMaterial.ts`)**: crisper grid joints, stronger white diagonal highlights in the basin, deeper interior shadow, and crystalline dithering on the high ramp.
+- **Marbles (`createMarbleMaterial.ts`)**: changed from 48 tight dots to **12 spaced icosahedral yellow dots** (3–5 dots visible at once like the original) so 3D rolling is immediately legible.
+
+Validation: `npm run format && npm run check` succeeded (530 Vitest tests, V8 coverage, lint, typecheck, build). Visual test run to be confirmed by Michel in Chrome.
+
+## Level 1 & 2 polish, broom, synchronized bridge, and cameras — November 19, 2026
+
+Delivered on Michel's feedback requests (Levels 1 and 2):
+
+- **Synchronized and realigned broom (`practicePose.ts`, `createRollingActor.ts`, `createMarbleAnimation.ts`)**: reading native break pointers (`base + 0x72`, table `0x20fde`, indices 0..31) and secondary broom script (`base + 0x7a`, table `0x215f6`, indices 0..43, active flag `base + 0x7f`), verified against MAME RAM dumps `/tmp/mm-animation-review/broken/`. The `broom.jpg` group of `player_broken` is separated from `player.png` debris: hidden before native broom activation, scaled down to `0.84` around its XZ center, and realigned to the ground (`y = -5.67` in model space), without touching the debris.
+- **Synchronized articulated bridge and visible left wheel (`practicePose.ts`, `createIntermediateBridge.ts`, `createIntermediateBridgeMechanism.ts`, `createLivePracticeView.ts`)**: RAM words `0x772` (`0x6fc8..0x6fd4` in steps of 2) and `0x774` (`0xf048..0xf054`) provide the 7 native bridge steps (0..6, verified on `/tmp/mm-worm-reference/ram-*.bin`). In-game (`live = true`), `createLivePracticeView` drives deck and mechanism height from `pose.bridgeStep` (the 144-frame study cycle remains active in `terrain.html`). The small spoked wheel (`intermediate-bridge-wheel-hub`) is moved left of the piston in arcade view (`dx = +1.05, dz = -0.85`), facing the camera.
+- **Pipe cast shadows on blue walls (`createTerrainStudy.ts`)**: a dedicated static directional light (`intermediate-pipe-wall-light`, `includedOnlyMeshes = [cliffs]`, 1024 shadow map rendered once via `REFRESHRATE_RENDER_ONCE`) casts shadows from `intermediate-pipes-shell` onto the `+Z` and `+X` blue walls behind both pipes, without modifying the main sun (`key`) or introducing cliff self-shadowing.
+- **"Derrière la bille" camera (`createCameraOcclusion.ts`, `practiceCameraSettings.ts`, `createLivePracticeCamera.ts`, `practiceCameraControls.ts`)**: (1) the occlusion corridor preserves the floor at the marble's feet (`mmAboveFoot` + `mmClearFoot`) while continuing to clear raised walls and ledges between the camera and the marble; (2) `chase` framing is reserved for 1-player mode (option disabled, skipped by **C**, and automatically falls back to `arcade` as soon as a second player is active).
+- **Marble texture (`createMarbleMaterial.ts`)**: replaced equatorial `'1'`/`'2'` digits with six symmetric rings of 8 yellow dots projected without spherical distortion across the entire marble (equator and poles), with a softened specular highlight to make 3D rolling immediately legible.
+- **Level 1 — Diagonal edges & 4-line GOAL frame (`practiceChannelTerrain.ts`, `createPracticeGoal.ts`)**: clipped outer corners along both boundary diagonals `wx - wz = ±21` of the full survey (removing sawtooth edges); extended the Practice Race GOAL frame across all 4 rows of the trough (`y = 0..63`, letters on the top 2 rows, background and bottom border spanning the bottom 2 rows), while keeping the compact format for Intermediate Race.
+- **Out of time / Game over in 3D (`practicePose.ts`, `practiceHud.ts`, `ui/practiceHud.ts`)**: `mode === 4` stays in 3D rendering (`readModernPhase` returns `'level'`, `readPracticePose` keeps the pose); `readPracticeHud` reads native `OUT OF TIME` and `GAME OVER` banners from alpha-RAM (`$A03000`, rows 4..27) and displays them on the 3D HUD canvas; switching back to arcade video then happens for results (`mode === 2`) and attract (`mode === 1`).
+- **Linear intro sweep finish → start (`createLivePracticeCamera.ts`)**: camera starts above the finish (end of level) and glides linearly toward the exact starting gameplay camera pose (including direct VP join onto the orthographic arcade framing), without backtracking.
+
+Validation: `npm run check` succeeded (530 Vitest tests, V8 coverage, lint, typecheck, build).
+Environment limit: Playwright Chrome tests are blocked in the network sandbox (`net::ERR_ACCESS_DENIED` on `127.0.0.1:5173`) and the user's Chrome did not have remote debugging enabled. To be visually verified by Michel on `http://127.0.0.1:5173/` (and `PLAYWRIGHT_CHANNEL=chrome npm run test:browser`).
+
+Next action: after Michel's visual feedback on these Level 1 & 2 adjustments, start **Level 3 (Silly Race)** with `MM_original_levels_full_views/MarbleMadness_Level3.png`, the MAME terrain survey, and local models (`lev3.ase.mesh`, `lev3_wave.ase.mesh`, amoebas, mini-worms).
+
+## Materials, awards, and visibility — November 19, 2026
+
+Delivered: shared material for normal, dizzy, and broken marbles of both players (`createMarbleMaterial.ts`). Blue/red procedural paint with yellow markings and numbers, shared lighting and specular. Private model UVs go from V=1 to V=2: both textures must repeat, otherwise markings are replaced by a solid color. Non-regression test added. Normal `player` model is added to the converter and local JSON; the procedural sphere remains the fallback if this geometry is missing.
+
+`practicePose` reads magic state 8: native counters, animation pointer, 0.75/1.5 stretch. `createMagicWand.ts` displays a thin ivory/gold wand and its stars without changing time. It retracts at native index 42. The `+10 SEC` message comes from native notice `0x22446`, active in `0xf0`. Score awards come from table `0x22386..0x22422`; the black marble disappearing produced **1000 points** (`0x223aa`) in the original replay, for both players. `createScoreAward.ts` displays these notices without inferring points from a score delta. `−5 SEC` now requires its `0x2243a` pointer and active flag: it no longer overlaps bonuses.
+
+Intermediate GOAL lacked victory materials. They are created, colored, and emissive, with priority given to the first finisher read from the core. Color resets on a new start. Worm body diameter increases from 0.47 to 0.60, ends from 0.58 to 0.72; native cadence/contacts unchanged. The bridge mechanism is moved forward by +2.4 X and +0.7 Z toward the slope: piston and base are clear from the arcade angle. Its cycle remains that of the study, to be synchronized with the core later.
+
+In Chase ("Derrière") camera, `createCameraOcclusion.ts` creates a visibility corridor between the eye and tracked marble, limited to wall/tower materials. Fragmentary mask with soft edges and dithered transparency; the large cliff mesh does not vanish completely. Fast opening (about 0.2 s), restoration on leaving the corridor, immediate mask removal outside Chase camera. Scene-owned plugin, reused buffers/vectors, no alpha sorting. `registerForExtraEvents` must be defined BEFORE `_enable(true)` so uniforms are passed to the GPU. No effect on collisions or gameplay.
+
+Validation: `npm run check` succeeded, 515 Vitest tests; 32 Chrome view, control, and occlusion tests succeeded. GPU test: marble hidden then visible, corridor moved and wall restored. Real F2 replay: stable start for eight seconds, V, F2 under capture, C, and Chase controls; no JS errors. WebGL screenshots inspected of P1/P2 materials, bridge at arcade angle, wand, and notices from native RAMs 2526/2580/2690/2710/2936.
+
+Reload `terrain.html`, F2 to play, and C to switch camera. Local JSON was regenerated with: `node scripts/extract-rolling-actors.mjs '/tmp/mm-rolling-research/extracted/data/{app}'`. Models remain local. Colors, worm diameter, and visibility in a full run remain for Michel to assess; real Safari not retested. The wand was isolated in the MAME harness by setting the pending flag, then run by the original program: do not claim spontaneous appearance was verified. Presentation never activates it itself. Next action: compare broom timing to the secondary native script, then synchronize the bridge; keep the single core as arbiter.
+
+## Worms, game over, and capture click — November 19, 2026
+
+Worms now use `rendering/createWorm.ts`, a procedural articulated mesh, and `game/modern/wormPose.ts`, which interprets native script/index/fraction. The eight-pose walk keeps the first anchor, plants the other end, then lifts the oldest anchor. The script gives direction even when native velocity is zero. Geometry buffers are reused; the scene owns meshes, nodes, and materials. The black marble keeps its local model.
+
+A new MAME replay of the attack showed the sequence: bend, straighten, flattened mouth, swallowing bell, return upright, late mouth/tongue. These phases are represented and synchronized with native indices, rather than a remake's timed animation. Player state 7 hides the marble: the melt morph that created a large blue disk was removed from this case. 3D shapes remain a geometric interpretation, to be assessed in-game by Michel.
+
+The timeout "freeze" was an indefinite hold of the 3D terrain during native screens. `readModernPhase` distinguishes level phases from menus, results, and game over. The latter make the original video visible. Keeping 3D during intros is preserved. A real 82 s run after F2 confirms the 0 → 4 → 1 transition, native video then attract, core unpaused, and no JS errors. No changes to physics, score, or timer.
+
+Clicking on a 2D or 3D image resumes and captures via the same path as the Capture button. Clicks on UI controls and the interactive cabinet keep their function. The listener is cleaned up with controls; no second engine. Capture handling avoids the pause toggle specific to the EmulatorJS canvas.
+
+Validation: `npm run check` passes, 505 Vitest tests; 31 Chrome tests pass. Three click/capture/Esc cycles were also verified with the real core. Browser validation and limits are detailed at the top of `docs/VALIDATION.md`. The older open items wand/+10s, broom, and normal/broken material remain to be finished; see `docs/ANIMATION_AUDIT.md`. Do not announce those topics as fixed. Temporary references: `/tmp/mm-worm-reference/` (native replay and RAM), `/tmp/mm-native-worm-strip.png`, `/tmp/mm-worm-*.png`, `/tmp/mm-timeout.json`.
+
+## Flyovers and camera handoff — November 18, 2026
+
+The flyover smoothly joins the chosen camera (arcade, follow, top, behind): interpolation of position, target, and projection in the last 40% of the sequence. Perspective projection becomes orthographic for arcade framing, with no final cut. C interrupts the sequence.
+
+`createVideoView` prepares the preferred terrain as soon as available, keeps 3D presentation between drawable native states, and selects the next terrain automatically. `practicePose` also exposes Level 2 during its native intro (mode 3, player object initialized), before gameplay. Each new compatible scene gets a 180-native-frame flyover; Practice's native countdown keeps its own progression. F2 re-arms the flyover even on the same terrain. When paused, its time stays frozen. **F2 always restores an already-playable state**: its three-second flyover therefore accompanies the first seconds of the core without suspending its timer; C lets you immediately take the gameplay framing. No ROM/physics patch.
+
+V preserves the explicit choice of arcade/comparison views. A temporarily unavailable pose keeps the last 3D terrain with actors hidden, rather than briefly flashing arcade. Partial terrain outside the survey keeps its previous fallback. A future race without a survey still needs explicit handling: the reader today exposes only Practice and Intermediate.
+
+Checks and limits of this delivery are at the top of `docs/VALIDATION.md`. Compliance requests for worms, wand, broom, and normal/broken marble materials remain under analysis: no fix for these animations is included in this camera batch. Native surveys and wand extraction are kept temporarily under `/tmp/mm-animation-review/`; do not present them as shipped assets. Detailed results are kept in `docs/ANIMATION_AUDIT.md`. Next action: synchronize the wand to native state 8 and the broom to its secondary animation, then compare worm poses with alternating feet.
+
+## Fixed F2 start, automatic surveys, and actors
+
+Reload `terrain.html`. F2 opens Intermediate Race directly in 3D. ROMs, BIOS, full Practice and Intermediate surveys, and local models load automatically. **V** cycles 3D → comparison → arcade, **C** cameras, **H** help. Trackpad and boost use the active camera's frame of reference. The behind view keeps its heading downstream.
+
+The previous checkpoint was incomplete. The core kept game RAM without restoring two analog accumulators and the Atari Slapstic bank. Resuming therefore did not recover the same collision terrain. `emulation/intermediateCheckpoint.ts` adds these states to MM2 version 2 format. Addresses are specific to the WASM hash verified by the loader. `local-roms/intermediate-web.state` was regenerated. Start stays at (220, 108), height 16378, for eight seconds with no input in Chrome. F2 during capture and V are also verified on the real session.
+
+`scripts/extract-rolling-actors.mjs` converts meshes from the extracted local installer. `local-roms/rolling-actors.json` contains textures and poses for worms (idle, bend, jump start, and jump), the black marble, dizzy marble, break with broom, and vanish. Stars and tongue are complementary and procedural. `intermediateActors.ts` reads black at 0xa20 and the four creature slots at 0x1302, stride 0x60. Presentation selects models from native states and uses the core's frame counter. Both surveys remain available when the level changes. Local files are excluded from the build.
+
+`npm run check` passes with 490 Vitest tests. All 51 Chrome tests pass. An automated run in a Web session reaches the worms and displays both renders, native positions, and synchronized stars. Models for the worm, dizzy marble, and broom were observed in a real WebGL context. The full race remains to be played. Fine timings for worm jumps, cleanup, and tongue remain to be compared in-game against arcade animations. The bridge keeps its study cycle and remains to be synchronized.
+
+## Playable Intermediate Race
+
+Open `terrain.html` on the dev server. ROMs and BIOS are verified on load. **F2** opens the game on the study page. After **"Démarrer l'émulation"**, **"Capturer le trackpad"** resumes the timer. **F2** during a game restores the solo start with 60 seconds. Survey and checkpoint remain in `local-roms/`. `node scripts/record-intermediate-checkpoint.mjs` regenerates the checkpoint with Chrome, local ROMs, and the normal Practice Race run.
+
+The core drives both views. **Derrière la bille** camera follows the marble's position with a fixed horizontal axis downstream. The bridge uses a thickened actuator, auxiliary cylinder, conduit, and a three-rivet turquoise edge refined from the new screenshot. Concrete next action: survey the bridge phase in the core to synchronize its rendering, then identify worm and break states. These events remain visible on the arcade view of the comparison.
+
+`npm run check` passes with 478 Vitest tests. The Chrome suite passes with 50 tests. In Chrome with local archives, restore, capture, marble movement, and return to start via F2 were verified. The full 3D race remains to be played.
+
+## Ice polish and behind-the-marble camera
+
+Basin rendering uses visible joints in reflections, diagonal dithering outside the basin, and drips joined to the cliffs near the pit and on the right edge. View the **Glace et arrivée** framing in `terrain.html` with the local survey. The Rolling Madness 3D installer contains the bridge in 16 poses, its textures, and ice material. The inventory is in decisions. In playable Level 1, **C** now reaches **Derrière la bille**. `npm run check` passes with 474 Vitest tests and all 49 Chrome tests pass. Next step is to synchronize the playable Intermediate Race view with the arcade core.
+
+## Intermediate Race ice and finish
+
+In `terrain.html`, load `local-roms/intermediate-terrain-pipes.json` then choose **Glace et arrivée**. The basin has its turquoise texture, stylized reflections, and vertical lip. Gray GOAL marking and blue-and-black flags reuse Practice Race functions. Pipes receive their shell's shadow on a floor flush with the tiling. The bridge mechanism is recentered on the purple base and its turquoise edge no longer protrudes past the deck. `npm run check` passes with 470 Vitest tests. All 49 Chrome tests pass.
+
+Synchronizing Intermediate Race 3D rendering with the core remains the next step. Study GOAL is gray.
+
+## Intermediate Race shadows and pipe outlets
+
+Lighting is realigned to the central pyramid shadow in `intermediate-reference-306.png`. Blue cliffs receive shadows, with an unblurred map and a bias verified in arcade view. The cap of the three pyramids rounds near the top. A textureless gray surface covers the tiling under both pipe mouths. It preserves exterior tiling. Load `local-roms/intermediate-terrain-pipes.json` in `terrain.html`. **Tuyaux et rampes** shows the outlets in free view. `npm run check` passes with 469 Vitest tests. All 49 Chrome tests pass.
+
+Next action: connect arcade states to the playable Intermediate Race view, notably worms and marble breaking.
+
+## Intermediate Race polish
+
+The local `local-roms/intermediate-terrain-pipes.json` survey was regenerated with Rolling Madness 3D normals. Highlights on both pipes follow their smoothed surface, welds are visible, and outlets have a gray floor. The bridge shows a riveted turquoise side, guides, spoked wheel, and telescopic piston animated with the deck. Landing joins near the first pipe and at the final basin were touched up in `intermediateRims`. `terrain.html` lets you verify both framings. `npm run check` passes with 466 Vitest tests and all 49 Chrome tests pass.
+
+Next step remains reading Intermediate Race poses and events to animate the playable 3D view.
+
+## Prototype 04 — 3D terrain
+
+The [modern rendering specification](MM_NEW_3D_GRAPHICS.md) sets the tasks and validation criteria. The MAME core remains the reference for the same game in both presentations.
+
+The `scripts/measure-terrain.mjs` harness checks heights against the game and produced `local-roms/practice-terrain.json` (20 × 14 cells). In `/terrain.html`, load this survey then `local-roms/practice-reference.png` to overlay the arcade screenshot at fixed framing. Replay confirms start projection within 2.14 native pixels on checked points. Section silhouette and cliff depth remain approximated. See [PROTOTYPE_04.md](docs/PROTOTYPE_04.md).
+
+In **Affichage** on the game page, load the `local-roms/practice-complete-terrain.json` survey (91 × 91 cells), select **3D moderne · Practice Race**, then start P1. Relief runs from the start to the finish strip, marked by the GOAL text. Previous surveys remain usable. Modern rendering displays during the race, then MAME shows the summary and Intermediate Race on the arcade canvas.
+
+The MAME 0.271 harness in `--finish` mode verifies the survey at five points of the race and measures a maximum scroll of 360 pixels. The browser reaches 359 pixels of scroll on the verified replay. Arcade and modern views agree on MAME data surveyed across 948 P1 iterations. `npm run check` passes with 349 Vitest tests and all 46 Chrome tests pass. P1's fall on the first ramp had also been validated with local ROMs. Arcade rebuild corresponds to the temporary absence of the marble.
+
+After loading a survey, under capture, **V** toggles between original game and modern 3D. **Shift+V** enables side-by-side comparison or returns to the original game. The **Affichage** menu is also available in the immersive view HUD. Outside the survey, comparison keeps arcade visible and displays a message instead of modern rendering. Succeeded in Chrome with the real core, `npm run check` passes with 356 Vitest tests and all 47 Chrome tests pass.
+
+Practice Race start reproduces the 24-pixel black margins measured on each side of the MAME render. The fixed camera preserves projection of arcade coordinates. Modern terrain uses a stone texture and striped walls. The five red guardrail sections and two start spikes are positioned from the local screenshot. Steps are closed by their vertical faces and openings keep their surveyed contour. Scenery proportions and pit depth are approximated. Comparison was verified in Chrome with the real core. `npm run check` passes with 362 Vitest tests and all 47 Chrome tests pass.
+
+Touch-up of central pit materials from Michel's screenshots and MAME render pixels. Tiles and spikes use neutral grays, wall faces alternate yellow and orange, and joints are dark. Red arrows are applied to the mesh of both ramps. Rails have a wider highlight and light stretches shadows further to the right. Strips are aligned to the course grid. Step relief remains approximated. `npm run check` passes with 364 Vitest tests and all 47 Chrome tests pass.
+
+Both lateral pits now use a motif aligned to visible columns in the arcade screenshot. The motif places dark orange on the left side of each pit, then bright orange and yellow. The oblique transition is approximated by a procedural texture. The rest of the walls still use grid-aligned bands.
+
+Gray of each 3 × 3 panel follows the measured slope. Both lateral pits keep their colored cutout and tiled lip. The central pit has flat steps and a darkened bottom. Guardrails are thicker and their posts sink into the floor. Completed tiles at the bottom-right edge give the orange wall a continuous edge. Exact palette and geometry of the central pit remain approximated. Arcade and 3D comparison was verified in-game under Chrome with the local core and survey. `npm run check` passes with 370 Vitest tests and all 47 Chrome tests pass on serial re-run.
+
+A directional light at about 17° from the ground replaces the gray map. Direction is estimated from the guardrails and their shadows in arcade frame 1199. It applies to both study and game views with the same gray material for tiles. Left join between towers was closed, vertices tightened, and the two detached arrow spikes enlarged. Comparison was verified in-game under Chrome. Orientation is an estimate and shadow silhouettes still depend on reconstructed geometry. `npm run check` passes with 373 Vitest tests and all 47 Chrome tests pass.
+
+Under the left guardrail of the central pit, three completed tiles meet the wall on a single edge. The upper post was realigned to this rim and its height is distinct from the neighboring step. Dark orange runs along the rim, transitioning to yellow on the return. Towers rest on their landing and their plinths carry stone joints. Directional lighting of tiles is preserved. Comparison verified under Chrome with the arcade core. `npm run check` passes with 375 Vitest tests and all 47 Chrome tests pass.
+
+Guardrail posts now follow the height of the tiling triangles, with a slight overlap for contact. Pyramid plinths have two relief stones per face, separated by a recessed joint. The return adjacent to the guardrail carries an oblique yellow band on an orange background. The rest of the face follows the step palette. Comparison verified in-game under Chrome with the full survey. Stone profile remains approximated. `npm run check` passes with 376 Vitest tests and the Playwright suite passes with 47 Chrome tests.
+
+Each pyramid's plinth covers its 3 × 3 landing to the edge. All nine tiles of the landing use the same presentation altitude, shared with the plinth. The stray step from the collision survey beneath the pyramid is thus removed from rendering. Steps below and heights used by the core remain distinct from the landing. The join was checked in-game under Chrome. `npm run check` passes with 376 Vitest tests and all 47 Chrome tests pass.
+
+Pyramid plinths count three stones per face on a 3 × 3 footprint. Plinth bottom and landing are lowered to 16366 in the arcade survey. Lowered and narrowed shoulder accentuates the slope difference between cap and plinth. Three tiles under each pyramid are lowered in the presentation mesh to clear the landing flank. The material draws the contour and diagonal separation of the cap. Guardrail construction is isolated from their anchors in the course. Pyramid and guardrail builders take a material and are reusable with other colors. The [scenery inventory](docs/SCENE_ELEMENTS.md) lists scene names, anchor points, dimensions, and modules to reuse. The new profile was checked in-game under Chrome. `npm run check` passes with 379 Vitest tests and all 47 Chrome tests pass.
+
+The section after the two large pyramids includes the central red arrow, the two small pyramids on their rims, and the trough guardrails. `practiceChannelTerrain` joins the heights of the trough tiles and fills in missing corners on straight rims. The reference frame for this portion is frame 1500, at scroll −16020. Comparison verified under Chrome at the MAME replay pose, which reaches Intermediate Race. `npm run check` passes with 384 Vitest tests and all 47 Chrome tests pass.
+
+At Michel's request, Practice Race cast shadows are limited to tiling, the trough, and markings. Vertical strips keep directional lighting. This fixes projected silhouettes under platform edges. Before/after comparison under Chrome confirms disappearance of these silhouettes. `npm run check` passes with 385 Vitest tests and all 47 Chrome tests pass.
+
+In the descent after the trough, vertex joins are extended to the finish. Straight edges regain their tile corners and course step-downs remain visible. The checkerboard takes its heights from the same mesh as the ramp. Frames 1740, 1860, and 1920 of the MAME 0.271 replay serve to check this zone. All three poses were compared under Chrome. `npm run check` passes with 390 Vitest tests and all 47 Chrome tests pass.
+
+The three 3–4–5–6 markings are placed on platforms and the two checkered flags wave at the finish edge. The GOAL banner is gray before crossing, then blue when the core sends animation 6. Textures are drawn by rendering from the local replay. Flags animate during BabylonJS rendering. Both palettes and cloth motion were verified under Chrome. `npm run check` passes with 394 Vitest tests and all 47 Chrome tests pass.
+
+Tiling joints remain faintly visible beneath the GOAL and 3–4–5–6 markings thanks to localized transparency at tile edges. Both GOAL palettes and markings were inspected under Chrome. `npm run check` passes with 394 Vitest tests.
+
+The 3D view of Practice Race displays P1's score and timer, in solo and comparison modes. `emulation/practiceHud` reads tiles displayed by the pinned Web core directly. `ui/videoComparison` delivers the HTML HUD and hides it when the pose leaves the survey or the summary takes over. The native replay goes from 0 points and 58 seconds at start to 1,270 points and 47 seconds at finish. See addresses and decoding in `docs/DECISIONS.md`. The Web game verifies start, countdown, and view changes while paused. Finish in Chrome remains to be replayed with the real core. `npm run check` passes with 398 Vitest tests and all 47 Chrome tests pass.
+
+The solo HUD reproduces arcade placement and palette with a bitmap font redrawn at native resolution. The timer has larger digits with a black outline. The left-facing numbered marking uses the mirrored version of the digits in their tiles. Arrow, boxes, and joints keep their alignment. The other markings share the second material variant. The HUD was verified with the real core and all three decals on the finish pose in Chrome. `npm run check` passes with 399 Vitest tests and all 47 Chrome tests pass.
+
+GOAL uses serif lettering and a border limited to the first side of the trough. Both flags have a 3 × 2 checkerboard. Both banner palettes were checked in Chrome. Starting lift selects five local meshes and their walls from relief codes read by `emulation/practicePose`. `rendering/createPracticeStartLift` extends the measured profile across three tiles. Comparison with the real Web core shows the slope at maximum, and the trace confirms its return to flat. See `docs/DECISIONS.md`. `npm run check` passes with 402 Vitest tests and all 47 Chrome tests pass.
+
+During the solo countdown, the modern view offers a flyover of the survey to the marble. Field `PracticePose.opening` tracks the arcade counter and hands control to the chosen framing when the race starts. Under capture, C cycles through arcade framing, follow, and top view. Keys + and − adjust FOV or zoom. The same settings are accessible while paused. The real core in Chrome confirmed the flyover, timer at 60 at start, and unchanged pose during adjustments. `npm run check` passes with 408 Vitest tests and all 47 Chrome tests pass.
+
+Duo mode displays both marbles, scores, and timers in Practice Race. Module `createPracticeMarble` shares construction and keeps independent rolling for each marble. P2 fall and respawn were checked in Chrome with the real core. The H panel displays controls and reflects keys configured for P2. Modern view keeps the terrain during an excursion outside the full survey. Regression is covered by a synthetic pose in Chrome. The exact gesture from the video remains to be redone with boost. `npm run check` passes with 412 Vitest tests and all 48 Chrome tests pass.
+
+After a fall, four shards converge on the respawn point per the core's counter. The 3D trajectory is redrawn and cadence is measured in arcade. P2 fall, shards while paused, and respawn were verified under Chrome with the real core. Scenery shadows are crisp with a 24° sun. **Ombre des billes** adds them on demand and stays disabled by default. `npm run check` passes with 413 Vitest tests and all 48 Chrome tests pass.
+
+Respawn shards follow the same counterclockwise circle, centered on the marble and visible in the camera plane. Radius decreases with the arcade counter and each shard carries its player's color. The right pyramid still reuses the left builder, and its two support tiles with missing corners are filled in before the landing mesh. Both touch-ups were checked in the Chrome comparison with the real core. `npm run check` passes with 414 Vitest tests and all 48 Chrome tests pass.
+
+Respawn animation now uses eight shards per player. The solo MAME 0.271 replay served to tune their orbit in `src/rendering/createPracticeRespawn.ts`. It is wider than tall, and its center starts above the respawn point before descending onto the marble. The scene test verifies shard count, location, and orbit span at counter 16, as well as convergence. Chrome comparison was verified during a P2 fall with the real core. `npm run check` passes with 414 Vitest tests and all 48 Chrome tests pass.
+
+Pose reading in `src/emulation/practicePose.ts` preserves X, Z, and height fractions for P1 and P2. A stabilization case was reproduced in MAME 0.271. Offsets of 0.56 and 0.44 units in Z became two single-unit steps. The regression test uses those three values from the core. `npm run check` passes with 415 Vitest tests and all 48 Chrome tests pass. P2 fall and respawn were replayed in Chrome with the real core. Michel's intermittent case remains to be confirmed in gameplay.
+
+Two MAME 0.271 replays validate duo finish in both orders, summary, and transition to Intermediate Race. GOAL keeps the first player's color, read in `src/emulation/practicePose.ts`. In modern view, tiling uses a 16 × 16 texture with stepped joints and light dithering. Cliffs of the final descent extend below the framing, per arcade screenshots. Chrome comparison confirms both visual touch-ups. Native snapshots replayed in Chrome confirm GOAL in both finish orders and exit from modern view at the summary. A duo keyboard run with the Web core remains to be redone in gameplay. `npm run check` and all 48 Chrome tests pass, with 418 Vitest tests.
+
+In duo Practice Race, `practicePose` reads the trigger and offset of the catch-up message. `createPracticeCatchUpLabel` displays "−5 SEC" above the affected player, starting from the marble's return. The timer keeps a separator column between digit outlines. Catch-up was reproduced in native MAME and poses were replayed in Chrome. Full gameplay test with the Web core remains to be done. The "+10 SEC" bonus will be surveyed in Intermediate Race. `npm run check` passes with 420 Vitest tests. All 48 Chrome tests pass.
+
+`terrain.html` loads the Intermediate Race survey in `local-roms/intermediate-terrain.json`. Benchmark `node scripts/measure-terrain.mjs --intermediate` reproduces the survey with MAME 0.271. Framing covers 0 to 306 pixels of scroll and free view shows the full grid. Blue walls, ramp, and three pyramids provide the first study scene. `npm run check` passes with 422 Vitest tests. All 49 Chrome tests pass.
+
+`intermediateRims` restores rectangular rims of the five starting pits and tile corners at straight cliff junctions. The large ramp join is extended to the high plateau. Framings 0, 218, and 306 px were reviewed in Chrome with the existing survey. `npm run check` passes with 428 Vitest tests.
+
+`intermediateRims` fills in the 16 isolated 2 × 2 tile blocks around the ramps, including the one cut by the survey boundary. Top height comes from the first sampled tile of each block. All four groups were inspected in Chrome. `npm run check` passes with 432 Vitest tests and all 49 Chrome tests pass.
+
+Intermediate Race pyramids have their own mesh in `createIntermediateTower` and a 14-tile plinth in `intermediateLandmarks`. Rows follow the 3–4–4–3 pattern with a last row offset by one tile. The test checks footprint and proportions across all three pyramids. Arcade framing at 218 px was reviewed in Chrome. `npm run check` passes with 433 Vitest tests. All 49 Chrome tests pass.
+
+`intermediateRims` clips lateral boundary tiles along a continuous diagonal and extends incomplete tiles along raised straight rims. The same contour is used to generate vertical walls. Tests cover both diagonals and joins in the second half of the survey.
+
+MAME replay confirms movement of the first bridge around (63,58). The four-by-four tile deck visually pivots around Z 60. Its free edge rises 16 units over a 144-frame cycle. `createIntermediateBridge` animates the deck, its turquoise borders, and the purple mechanism in the study scene. Animation loops in study mode. The core phase remains to be wired into the playable view. Terrain processing removes the neighboring stray spike and resets isolated corner tiles to their platform level. Cliffs and bridge cast shadows onto the tiling. `npm run check` passes with 439 Vitest tests. All 49 Chrome tests pass. The bridge was verified at 306 px and in free view, flat then raised. Chrome screenshots show shadows inside pits and on ramps.
+
+The bridge now has a thick deck and low framing for its mechanism. Wave-zone lanes share the same profile. Local file `local-roms/intermediate-terrain-pipes.json` adds triangles for both Rolling Madness 3D pipes, realigned in the arcade grid and dressed with BabylonJS materials. Load this copy in `terrain.html`, then choose **Pont articulé** or **Tuyaux et rampes**. `npm run check` passes with 458 Vitest tests. All 49 Chrome tests pass, and both framings were inspected with the local pipe mesh.
+
+MAME replays `--intermediate` and `--intermediate-impact` isolate respectively P1's dizzy state and engulfment, and P2's break followed by the yellow broom pass. Landmarks in `docs/PROTOTYPE_04.md`. The Web core properly restores a Practice Race state after one iteration, private Chrome test. Starting points for all six courses and the selector remain to be created.
+
+Concrete next action: first wire marble pose and Intermediate Race animation states to the playable view, then survey worm poses to synchronize their 3D rendering. Wand survey remains to be done.
+
+### External reference Rolling Madness 3D
+
+Luca Elia's installer was read on macOS without running the program, using `xtinno` from Binary Refinery 0.11.3. It contains 47 `.ase.mesh` files, including all six terrains and separate models for marbles, enemies, bridges, and obstacles. `level/level1.txt` and `actor/world1.txt` associate Practice with mesh `model/lev1.ase.mesh`. This binary file references 9 textures and 6 lightmap textures. No game source code was found in the installer or on the author's public page. The included license requires permission to modify or redistribute the software. Full extraction is now in `3D_assets_for_animated_entities/`.
+
+[MeltyTool](https://github.com/MeltyPlayer/MeltyTool#supported-formatsgames) has an `.ase.mesh` importer and a reference GLB export for Level 1. All six meshes from the installer match the repository files by Git blob SHA. Improved animations and lightmap textures are proposed in [PR 116](https://github.com/MeltyPlayer/MeltyTool/pull/116), opened during verification. Converting local files and aligning to arcade coordinates remain to be tested if that track is resumed.
+
+## Safari immersive view
+
+Michel confirms capture works in windowed mode. Native fullscreen interrupts capture and audio. The play button opens the immersive view with HUD in Safari prior to 18.2 to work around WebKit bug 272136. Reload, choose Jouer en plein écran 3D then Capturer. Confirm that the game advances and audio remains stable in immersive view in Safari.
+
+## Safari capture and audio crackling
+
+Michel reports that Capturer paused the game and audio crackled. The Pointer Lock hook now awaits the confirmation event if the browser returns a non-promise value. For Safari, the requested RetroArch buffer increases from 64 to 128 ms. Reload in Safari, start, click Capturer, and verify marble movement and audio.
+
+## Testing on Michel's Mac
+
+Michel validates two-player gameplay, audio, and CRT legibility. Safari sometimes shows black screens and slower startup than Chrome. The exact cause remains to be isolated in Safari. Diagnostics time ZIPs, frontend, and core launch. Loss of the BabylonJS graphics context falls back to direct view in the same session. Loss of core context is reported separately. On the next black screen, note the affected view and copy diagnostics from the page.
+
+## Level 1 jump
+
+Michel could not make the jump to the side platforms with Space and the trackpad. Held boost increases from 128 to 256 trackball units per iteration. Given equal start and duration, the real core shows stronger horizontal acceleration. The jump itself remains to be reproduced. Reload the page, start a game, and check crossing from the ramp. Comparative test conditions are in [VALIDATION.md](docs/VALIDATION.md).
+
+## Cathode-ray screen
+
+In Borne et bar 3D, check Effet CRT under Écran cathodique. Sliders adjust curvature, scanlines, and horizontal noise. The HUD mirrors the toggle in fullscreen. Preferences are local. Effect and noise are initially disabled. `src/rendering/createCrtMaterial.ts` contains the tube mesh and shader. `src/ui/crtControls.ts` synchronizes settings. The tube keeps a 4:3 aspect ratio regardless of the video canvas ratio. Glass and raster curvature was strengthened on both axes. `npm run check` passes with 297 tests and Chrome with 38 tests. The real game was observed head-on and in tilted view with the filter active. Reload Vite on port 5173, enable CRT, and compare both framings.
+
+## Two players
+
+P1 uses the trackpad or mouse. P2 uses ZQSD by default, with WASD, arrows, remapping, and disabling in Périphériques de jeu. Filtering in the glue reserves the mouse for P1. Keyboard reaches P2 via the core's D-pad directions. Each trackball follows its input. Tested real core in Chrome with two credits and Start player 2. Verify two-player gameplay comfort on Michel's Mac.
+
+Last updated November 14, 2026.
+
+## Tilted monitor and trackballs
+
+C cycles through Frontale, Moniteur incliné, Écran et commandes, Borne, and Bar. The monitor fills most of the close-up view, with its perspective bezel. Marbling makes ball rotation visible. In-game, the blue one follows P1 deltas. Outside capture, click and drag the red one to verify its animation in the scene.
+
+## Atari System I reproduction
+
+Gozer's `marble.skp` is integrated into the bar after local conversion. Geometry uses the model's dimensions in meters. WebP textures cover the side panels, control panel, and marquee. The monitor's glass and static image give way to the tilted plane receiving MAME video. `src/rendering/createCabinet.ts` builds clickable zones and both trackballs. Blue follows P1. Red represents P2. Both Start buttons and both coin returns are active outside capture. `npm run check` and the Chrome suite pass. The real game was observed in all four framings.
+
+Open the Borne et bar 3D scene, choose Borne to see the whole cabinet, then Écran et commandes to inspect both trackballs. Checks in [VALIDATION.md](docs/VALIDATION.md) and sources in [the asset registry](public/assets/README.md).
+
+## In-game camera shortcut
+
+In Borne et bar 3D, C cycles Frontale, Écran et commandes, Borne, then Bar. Close-up framing shows screen, trackball, and buttons. The cycle is defined in `src/game/cameraPreset.ts` and goes through the same camera change as the HUD and page selectors. The browser test verifies capture and boost during transitions. Close-up view was inspected in Chrome with the real core. `npm run check` passes with 289 tests and the Chrome suite with 34 tests. To test, capture the trackpad in 3D view then press C at each framing change.
+
+## 3D trackball fix
+
+`src/rendering/createCabinet.ts` composes rotations in cabinet axes. The top rolls in the gesture direction, including after a diagonal. Maximum visual amplitude is 45° per sample. The core hook keeps the same deltas. `npm run check` passes with 288 tests, and Chrome with 33 tests. Gestures under Pointer Lock confirmed axes in the scene with the real core. Separate optical tests at the start of Level 1 confirm the primary direction in all four directions. See [measurements](docs/VALIDATION.md#sens-de-rotation-de-la-boule-3d--10-novembre-2026).
+
+For Michel's test run, reload the local Vite 5173 server, choose Caméra → Borne, click Capturer, then compare short vertical and horizontal gestures after a diagonal gesture.
+
+## Prototype 03 — current state
+
+Michel authorized the five evolutions of [specification 03](Marble_Madness_Prototype_03_SPEC.md). They are implemented. The scene keeps a single MAME session and its reference views.
+
+- Explore the bar with ZQSD, WASD, or arrows. Trackpad steers look direction. E nearby transfers Pointer Lock from the BabylonJS canvas to the arcade canvas. Esc pauses and purges inputs. Leaving the cabinet returns to the bar.
+- To-scale cabinet, side artwork, material grains, and static shadows. The trackball rotates per observed native deltas. Choose Borne then Capturer in the HUD to see it during gameplay.
+- Disengageable positional audio during exploration. The adapter reuses the OpenAL master. In-game, original stereo routing is restored.
+- Éco, Équilibrée, or Retina quality, with DPR caps of 1, 1.5, and 2. Diagnostics expose draw calls and available CPU/GPU times.
+
+Code entry points for resumption in `src/ui/videoComparison.ts`, `src/input/barExplorer.ts`, `src/app/createVideoView.ts`, `src/rendering/createScreenStage.ts`, `src/audio/spatialOutput.ts`, and `src/emulation/emulatorjs.ts`. Browser tests in `navigation.spec.ts` and `spatialAudio.spec.ts`, unit tests alongside rules.
+
+Chrome validated all 33 scenarios. A run with the real core measured positional signal, capture transfer, native deltas, and mesh rotation, then stable pause. All four framings were inspected. Resolution setting was verified at DPR 2. See [VALIDATION.md](docs/VALIDATION.md).
+
+Production test run completed with ten active minutes, ten stable pauses, 36,094 video copies, one audio source, zero JS errors, and zero remote requests. `npm run check` and all three preview tests succeeded. Both digital evidence files are in `third_party/prototype03-evidence.json` and `third_party/prototype03-endurance-evidence.json`. The harness re-runs with `npm run measure:endurance -- --local-files` against a preview via `MARBLE_TEST_URL`. See [protocol](docs/ENDURANCE.md).
+
+Next manual action in Safari and on a 120 Hz screen. Open local Vite 5173 server, launch the core, Explorer → E → Esc, then test all three profiles and listen to audio at different distances. Safari WebDriver refused the session because remote automation is disabled. Fallback WebKit did not open a tab within the timeout.
+
+## Prototype 02 history
+
+Michel explicitly authorized all five steps: cabinet, framings/transition, interactions, materials/lighting, first bar. **All are implemented**. Read Marble_Madness_Prototype_02_SPEC.md; AGENTS and spec01 point to this extension. Previous cabinet/bar exclusions in history no longer block work.
+
+New **Borne et bar 3D** option, HUD Camera **Bar / Borne / Frontale**. Full cabinet and artwork, trackball and buttons, coin door, speakers; first room with floor/walls, counter, bottles/shelves, table/stools, and pendant lights. Original procedural materials, warm/cool lighting, no external dependency or asset added. No FPS navigation or spatial audio.
+
+Outside capture: buttons/coin door Credit, Start1/2; screen or trackball → front transition and synchronous capture. Same session and same pulse methods. During capture, 3D clicks are ignored; HUD and shortcuts preserved. Single camera without attached controls. 0.65 s transitions even while paused, temporary rAF owning rendering, video copy always after native draw. HUD resize retargets without breaking animation; blur/Esc/visibility/dispose cancel.
+
+Files: rendering/createCabinet.ts, createBarRoom.ts, decorTools.ts, createScreenStage.ts, createVideoScene.ts; app/createVideoView.ts; game/cabinetAction.ts, cameraTransition.ts; ui/videoComparison.ts and playControls.ts. Protocol/usage: docs/PROTOTYPE_02.md. Marquee text fixed vertically and panel lowered so the trackball stays below the image; non-overlap test.
+
+Validation: npm run check succeeded, **250 tests / 27 files**, coverage 99.48% statements, 99.34% branches, 100% functions, 99.45% lines. **29 Chrome tests**, **3 preview** succeeded. Real picking of buttons, coin door, and trackball, hover, capture and click blocking, video pixels, and zero-remaining disposal of textures/meshes/materials/lights/cameras verified. First pass with new dependencies: test navigations and sceneless helper; stabilization then scroll fix in the harness to place clicked points in the viewport. No skipped tests or lowered thresholds. Inspection helper in tests only.
+
+Real Chrome 157.0.8103.40 runtime: Credit/Start via meshes, capture from trackball, bar transition while paused, then stable frame 1115, 402 copies, front view, boost and pending purged, P1/P2 buttons empty, audio source 1, zero JS errors. Three final screenshots `/tmp/marble-prototype2-{bar,cabinet,game}.png` inspected. Digital evidence to keep in third_party/prototype02-evidence.json. Listening and physical comfort not certified. Video callback metrics exclude transition rAF rendering.
+
+**Endurance 02 completed on isolated production build**: ten new intervals, **600.02 s active**, frame 36772, 36063 copies, zero JS errors or remote requests. Ten stable pauses, pending (0,0), boost and buttons on both ports purged, audio source 1. Listeners 721 at first reading then 720 constant; JS heap 16.73–28.87 MiB returning after GC, nodes 4646–4693. No blocking incident observed, no general proof of absence of GPU/WASM leaks. Average video callback 0.459–0.550 ms, max 9 ms; excludes transition rAF and GPU completion, not a fine comparative benchmark.
+
+Test run: npm run build then local preview 4175, MARBLE_TEST_URL=http://127.0.0.1:4175/ PLAYWRIGHT_CHANNEL=chrome npm run measure:endurance -- --local-files. The harness selects the fixed ZIPs from the roms folder via local inputs; no copy in dist/upload. Temporary report test-results/endurance.json, full evidence third_party/prototype02-endurance-evidence.json, localFileSelection=true, scene=prototype-02-cabinet-bar, complete=true. Preview 4175 stopped after test run; dev server 5173 kept. A 2-min series had been stopped for hover and a 6-min series interrupted by HMR; none of their minutes were reused.
+
+**Picking also verified in production** without dev helper: clicks projected from declared framing on Credit/Start produce all four expected native calls, then the trackball captures and selects Frontale. Esc pauses, pending zero, 64 copies on this short run, zero JS errors. Evidence: third_party/prototype02-production-evidence.json. Final screenshots of the real game inspected as noted above. Evidence 01 remains historical, not overwritten.
+
+Concrete next action: Michel reloads dev 5173, opens Jouer en plein écran 3D, chooses Caméra→Bar/Borne/Frontale, and tries buttons/coin door/trackball/screen. Human test run for rendering and comfort, then prioritization of polish; full listening, Safari/120 Hz, and GPU cost remain open. All five authorized steps are complete, no FPS navigation or spatialization added. No new dependency, Git initialized, or deployment.
+
+## Prototype 01 history — state before extension 02
+
+Original Marble Madness works with EmulatorJS 4.2.3 + MAME 2003-Plus. Credit, Start, relative trackpad, pause/resume, volume, diagnostics, and new session are available. The main page shows the same live session, in side-by-side comparison, on a standalone BabylonJS plane, or on a screen in a 3D scene. `scene.html` remains an old standalone demo.
+
+Michel played up to Level 3. On November 8 he confirms: **"ok, c'est bon"** after fixing flicker and video filtering. This feedback validates that visual issue; do not extend it to endurance or full audio listening. Braking comfort on the slope exiting the waves at the end of Level 3 remains an open item. C is implemented, its full human test run remains open. D is implemented and the fixed image is confirmed by Michel. E is prepared and technically verified; details and final procedure in `docs/RELEASE.md`.
+
+Michel rejected **0.50× as unplayable** and requested boost on Space, then continuing 3D rendering. This feedback supersedes the historical calibration recommendation below. Specification section 15 and AGENTS.md record this authorized evolution. Do not ask for the same capture again.
+
+Default/reset normal gain is **1.70×**. A saved preference at 0.50× is migrated to 1.70×; other valid gains are preserved. Hold **Space**, then steer with the trackpad: continuous native command of L1 norm 128 counts per iteration, replacing deltas while held. Releasing returns to normal control. Esc, blur, hidden tab, and disposal purge boost; Space does not unpause. Physics remain in MAME. Comfort, braking, and jumping are not yet human-validated.
+
+Choose **Écran en scène 3D**: same animated video on a screen with frame, stand, plinth, lighting, and gridded floor. Same session, texture, and loop, fixed camera; no level rebuilt in meshes or external asset added. Details: docs/COMFORT_AND_3D.md. **Fullscreen and HUD now delivered**: Jouer en plein écran 3D → Crédit/Start/Capturer; Pause and Reprendre/sound present. Returning to page exits paused. Esc releases/purges and may exit fullscreen depending on browser. API refusal: immersive fallback in window. Enters paused, no implicit resume. Same session/texture; buttons delegated to shared controls, states/messages synchronized, observers/listeners cleaned up. Michel confirms on November 10 that fullscreen works well, then authorizes both fixed cameras. **Frontale/Perspective camera delivered** in HUD and on page, synchronized selectors, active in 3D scene. Perspective initial; choice kept during session, without storage. Frontale orthographic straight and enlarged, full plane visible; plinth partly out of frame to prioritize gameplay. Same camera/texture/session; no calls to controls or play/pause changes. Esc releases trackpad to use selector, Capturer resumes. Michel confirms views then requests capture shortcuts and next test run. **Shortcuts implemented**: 5/(=Credit, 1/&=StartP1, 2/é=StartP2, only under active/unpaused capture, outside inputs and Ctrl/Alt/Meta. 120 ms pulse, repeats absorbed. StartP2 uses port 1 (no new relative P2 control); two sets of timers, all purged on interruption. Help in HUD and capture status. Spec section 16: authorized request.
+
+**Automated endurance completed**, complete=true: ten intervals, **600.40 s active**, final frame 36794, 36090 video copies, zero JS errors and remote requests. All ten pauses are stable, boost/pending/buttons on both ports purged. All six aliases produced the exact twelve expected native calls. Combined CPU submission average copy+render 0.144–0.177 ms, max 10.2 ms; not GPU time. Listeners 718 constant, one audio source, and context suspended while paused. JS heap 19.73–21.58 MiB: variation with increase on later readings, not proof of no leak; GPU/WASM memory unmeasured. One game then automatic arcade/attract states, not ten minutes of human play or certified listening.
+
+Reproducible command: PLAYWRIGHT_CHANNEL=chrome npm run measure:endurance, dev server and local ROMs required. Report test-results/endurance.json; digital evidence saved in third_party/endurance-evidence.json. Protocol and result: docs/ENDURANCE.md. Early intervals overlapped with build/browser checks; do not use this series as a fine comparative benchmark. No modification to ROMs or real user preferences. Concrete next action: prototype 01 review with Michel, distinguishing achieved technical test run from listening/comfort/120 Hz/Safari still open, then define prototype 02 scope before modeling a detailed cabinet or bar.
+
+Current validation: **npm run check succeeded, 231 tests / 25 files**. Coverage: 99.48% statements, 99.31% branches, 100% functions, 99.44% lines. Chrome dev **27 tests succeeded**, preview **3 tests succeeded**. Pure tests for all six aliases/modifiers and two independent ports; Chrome tests capture, repeat, input, pause/out-of-capture, and teardown. First pass blocked by Playwright.press(é): native keyboard CDP used for this key, other keys remain Playwright keystrokes; real runtime verifies all twelve expected calls. All ten endurance intervals are now complete. BabylonJS chunk size warning >500 KB kept; no dependency added, no deployment or Git repository initialized. Following sections preserve history; the current state above supersedes their next actions.
+
+## Launch and verify
 
 ```sh
 npm ci
@@ -2675,509 +1034,186 @@ npm run setup:emulator
 npm run dev
 ```
 
-Ouvrir `http://127.0.0.1:5173/`. Michel a placé `marble.zip` et `atarisy1.zip`
-dans `roms/`, ignoré par Git. Le serveur local les précharge via deux routes fixes,
-loopback seulement ; pas de copie dans public/dist, pas d'upload ou stockage
-navigateur. Les tailles/SHA-1 des 30 dumps sont vérifiés et le ZIP canonique est
-assemblé en mémoire. Les sélecteurs restent disponibles et prioritaires.
+Open `http://127.0.0.1:5173/`. Michel placed `marble.zip` and `atarisy1.zip` in `roms/`, ignored by Git. The local server preloads them via two fixed loopback-only routes; no copy into public/dist, no upload or browser storage. Sizes/SHA-1 of all 30 dumps are verified and the canonical ZIP is assembled in memory. File pickers remain available and take priority.
 
-Vérifier et préparer → Démarrer l'émulation → attendre MAME → Crédit → Start →
-Capturer. Pas de clic maintenu. Échap/perte de focus/onglet masqué : pause,
-silence et purge. Reprise/capture explicites ; aucune reprise automatique.
-Après modification du glue, **recharger complètement la page**.
+Vérifier et préparer → Démarrer l'émulation → wait for MAME → Crédit → Start → Capturer. No click-and-hold. Esc/focus loss/hidden tab: pause, mute, and purge. Explicit resume/capture; no automatic resume. After modifying the glue, **hard-reload the page**.
 
-Pour le build, `npm run build`, puis `npm run preview -- --host 127.0.0.1 --port
-4173 --strictPort` ; sélection manuelle des ZIP, pas de préchargement dev.
-Les serveurs de tests preview sont temporaires ; le serveur dev peut rester
-actif sur 5173. Aucun déploiement ou dépôt Git initialisé.
+For the build, `npm run build`, then `npm run preview -- --host 127.0.0.1 --port 4173 --strictPort`; manual ZIP selection, no dev preloading. Preview test servers are temporary; the dev server can stay running on 5173. No deployment or Git repository initialized.
 
-## Commandes et mesures à préserver
+## Controls and measurements to preserve
 
-- Gain commun X/Y 0,25–4×, défaut/reset 1,70× ; seuls gain/volume sont mémorisés
-  (`marble.gain`, `marble.volume`). Le mode normal reste linéaire. Le boost
-  explicite est séparé et ne persiste pas. Migration du seul candidat rejeté 0,50×.
-- Relevé humain : `saturated=0`, pic brut 289, transmis 492, pending 927 ; natif
-  X -927..748, Y -345..917, inversions 102/97. Les signes et grands mouvements
-  passent, mais ces compteurs ne mesurent ni vitesse de bille ni efficacité de freinage.
-- `nativeSampling` observe le dernier poll après chaque itération, pas tous les
-  polls C/MAME ; aucune somme native exhaustive. Pause conserve les statistiques
-  et rompt les séquences de signes. Nouvel essai remet seulement les mesures
-  à zéro. Copier les diagnostics reste local, avec repli manuel.
+- Shared X/Y gain 0.25–4×, default/reset 1.70×; only gain/volume are stored (`marble.gain`, `marble.volume`). Normal mode remains linear. Explicit boost is separate and not persisted. Migration only from the rejected 0.50× candidate.
+- Human readout: `saturated=0`, raw peak 289, sent 492, pending 927; native X -927..748, Y -345..917, inversions 102/97. Signs and large movements get through, but these counters do not measure marble speed or braking effectiveness.
+- `nativeSampling` observes the last poll after each iteration, not all C/MAME polls; no exhaustive native sum. Pause preserves statistics and breaks sign sequences. Nouvel essai resets only measurements. Copying diagnostics remains local, with manual fallback.
 
-## Modules et contrats critiques
+## Critical modules and contracts
 
-- `input/relativeMotion.ts` : gain linéaire, fractions, bornage int16 du pending,
-  excédent abandonné, purge. Aucune seconde accumulation par frame ni rotation 45°.
-- `input/buttonPulses.ts` : simulateInput(0, 2|3, 1|0), impulsion de 120 ms puis
-  relâchement ; timers et boutons libérés sur interruption.
-- `ui/playControls.ts` : gestes utilisateur, Pointer Lock source, réglages,
-  interruptions et annulation d'une capture encore en attente.
-- `emulation/emulatorjs.ts` : API internes figées, MEMFS sans persistance,
-  pause/audio existant, une instance par document. Nouvelle session = rechargement,
-  pas de faux destroy. MAME xy_device=mouse, input_interface=retropad, sensibilités
-  et inversion originales du pilote conservées. Pas de mode raw/non accéléré.
-- `emulation/coreInputPatch.ts` : vérifie les deux SHA-256 JS/WASM et les marqueurs
-  avant raccord. ABI RetroArch 6dd4353, rwebinput_mouse_state_t en tête du userdata :
-  taille 64, pending 40/44, poll 48/52, boutons 56. Aucun événement souris synthétique.
-  **Ne pas changer les hashes sans revérifier l'ABI et les tests.**
-- `emulation/coreVideoPatch.ts` : indicateur remis à zéro avant l'itération,
-  levé par drawArrays/drawElements du canvas source et framebuffer par défaut.
-  Une notification après dessin ; les itérations sans dessin gardent la texture.
-  FBO intermédiaires/autres canvas ignorés. Raccord ciblé sur le renderer figé,
-  pas une prise en charge générique des blits/draws instanciés. Fichiers tiers
-  sur disque/WASM inchangés. Diagnostics d'entrée indépendants du signal vidéo.
-- `emulation/videoSource.ts` → `ui/videoComparison.ts` → import différé
-  `app/createVideoView.ts` → `rendering/createVideoScene.ts` / `videoLayout.ts`.
-  Caméra fixe, matériau émissif noir + texture, traitement d'image désactivé.
-  HtmlElementTexture copie le WebGL sans contexte 2D ni lecture CPU des pixels,
-  puis rend dans le même appel. PreserveDrawingBuffer reste false. Filtrage
-  bilinéaire pour éviter un second nearest à échelle fractionnaire pendant le scroll.
-  Les cadres suivent l'aspect annoncé par le cœur (336×240, aspect 1,333333373),
-  distinct de la résolution de présentation, bandes éventuelles incluses.
-- Le propriétaire vidéo retire abonnement/ResizeObserver puis détruit texture,
-  scène et moteur. Pas de boucle autonome, second émulateur ou chaîne audio.
-  Copies arrêtées en direct/arrière-plan ; source masquée par visibilité en vue
-  seule. Erreur GPU : repli direct. Aucun changement de vue ne reprend la partie.
+- `input/relativeMotion.ts`: linear gain, fractions, int16 clamping of pending, excess discarded, purge. No second per-frame accumulation or 45° rotation.
+- `input/buttonPulses.ts`: simulateInput(0, 2|3, 1|0), 120 ms pulse then release; timers and buttons released on interruption.
+- `ui/playControls.ts`: user gestures, source Pointer Lock, settings, interruptions, and cancellation of a still-pending capture.
+- `emulation/emulatorjs.ts`: pinned internal APIs, MEMFS without persistence, existing pause/audio, one instance per document. New session = reload, no fake destroy. MAME xy_device=mouse, input_interface=retropad, original driver sensitivities and inversion preserved. No raw/unaccelerated mode.
+- `emulation/coreInputPatch.ts`: verifies both JS/WASM SHA-256 hashes and markers before hooking. RetroArch ABI 6dd4353, rwebinput_mouse_state_t at head of userdata: size 64, pending 40/44, poll 48/52, buttons 56. No synthetic mouse events. **Do not change hashes without re-verifying ABI and tests.**
+- `emulation/coreVideoPatch.ts`: flag reset before iteration, raised by drawArrays/drawElements on source canvas and default framebuffer. One notification after draw; iterations without draw keep texture. Intermediate FBOs/other canvases ignored. Targeted hook on pinned renderer, not generic support for blits/instanced draws. Third-party files on disk/WASM unchanged. Input diagnostics independent of video signal.
+- `emulation/videoSource.ts` → `ui/videoComparison.ts` → lazy import `app/createVideoView.ts` → `rendering/createVideoScene.ts` / `videoLayout.ts`. Fixed camera, black emissive material + texture, image processing disabled. HtmlElementTexture copies WebGL without 2D context or CPU pixel readback, then renders in the same call. PreserveDrawingBuffer remains false. Bilinear filtering to avoid a second nearest at fractional scale during scroll. Frames follow the aspect announced by the core (336×240, aspect 1.333333373), distinct from presentation resolution, including any borders.
+- Video owner removes subscription/ResizeObserver then disposes texture, scene, and engine. No standalone loop, second emulator, or audio chain. Copies stopped in direct/background mode; source hidden via visibility in single view. GPU error: direct fallback. No view change resumes the game.
 
-Versions et preuves : `docs/DECISIONS.md`, `third_party/README.md` et manifeste.
-Lire `AGENTS.md`, le guide BabylonJS, README, architecture et spec à chaque reprise.
+Versions and evidence: `docs/DECISIONS.md`, `third_party/README.md`, and manifest. Read `AGENTS.md`, BabylonJS guide, README, architecture, and spec on every resumption.
 
-## Dernière validation technique
+## Latest technical validation
 
-- `npm run check` : **200 tests sur 22 fichiers**, format/lint/types/couverture/build.
-  Couverture : 99,39 % instructions, 99,46 % branches, 100 % fonctions, 99,35 % lignes.
-- `PLAYWRIGHT_CHANNEL=chrome npm run test:browser` : **19 tests sans ROM** réussis.
-- `PLAYWRIGHT_CHANNEL=chrome npm run test:preview` : **3 tests sans ROM** réussis.
-  Le code compilé, la sélection manuelle, les empreintes/notices runtime et
-  l'exclusion des ROMs/routes dev sont vérifiés. Workflow CI complété ; pas
-  d'exécution GitHub attestée en l'absence de dépôt initialisé.
-- Reconstruction isolée du bilan E (avant ajout de l’essai trackball) : Node 24.20.0 / npm 11.19.0, npm ci offline depuis cache,
-  ressources d'émulation existantes vérifiées, check réussi. **49 fichiers dist
-  identiques octet pour octet**, même plateforme et versions. Copie temporaire
-  sans ROM ni node_modules initial. Node Homebrew cassé contourné par Node nvm ;
-  aucune modification système ou des versions des dépendances.
-- Essai ponctuel du build avec ZIP locaux, Chrome 157 headless : course et
-  comparaison, capture réelle source masquée, 20 événements natifs ; frame
-  1097 → 1187, copies 1089 → 1179. Pause stable frame 1210/copie 1202. Aucune
-  erreur JS ou requête distante/préchargement dev. Aucun ZIP ajouté au build/tests.
-- Correction clignotement : avant, 3 copies sans dessin/transparentes sur 331 ;
-  après, zéro sur 338 en comparaison puis 579 cumulées source masquée. Tests
-  d'itérations sans dessin, FBO, plusieurs dessins, marqueurs ; test GPU du
-  filtrage des arêtes. Confirmation humaine reçue ensuite.
+- `npm run check`: **200 tests across 22 files**, format/lint/types/coverage/build. Coverage: 99.39% statements, 99.46% branches, 100% functions, 99.35% lines.
+- `PLAYWRIGHT_CHANNEL=chrome npm run test:browser`: **19 ROM-free tests** succeeded.
+- `PLAYWRIGHT_CHANNEL=chrome npm run test:preview`: **3 ROM-free tests** succeeded. Compiled code, manual selection, runtime hashes/notices, and exclusion of ROMs/dev routes are verified. CI workflow completed; no attested GitHub run without an initialized repository.
+- Isolated rebuild of milestone E (before adding trackball test): Node 24.20.0 / npm 11.19.0, offline npm ci from cache, existing emulation resources verified, check succeeded. **49 dist files byte-for-byte identical**, same platform and versions. Temporary copy without ROMs or initial node_modules. Broken Homebrew Node bypassed via nvm Node; no system or dependency version changes.
+- Spot build test with local ZIPs, Chrome 157 headless: race and comparison, real capture with hidden source, 20 native events; frame 1097 → 1187, copies 1089 → 1179. Stable pause frame 1210/copy 1202. No JS errors or remote requests/dev preloading. No ZIP added to build/tests.
+- Flicker fix: before, 3 undrawn/transparent copies out of 331; after, zero out of 338 in comparison then 579 cumulative with hidden source. Tests for undrawn iterations, FBO, multiple draws, markers; GPU test for edge filtering. Human confirmation received afterward.
 
-## Prochaine action
+## Next action
 
-Priorité au saut du niveau 1 (voir ci-dessous), puis faire la recette de 10 minutes de `docs/RELEASE.md` sur le Mac de Michel : jeu,
-freinage, écoute, perte de focus, reprise, comparaison, resize et nouvelle session.
-Consigner ses retours sans réimplémenter la physique. Safari, 120 Hz et DPR restent
-non validés. Le coût CPU affiché n'est ni un temps GPU complet ni une mesure de
-vitesse d'émulation. Avertissements de taille BabylonJS et limites d'outillage
-restent documentés. Pas de borne, bar, remaster, déploiement ou nouvelle dépendance.
+Priority on Level 1 jump (see below), then run the 10-minute test from `docs/RELEASE.md` on Michel's Mac: gameplay, braking, listening, focus loss, resume, comparison, resize, and new session. Record feedback without reimplementing physics. Safari, 120 Hz, and DPR remain unvalidated. Displayed CPU cost is neither full GPU time nor an emulation speed measurement. BabylonJS size warnings and tooling limits remain documented. No cabinet, bar, remaster, deployment, or new dependency.
 
-## Résultat prioritaire du 9 novembre : réponse effective
+## Priority result of November 9: effective response
 
-La protection à 416 a bien limité 20 impulsions à gain 1,70× mais Michel ne constate
-**aucune amélioration**. Essai rejeté, case/API/module/tests associés retirés ;
-aucun autre limiteur ou boost ajouté. Ne plus demander de le cocher. Le test de
-transmission linéaire d'une grande impulsion est conservé. L'écriture privée
-setPending et le pré-hook restent pour les diagnostics, pas utilisés par le joueur.
+The 416 guard did cap 20 pulses at 1.70× gain, but Michel sees **no improvement**. Attempt rejected, associated checkbox/API/module/tests removed; no other limiter or boost added. Do not ask to check it again. The linear transmission test for a large pulse is preserved. Private setPending write and pre-hook remain for diagnostics, not used by the player.
 
-Banc `npm run measure:impulses` (environ 4 min), ou `-- --quick` (environ 1 min),
-serveur dev loopback déjà lancé et ZIP locaux disponibles. Navigateur isolé ;
-un document/runtime neuf pour chaque essai, Crédit 700..707, Start 710..717,
-impulsion native 1200, suivi optique 1199/1206/1212. Bypass volontaire du gain et
-du filtre d'événements pour observer seulement la réponse en aval du driver.
-La tentative par restauration de snapshot n'avait pas des départs identiques :
-rejetée, aucun instantané conservé. Le banc vérifie départs, consignes et images.
-Rapport numérique dans test-results, ignoré. Le script n'est pas lancé en CI.
+Harness `npm run measure:impulses` (about 4 min), or `-- --quick` (about 1 min), loopback dev server already running and local ZIPs available. Isolated browser; fresh document/runtime for each trial, Credit 700..707, Start 710..717, native pulse 1200, optical tracking 1199/1206/1212. Intentional bypass of gain and event filter to observe only downstream driver response. Snapshot-restore attempt did not have identical starts: rejected, no snapshot kept. Harness checks starts, setpoints, and images. Numerical report in test-results, ignored. Script is not run in CI.
 
-11 essais complets + 4 contrôles détaillés de premières frames, puis 3 essais
-courts reproduits avec le script conservé : zéro erreur JS. Départ du marqueur
-identique (525,494 ; 168,016), canvas 1110 × 832, essais neutres immobiles. Décor
-identique sur 360000 pixels dans les captures contrôlées, donc pas de translation
-caméra pour ces mesures. Les centièmes de pixel ne sont pas une précision physique.
+11 full trials + 4 detailed early-frame checks, then 3 short trials reproduced with the kept script: zero JS errors. Identical marker start (525.494; 168.016), canvas 1110 × 832, neutral trials motionless. Scenery identical across 360000 pixels in checked screenshots, so no camera translation for these measurements. Hundredths of a pixel are not physical precision.
 
-À la frame 1212, 64×1 déplace le marqueur de (+2,93 ; -4,06) pixels, 256×1 de
-(+9,73 ; -3,89), 416×1 de (-23,21 ; -3,72). La réponse visible n'est pas monotone
-avec le pic. 256×6 atteint environ 29,91 pixels de déplacement contre 10,48 pour
-256×1. Cela n'isole pas les compteurs internes ni ne prouve le saut ou la
-fidélité d'une inertie artificielle. Aucune lecture/écriture de RAM ou code de ROM.
+At frame 1212, 64×1 moves the marker by (+2.93; −4.06) pixels, 256×1 by (+9.73; −3.89), 416×1 by (−23.21; −3.72). Visible response is not monotonic with peak. 256×6 reaches about 29.91 pixels of displacement versus 10.48 for 256×1. This does not isolate internal counters or prove jumping or fidelity of artificial inertia. No RAM read/write or ROM code.
 
-Mesure pure testée : `src/diagnostics/blueMarker.ts`, RGBA WebGL bottom-up avec
-exclusion du HUD et des bords, limitée au départ du niveau 1. Importée par le banc
-uniquement, pas par l'app. Huit tests, couverture incluse. Résultats de référence
-sans image ni état : `third_party/impulse-response-evidence.json` ; protocole et
-interprétation : `docs/INPUT_RESPONSE.md`. Les images de contrôle restent dans /tmp.
+Tested pure measure: `src/diagnostics/blueMarker.ts`, bottom-up WebGL RGBA excluding HUD and edges, limited to Level 1 start. Imported by harness only, not by the app. Eight tests, coverage included. Reference results without image or state: `third_party/impulse-response-evidence.json`; protocol and interpretation: `docs/INPUT_RESPONSE.md`. Control images remain in /tmp.
 
-**Lectures analogiques désormais observées (voir ci-dessous).** Prochaine
-investigation : interprétation des mêmes séquences ou comparaison de référence,
-avant tout nouveau réglage. Ne pas conclure au bug précis à partir du suivi
-écran ; aucune correction du saut encore validée. La recette humaine globale
-reste ouverte ; ne pas ajouter une borne, un bar ou une nouvelle physique.
+**Analog readings now observed (see below).** Next investigation: interpret the same sequences or reference comparison before any new tuning. Do not conclude a specific bug from screen tracking; no jump fix validated yet. Overall human test run remains open; do not add a cabinet, bar, or new physics.
 
-## Trace des ports terminée le 9 novembre
+## Port trace completed November 9
 
-`npm run measure:ports -- --quick` ajoute au banc l'observation du handler réel
-`trakball_r`, pas une reconstruction depuis la souris. Le script capture les
-exports WebAssembly réels Eh/Ch et vérifie les octets WASM par SHA-256. Le module
-`diagnostics/trackballPorts.ts` vérifie cinq lignes statiques de Memory_ReadAddress16
-à l'adresse 9849616, handler de table 17927, arité 2. Provenance : sources figées
-atarisy1.c/memory.h et segment data 43696 de l'archive du cœur, sans ROM.
+`npm run measure:ports -- --quick` adds observation of the real `trakball_r` handler to the harness, not a reconstruction from the mouse. The script captures real WebAssembly exports Eh/Ch and verifies WASM bytes by SHA-256. Module `diagnostics/trackballPorts.ts` checks five static lines of Memory_ReadAddress16 at address 9849616, table handler 17927, arity 2. Provenance: pinned sources atarisy1.c/memory.h and data segment 43696 from the core archive, without ROM.
 
-Un trampoline WASM appelle une fois l'original avec les mêmes arguments, journalise
-les retours et les renvoie tels quels. Fenêtre bornée, erreurs de mesure isolées,
-restauration au démontage, contrôle de propriétaire. Aucun changement de code ou
-RAM du programme arcade, aucune trace dans le frontend normal ou le build.
+A WASM trampoline calls the original once with the same arguments, logs returns, and returns them as-is. Bounded window, isolated measurement errors, restoration on teardown, owner check. No change to arcade program code or RAM, no trace in normal frontend or build.
 
-Cinq essais prototype X natif 0/64/256/416/768, puis trois essais courts du traceur
-conservé 0/256/0 : départs et sorties image identiques au banc précédent, aucune
-erreur JS, 64 lectures par essai (4 par étiquette de frame), masque 65280, aucune
-perte ni erreur d'observation sur le traceur conservé. Les deux ports joueur 1
-retournent les mêmes octets pour ces impulsions X ; les deux autres ports
-évoluent aussi, journaux conservés sans assimilation à un second joueur actif.
+Five prototype native X trials 0/64/256/416/768, then three short trials of the kept tracer 0/256/0: starts and image outputs identical to previous harness, no JS errors, 64 reads per trial (4 per frame label), mask 65280, no loss or observation error on the kept tracer. Both player 1 ports return the same bytes for these X pulses; the other two ports also change, logs kept without treating them as an active second player.
 
-Après départ 0, les lectures joueur 1 donnent : 64→239 puis 237 (pas −17 puis −2),
-256→188 puis 179 (−68 puis −9), 416→146 puis 131 (−110 puis −15), 768→53 puis 26
-(+53 puis −27). Les octets finaux sont cohérents avec la sensibilité 30 % et
-l'inversion X. À 416, la réponse visible inverse son sens alors que les ports
-atteignent normalement −125 modulo 256 ; leur seul repli n'explique pas ce cas.
-À 768, les pas sont ambigus modulo 256. Ce décodage signé est une convention de
-diagnostic, pas une preuve de l'algorithme du programme. Ne pas modifier le gain.
+After start 0, player 1 reads give: 64→239 then 237 (steps −17 then −2), 256→188 then 179 (−68 then −9), 416→146 then 131 (−110 then −15), 768→53 then 26 (+53 then −27). Final bytes are consistent with 30% sensitivity and X inversion. At 416, visible response reverses direction while ports normally reach −125 mod 256; their wraparound alone does not explain this case. At 768, steps are ambiguous mod 256. This signed decoding is a diagnostic convention, not proof of the program's algorithm. Do not modify gain.
 
-Temporalité du cas 256 : consigne avant itération 1200 ; lectures sous le compteur
-interne 1201 encore 0, sous 1202 valeur 188, sous 1203 valeur 179. Le compteur relevé
-dans le handler est décalé de +1 par rapport à `iterationFrame`, conservé aussi.
-Ne pas appeler ces étiquettes des cycles CPU ou une latence physique de trackpad.
+Timing of case 256: setpoint before iteration 1200; reads under internal counter 1201 still 0, under 1202 value 188, under 1203 value 179. The counter read inside the handler is offset by +1 relative to `iterationFrame`, also kept. Do not call these labels CPU cycles or physical trackpad latency.
 
-26 nouveaux tests sans ROM sur le traceur/décodage, refus des versions/cartes/
-signatures invalides, bornes, exceptions, erreurs d'observation et restauration.
-Check 134 tests ; 16 tests Chrome dev et 3 tests du build. Preuves sans ROM/image :
-`third_party/trackball-port-evidence.json`. Rapport `test-results/trackball-ports.json`
-ignoré. Protocole et interprétation : `docs/TRACKBALL_PORTS.md`.
+26 new ROM-free tests on tracer/decoding, rejecting invalid versions/maps/signatures, bounds, exceptions, observation errors, and restoration. Check 134 tests; 16 Chrome dev tests and 3 build tests. Evidence without ROM/image: `third_party/trackball-port-evidence.json`. Report `test-results/trackball-ports.json` ignored. Protocol and interpretation: `docs/TRACKBALL_PORTS.md`.
 
-Cette comparaison a été réalisée ci-dessous. Le saut du niveau 1 demeure non corrigé.
+This comparison was completed below. The Level 1 jump remains unfixed.
 
-## Comparaison de référence terminée le 9 novembre
+## Reference comparison completed November 9
 
-MAME 0.271 ARM64 était déjà installé dans `/Applications/mame0271-arm64/mame` ;
-ce n'est pas la dernière version. Archives originales validées, BIOS ttl forcé,
-aucun téléchargement ou changement des ROMs. Lanceur conservé :
+MAME 0.271 ARM64 was already installed at `/Applications/mame0271-arm64/mame`; it is not the latest version. Original archives validated, ttl BIOS forced, no download or modification of ROMs. Kept launcher:
 
 ```sh
 MAME_BINARY=/Applications/mame0271-arm64/mame npm run measure:reference
 ```
 
-Pas de serveur HTTP requis. 20 essais réels : amplitudes 0/64/256/416/768,
-phases −1/0/1/2, processus neuf pour chaque cas, entrées crédit/Start contrôlées.
-Rejeu des octets réels des quatre ports, second tap vérifiant les valeurs reçues,
-64 lectures par tap et essai. Pas de changement de RAM/code du programme.
-Rapports/configurations isolés dans test-results/reference ignoré ; NVRAM,
-autosave et écriture de configuration désactivés.
+No HTTP server required. 20 real trials: amplitudes 0/64/256/416/768, phases −1/0/1/2, fresh process for each case, controlled credit/Start inputs. Replay of real bytes from all four ports, second tap checking received values, 64 reads per tap and trial. No change to program RAM/code. Reports/configs isolated in ignored test-results/reference; NVRAM, autosave, and config writing disabled.
 
-Résultat décisif : avec le même décalage −1 sur les cinq cas, les déplacements
-Web et natifs concordent à 0,063 pixel natif maximum par axe. L'inversion à 416
-existe aussi dans la référence. Une comparaison naïve sans alignement présentait
-une différence forte ; quatre phases conservées pour éviter cette fausse
-conclusion. Aucun défaut propre à 2003-Plus démontré, aucun remplacement de cœur
-ou correctif de commandes justifié par ce seul essai. Aucun saut réussi validé.
+Decisive result: with the same −1 offset across all five cases, Web and native displacements agree within 0.063 native pixels per axis maximum. Reversal at 416 also exists in the reference. A naive comparison without alignment showed a large discrepancy; four phases kept to avoid this false conclusion. No defect specific to 2003-Plus demonstrated, no core replacement or input fix justified by this trial alone. No successful jump validated.
 
-Fichiers : scripts/compare-reference.mjs, scripts/reference/replay.lua,
-src/diagnostics/referenceReplay.ts et ses 19 tests. Preuves numériques sans
-ROM/image/état : third_party/mame-reference-evidence.json. Protocole et limites :
-docs/REFERENCE_COMPARISON.md. Le replay Web ponctuel 64/256/416 retrouve aussi
-les mêmes centroïdes avec pending nul ; il reste un contrôle exploratoire.
-Différences d'horloge vidéo et de minuteur : pas d'identité des états internes.
+Files: scripts/compare-reference.mjs, scripts/reference/replay.lua, src/diagnostics/referenceReplay.ts and its 19 tests. Digital evidence without ROM/image/state: third_party/mame-reference-evidence.json. Protocol and limits: docs/REFERENCE_COMPARISON.md. Spot Web replay 64/256/416 also recovers the same centroids with zero pending; it remains an exploratory check. Video clock and timer differences: no identity of internal states.
 
-Prochaine action concrète : mesurer la forme temporelle d'un geste rapide réel,
-puis comparer des profils de même déplacement total répartis sur plusieurs
-itérations. Ne pas proposer de nouveau limiteur ou augmenter arbitrairement
-le gain de Michel. Le saut niveau 1 et le freinage niveau 3 restent ouverts.
+Concrete next action: measure the temporal shape of a real fast gesture, then compare profiles of equal total displacement spread over multiple iterations. Do not propose a new limiter or arbitrarily increase Michel's gain. Level 1 jump and Level 3 braking remain open.
 
-Validation de cette intervention : `npm run check` réussi, 153 tests/17 fichiers,
-couverture 99,09 % instructions, 99,13 % branches, 100 % fonctions, 99,04 % lignes.
-Chrome : 16 tests dev et 3 tests preview réussis. Les premières tentatives de
-check ont seulement demandé le formatage des docs ; le premier lancement des
-tests navigateur était bloqué par le sandbox HTTP, puis a réussi avec
-l'autorisation d'exécution adaptée. Le prototype du lanceur a d'abord refusé
-la fenêtre de lectures tronquée aux phases retardées ; arrêt repoussé à 1214,
-puis les 20 essais complets ont réussi. Avertissement existant de taille de
-chunk BabylonJS conservé. Aucun test de confort humain du saut réalisé.
+Validation of this task: `npm run check` succeeded, 153 tests / 17 files, coverage 99.09% statements, 99.13% branches, 100% functions, 99.04% lines. Chrome: 16 dev tests and 3 preview tests succeeded. Initial check attempts only requested doc formatting; first browser test run was blocked by the HTTP sandbox, then succeeded with proper execution permission. The launcher prototype initially rejected the read window truncated at delayed phases; stop pushed to 1214, then all 20 full trials succeeded. Existing BabylonJS chunk size warning kept. No human comfort test of jumping performed.
 
-## Geste temporel : livraison du 9 novembre
+## Temporal gesture: November 9 delivery
 
-Le diagnostic suivant est implémenté et vérifié ; attendre maintenant les
-**gestes physiques de Michel**, sans annoncer le saut corrigé.
+The following diagnostic is implemented and verified; now await **Michel's physical gestures**, without announcing the jump as fixed.
 
-1. Recharger la page complètement et lancer le jeu au gain habituel 1,70×.
-2. Échap → Nouvel essai de mesure → Capturer. Faire un seul geste rapide,
-   attendre environ une demi-seconde sans bouger, Échap → Copier les diagnostics.
-3. Même procédure pour un geste moyen dans la même direction, essai neuf.
+1. Hard-reload the page and launch the game at the usual 1.70× gain.
+2. Esc → Nouvel essai de mesure → Capturer. Make a single fast gesture, wait about half a second without moving, Esc → Copier les diagnostics.
+3. Same procedure for a medium gesture in the same direction, fresh trial.
 
-Le bloc motionTimeline est volontaire : premier geste accepté après armement,
-128 lignes maximum, arrêt après silence 0,18 s et poll nul, ou premier callback
-après deux secondes. Pause conserve le relevé, reprise/capture préserve un
-armement sans mouvement. Gain modifié annule aussi l'armement : réarmer ensuite.
-Les événements avant sampling interrompu restent dans unsampledEvents.
-Chaque ligne : sommes d'événements avant/après gain et leurs bornes de temps,
-frame interne et dernier poll natif. Ne pas sommer les derniers polls comme un
-compteur exhaustif, ni appeler les timestamps des temps matériels du trackpad.
-Aucun nouveau gain/filtre/limiteur/inertie, aucun stockage ou upload.
+The motionTimeline block is intentional: first accepted gesture after arming, 128 lines max, stop after 0.18 s silence and zero poll, or first callback after two seconds. Pause keeps the log, resume/capture preserves arming without movement. Modified gain also cancels arming: re-arm afterward. Events before interrupted sampling remain in unsampledEvents. Each line: pre/post-gain event sums and their time bounds, internal frame, and last native poll. Do not sum last polls as an exhaustive counter, nor call timestamps hardware trackpad times. No new gain/filter/limiter/inertia, no storage or upload.
 
-Banc conservé : npm run measure:profiles ; sous-ensemble -- --quick. 11 essais
-complets (totaux 1536 et 416, durées variables), 6 contrôles avec région RGBA
-fixe de 360000 pixels. Même départ, polls exacts, neutres immobiles, zéro erreur
-JS. À 1536 total : ΔX final −53,12 en une fois, +105,71 avec 6×256, +95,79 avec
-12×128 ; 4×384 reste négatif. Tous les contrôles répétés retrouvent les mêmes
-images numériques ; 24 comparaisons du décor inchangées. L'étalement peut
-changer le sens, mais aucune durée optimale universelle ou correction du joueur
-n'est démontrée. Saut et freinage non validés. Images 1199/1206/1212/1224/1236.
+Kept harness: npm run measure:profiles; subset `-- --quick`. 11 full trials (totals 1536 and 416, variable durations), 6 checks with fixed 360000-pixel RGBA region. Same start, exact polls, neutral motionless, zero JS errors. At 1536 total: final ΔX −53.12 in one shot, +105.71 with 6×256, +95.79 with 12×128; 4×384 remains negative. All repeated checks recover identical digital images; 24 scenery comparisons unchanged. Spreading can flip direction, but no universal optimal duration or player fix is demonstrated. Jump and braking unvalidated. Frames 1199/1206/1212/1224/1236.
 
-Modules : input/motionTimeline.ts, diagnostics/impulseProfiles.ts,
-diagnostics/staticRegion.ts, raccord emulation/emulatorjs.ts, aide UI et script
-measure-impulses.mjs. 17 nouveaux tests purs sur trois fichiers, un nouveau
-test navigateur du raccord sans ROM. Protocole : docs/MOTION_PROFILES.md.
-Preuves numériques sans ROM/image/état : third_party/impulse-profile-evidence.json.
-Les rapports test-results sont temporaires et Playwright peut les nettoyer.
+Modules: input/motionTimeline.ts, diagnostics/impulseProfiles.ts, diagnostics/staticRegion.ts, emulation/emulatorjs.ts hook, UI help, and script measure-impulses.mjs. 17 new pure tests across three files, one new ROM-free browser test of the hook. Protocol: docs/MOTION_PROFILES.md. Digital evidence without ROM/image/state: third_party/impulse-profile-evidence.json. test-results reports are temporary and Playwright may clean them up.
 
-Contrôle du vrai runtime après correction : trois événements souris automatisés,
-3 samples non nuls sur 3 itérations, arrêt quiet, 14 lignes, aucune erreur JS.
-Ce n'est pas un geste physique. La sonde temporaire initiale dans test-results a
-été supprimée par Playwright et gênait lint ; exécution finale depuis /tmp,
-réussie. Non-régression de durée ancienne lors d'un armement annulé reproduite,
-fixée et testée. Serveur dev 5173 déjà actif réutilisé, tentative supplémentaire
-refusée car port occupé, sans arrêter le serveur existant.
+Real runtime check after fix: three automated mouse events, 3 non-zero samples across 3 iterations, quiet stop, 14 lines, no JS errors. This is not a physical gesture. Initial temporary probe in test-results was deleted by Playwright and interfered with lint; final run from /tmp, succeeded. Non-regression of stale duration on canceled arming reproduced, fixed, and tested. Already-running dev server 5173 reused, extra attempt refused because port busy, without stopping existing server.
 
-Validation finale : npm run check réussi, **170 tests / 20 fichiers** ; couverture
-99,26 % instructions, 99,34 % branches, 100 % fonctions, 99,22 % lignes. Chrome :
-17 tests dev, 3 preview réussis. Avertissement de chunk BabylonJS existant conservé.
-Pas de Git initialisé, pas de nouvelle dépendance, de déploiement ou de ROM copiée.
+Final validation: npm run check succeeded, **170 tests / 20 files**; coverage 99.26% statements, 99.34% branches, 100% functions, 99.22% lines. Chrome: 17 dev tests, 3 preview succeeded. Existing BabylonJS chunk warning kept. No Git initialized, no new dependency, deployment, or copied ROM.
 
-Prochaine action concrète : analyser les deux motionTimeline réels de Michel,
-comparer durée des événements, paquets et grands polls par itération, puis
-choisir un correctif seulement si ces données le justifient.
+Concrete next action: analyze Michel's two real motionTimeline logs, compare event duration, bursts, and large polls per iteration, then choose a fix only if this data justifies it.
 
-## Blocage de démarrage corrigé le 9 novembre
+## Startup block fixed November 9
 
-Michel ne pouvait plus commencer une partie : disclaimer MAME absorbant les
-commandes, puis boutons grisés après capture/Échap. Reproduction réelle faite.
-Le cœur installé propose skip_disclaimer ; option définie dans le source figé
-core_options.c et présente dans son WASM. defaultOptions active maintenant
-mame2003-plus_skip_disclaimer=enabled ; skip_warnings non activé. Aucun binaire,
-ROM, BIOS, gain ou contrôle physique modifié.
+Michel could no longer start a game: MAME disclaimer absorbing controls, then buttons grayed out after capture/Esc. Real reproduction done. The installed core offers skip_disclaimer; option defined in pinned source core_options.c and present in its WASM. defaultOptions now enables mame2003-plus_skip_disclaimer=enabled; skip_warnings not enabled. No binary, ROM, BIOS, gain, or physical control modified.
 
-Crédit et Start restent accessibles après Échap. Un clic reprend explicitement
-si nécessaire avant la pression ; si le cœur est actif, pas de nouvelle reprise
-qui purgerait une pression en cours. Politique dans input/arcadeCommand.ts,
-4 tests unitaires ; UI branchée et message de pause clarifié. Échap/perte de
-focus/onglet masqué conservent pause/silence/purge, retour de focus toujours passif.
-Un cinquième test nouveau vérifie l'option de config sans masquer les warnings.
-Régression Chrome : capture → Échap → Crédit/Start, reprise avant pression,
-Start directement depuis pause. Capturer n'est pas nécessaire pour démarrer.
+Credit and Start remain accessible after Esc. A click explicitly resumes if needed before pressing; if the core is active, no new resume that would purge an ongoing press. Policy in input/arcadeCommand.ts, 4 unit tests; UI wired and pause message clarified. Esc/focus loss/hidden tab keep pause/mute/purge, focus return always passive. A fifth new test verifies config option without hiding warnings. Chrome regression: capture → Esc → Credit/Start, resume before press, Start directly from pause. Capturer is not required to start.
 
-Vrai jeu Chrome 157 headless, archives locales : mode attract sans mouvement
-préalable, Crédit depuis pause puis Start lancent une partie observée (score 0,
-temps 60), puis capture/Échap laisse les boutons accessibles. Crédit reprend
-ensuite de frame 1112 à 1139, aucune erreur JS. Captures examinées dans /tmp,
-preuve numérique third_party/startup-controls-evidence.json. Pas de preuve
-nouvelle sur le confort humain, le son ou les sauts.
+Real game Chrome 157 headless, local archives: attract mode without prior movement, Credit from pause then Start launch an observed game (score 0, time 60), then capture/Esc leaves buttons accessible. Credit then advances from frame 1112 to 1139, no JS errors. Screenshots inspected in /tmp, digital evidence third_party/startup-controls-evidence.json. No new evidence on human comfort, audio, or jumps.
 
-Recharger complètement la page. Attendre l'écran du jeu, Crédit → Start joueur 1
-→ Capturer. Les gestes de diagnostic restent à faire séparément, avec Nouvel
-essai après Échap. Le signal start du frontend n'est pas une détection du mode
-attract ; ne pas prétendre qu'une commande pendant l'amorçage est acceptée.
+Hard-reload the page. Wait for the game screen, Crédit → Start joueur 1 → Capturer. Diagnostic gestures remain to be done separately, with Nouvel essai after Esc. The frontend start signal is not an attract-mode detector; do not claim a command during boot is accepted.
 
-Check : 175 tests / 21 fichiers, couverture 99,27 % instructions, 99,35 % branches,
-100 % fonctions, 99,22 % lignes ; format/lint/types/build réussis. Chrome dev :
-18 tests dev et 3 preview réussis. Avertissement habituel de chunk BabylonJS conservé.
+Check: 175 tests / 21 files, coverage 99.27% statements, 99.35% branches, 100% functions, 99.22% lines; format/lint/types/build succeeded. Chrome dev: 18 dev tests and 3 preview succeeded. Usual BabylonJS chunk warning kept.
 
-## IMPORTANT : protocole de mesure simplifié après retour de Michel
+## IMPORTANT: simplified measurement protocol after Michel's feedback
 
-Michel avait bien fait une accélération puis Échap et Copier. Ne pas lui demander
-s'il a envoyé un geste moyen ou rapide : le défaut venait du relevé arrêté après
-le premier petit mouvement. Son texte contenait 300 ms / 35 événements / pic L1
-319 dans le segment, contre pic global X 916 hors segment. Ces lignes ne mesuraient
-pas forcément l'accélération recherchée. Le relevé est corrigé maintenant.
+Michel had indeed done an acceleration then Esc and Copy. Do not ask him whether he sent a medium or fast gesture: the defect came from the log stopping after the first small movement. His text contained 300 ms / 35 events / L1 peak 319 in the segment, versus global X peak 916 outside the segment. Those lines did not necessarily measure the sought acceleration. Logging is now fixed.
 
-Consigne unique après rechargement complet :
-**Nouvel essai → Capturer → faire une accélération → Échap → Copier les diagnostics.**
-Aucune pause à chronométrer, aucun geste moyen supplémentaire à classifier.
-L'interface affiche état prêt/en cours/terminée. Les petits mouvements précédents
-ne disqualifient plus la mesure.
+Single instruction after hard reload: **Nouvel essai → Capturer → perform an acceleration → Esc → Copier les diagnostics.** No pause to time, no extra medium gesture to classify. UI shows ready/in-progress/complete status. Small preceding movements no longer disqualify the measurement.
 
-motionTimeline observe jusqu'à Échap (ou interruption/gain modifié). Silence ou
-limite ferme un segment puis continue. Conserver le meilleur segment et le
-candidat, chacun limité à 128 lignes/deux secondes vérifiées aux callbacks.
-Sélection par plus grand pic L1 des lots transmis intermédiaires ou dernier poll,
-égalité au premier. selection expose critère, identifiant, pic et cause de fin.
-Les autres segments ne sont pas exportés. Une annulation de deltas peut garder
-un pic intermédiaire peakSentL1 ; les événements non encore pollés du segment
-choisi restent séparés. Pas de modification des commandes ou gain, timer,
-listener, stockage ou réseau ajouté. Ne pas appeler le critère une mesure
-physique de l'accélération de bille ; un segment limité peut être tronqué.
+motionTimeline observes until Esc (or interruption/gain change). Silence or limit closes a segment then continues. Keep best segment and candidate, each limited to 128 lines / two seconds checked at callbacks. Selection by largest L1 peak of intermediate sent batches or last poll, tie to first. selection exposes criterion, ID, peak, and end cause. Other segments are not exported. Delta cancellation can keep an intermediate peakSentL1; unpolled events of the chosen segment remain separate. No modification to controls or gain, no timer, listener, storage, or network added. Do not call the criterion a physical measurement of marble acceleration; a limited segment may be truncated.
 
-Tests purs : petit geste puis plus fort puis faible, Échap avant poll, nombreux
-segments et limites, annulation par événement opposé ; 4 nouveaux tests,
-11 tests du module. Chrome sans ROM : capture et mêmes segments via raccord.
-Vrai cœur avec archives locales et mouvements Chrome automatisés : pic initial
-813, suivant 9900, second segment choisi, une ligne, statut terminé après Échap
-immédiat, aucune erreur JS. Pas un trackpad physique. Preuve numérique sans ROM :
-third_party/strongest-gesture-evidence.json. Détails : docs/MOTION_PROFILES.md.
+Pure tests: small gesture then stronger then weak, Esc before poll, many segments and limits, cancellation by opposite event; 4 new tests, 11 module tests. ROM-free Chrome: capture and same segments via hook. Real core with local archives and automated Chrome movements: initial peak 813, next 9900, second segment chosen, one line, status complete after immediate Esc, no JS errors. Not a physical trackpad. ROM-free digital evidence: third_party/strongest-gesture-evidence.json. Details: docs/MOTION_PROFILES.md.
 
-Validation : npm run check réussi, **179 tests / 21 fichiers** ; couverture
-99,29 % instructions, 99,39 % branches, 100 % fonctions, 99,24 % lignes.
-Chrome dev 18 tests, preview 3 tests réussis. Avertissement de chunk existant.
-Toujours pas de Git initialisé ni nouvelle dépendance ; ROMs inchangées.
+Validation: npm run check succeeded, **179 tests / 21 files**; coverage 99.29% statements, 99.39% branches, 100% functions, 99.24% lines. Chrome dev 18 tests, preview 3 tests succeeded. Existing chunk warning. Still no Git initialized or new dependency; ROMs unchanged.
 
-Prochaine action : lire le prochain relevé automatique de l'accélération de
-Michel, sans lui demander de qualifier lui-même le segment. Saut et freinage
-restent ouverts, aucune correction du contrôle déduite de ce seul changement UX.
+Next action: read Michel's next automatic acceleration log without asking him to qualify the segment himself. Jump and braking remain open, no control fix inferred from this UX change alone.
 
-## Armement automatique à chaque capture — dernière correction
+## Automatic arming on each capture — latest fix
 
-Le dernier relevé utilisateur contient pic X natif 1189 et saturated=0, mais
-motionTimeline idle/gain 1/aucune ligne avec gain joueur 1,70×. Cela prouve que
-l'observateur n'était pas armé, pas que la commande était appliquée à gain 1.
-Ne pas reprocher un clic manquant ; le parcours ne doit plus dépendre du bouton.
+The latest user log contains native X peak 1189 and saturated=0, but motionTimeline idle/gain 1/no lines with player gain 1.70×. This proves the observer was not armed, not that input was applied at gain 1. Do not blame a missing click; the flow must no longer depend on the button.
 
-Toute transition non capturé→capturé réussie appelle resetMetrics : statistiques
-globales et natives remises à zéro, timeline armée au gain courant. Même helper
-que Nouvel essai, qui reste facultatif. Une capture refusée ne déclenche pas
-setCaptured(true), donc ne remet pas les mesures à zéro. Pause conserve le
-relevé, reprise seule le garde, prochaine capture démarre un nouveau relevé.
-Commandes/gain/physique non modifiés, purges existantes conservées.
+Every successful uncaptured→captured transition calls resetMetrics: global and native stats reset to zero, timeline armed at current gain. Same helper as Nouvel essai, which remains optional. A refused capture does not trigger setCaptured(true), so it does not reset measurements. Pause keeps the log, resume alone keeps it, next capture starts a new log. Controls/gain/physics unmodified, existing purges preserved.
 
-Consigne utilisateur après rechargement complet :
-**Capturer → faire une accélération → Échap → Copier les diagnostics.**
-Aucun Nouvel essai requis ; sélection du mouvement le plus fort toujours active.
-UI de capture et état prêt/en cours/terminée mis à jour, README/MOTION_PROFILES/
-ARCHITECTURE décrivent ce comportement. Le test navigateur du raccord n'appelle
-plus resetMetrics avant la capture, vérifie gain 1,70× puis une recapture à 2×
-avec compteurs nuls et segment neuf. L'assertion d'ordre Crédit/Start filtre les
-notifications pause redondantes de Pointer Lock ; aucune reprise automatique
-ajoutée. Premier passage 17/18 dû à ces notifications, reprise 18/18 réussie.
+User instruction after hard reload: **Capturer → perform an acceleration → Esc → Copier les diagnostics.** No Nouvel essai required; strongest-movement selection still active. Capture UI and ready/in-progress/complete status updated, README/MOTION_PROFILES/ARCHITECTURE describe this behavior. Hook browser test no longer calls resetMetrics before capture, verifies 1.70× gain then a recapture at 2× with zero counters and fresh segment. Credit/Start order assertion filters redundant Pointer Lock pause notifications; no automatic resume added. First pass 17/18 due to these notifications, rerun 18/18 succeeded.
 
-Vrai runtime et archives locales, mouvements Chrome automatisés sans Nouvel
-essai : premier pic 1958, suivant 16828, second segment choisi, une ligne et
-statut complete/gain 1,7 après Échap, zéro erreur JS. Ce n'est pas un essai
-physique de trackpad. Preuve numérique sans ROM/image/état :
-third_party/auto-measure-evidence.json.
+Real runtime and local archives, automated Chrome movements without Nouvel essai: first peak 1958, next 16828, second segment chosen, one line and status complete/gain 1.7 after Esc, zero JS errors. Not a physical trackpad test. Digital evidence without ROM/image/state: third_party/auto-measure-evidence.json.
 
-Validation : npm run check réussi, 179 tests/21 fichiers ; couverture 99,29 %
-instructions, 99,39 % branches, 100 % fonctions, 99,24 % lignes ; format/lint/
-types/build passent. Chrome dev 18 tests, preview 3 tests réussis. Le lancement
-preview avait été empêché par un échec du contrôle automatique d'autorisation
-(limite d'usage, pas refus de sécurité) ; relancé après la reprise utilisateur,
-réussi. Avertissement habituel de chunk BabylonJS conservé. Aucun Git initialisé,
-aucune dépendance nouvelle, aucune ROM ou préférence utilisateur modifiée.
+Validation: npm run check succeeded, 179 tests / 21 files; coverage 99.29% statements, 99.39% branches, 100% functions, 99.24% lines; format/lint/types/build pass. Chrome dev 18 tests, preview 3 tests succeeded. Preview run had been blocked by an automated permission check failure (usage limit, not security refusal); relaunched after user resume, succeeded. Usual BabylonJS chunk warning kept. No Git initialized, no new dependency, no ROM or user preference modified.
 
-Prochaine action : analyser le relevé suivant obtenu par la seule capture,
-sans imposer une autre manipulation préalable. Saut et freinage encore ouverts.
+Next action: analyze the next log obtained via capture alone, without imposing another prior step. Jump and braking still open.
 
-## Profil réel désormais disponible — ne plus demander le même essai
+## Real profile now available — do not ask for the same test again
 
-Michel a fourni le nouveau relevé complet : gain 1,70×, status complete,
-reason interrupted, 95 lignes, 96 événements non nuls / 1,391 seconde, 52 samples
-natifs non nuls sur une étendue de 85 itérations. Les 95 lignes ont sentX/Y
-strictement égaux à polledX/Y ; sommes −5737/+6257, saturated=0, aucun événement
-non échantillonné. Pic natif L1 1182 à (−608,+574), autres pics 1151 et 1054.
-Cela valide l'observation du raccord pour cet essai, pas tous les polls ou la
-vitesse/physique interne de la bille. Le profil est utilisable : aucune nouvelle
-manipulation préalable à réclamer à Michel.
+Michel provided the new complete log: gain 1.70×, status complete, reason interrupted, 95 lines, 96 non-zero events / 1.391 seconds, 52 non-zero native samples over a span of 85 iterations. All 95 lines have sentX/Y strictly equal to polledX/Y; sums −5737/+6257, saturated=0, no unsampled events. Native L1 peak 1182 at (−608,+574), other peaks 1151 and 1054. This validates hook observation for this trial, not all polls or internal marble speed/physics. The profile is usable: no new prior manipulation to request from Michel.
 
-Investigation réelle effectuée depuis /tmp, sondes dérivées des bancs existants,
-aucun changement de code applicatif :
+Real investigation performed from /tmp, probes derived from existing harnesses, no application code changes:
 
-- Web Chrome 157, natif X/Y du relevé rejoué avant 1200..1294, gain non réappliqué,
-  runtimes neufs, Crédit/Start fixes, neutre/profil/neutre. Polls reçus exactement,
-  départs identiques, neutres immobiles, zéro erreur JS.
-- Trace réelle du handler avec SHA/carte/signature préservés, fenêtre1198..1319 :
-  488 lectures par essai, aucune perte/erreur. Autour du grand pic, le port 0 passe
-  212→27→190. L'écart modulo 256 est ambigu, pas une preuve du code interne.
-- MAME 0.271 existant, BIOS ttl, deux cas neutre/profil, deux taps indépendants
-  contrôlant chacun 488 lectures ; même phase fixe −1 calibrée avant ce relevé.
-  Après la fenêtre, maintenir la dernière valeur de compteur, pas un retour
-  artificiel à zéro. Sept mesures optiques concordent avec le Web à moins de
-  0,158 pixel natif par axe. Pas de différence spécifique au cœur Web démontrée.
+- Web Chrome 157, native X/Y from log replayed before 1200..1294, gain not reapplied, fresh runtimes, fixed Credit/Start, neutral/profile/neutral. Polls received exactly, identical starts, neutrals motionless, zero JS errors.
+- Real handler trace with preserved SHA/map/signature, window 1198..1319: 488 reads per trial, no loss/error. Around the big peak, port 0 goes 212→27→190. The mod-256 delta is ambiguous, not proof of internal code.
+- Existing MAME 0.271, ttl BIOS, two neutral/profile cases, two independent taps each checking 488 reads; same fixed −1 phase calibrated before this log. After the window, hold the last counter value, not an artificial return to zero. Seven optical measurements agree with Web within 0.158 native pixels per axis. No Web-core-specific difference demonstrated.
 
-Le rejeu est par itération, pas reproduction des timestamps macOS ni de toute
-la partie humaine. Le suivi est écran, pas coordonnées physiques. Le marqueur
-entre dans la région témoin du décor pendant ce déplacement : ne pas prétendre
-qu'elle est restée statique ou que la caméra a bougé à partir de ces seuls pixels.
-Aucun saut réussi vérifié et aucun correctif de commande justifié pour l'instant.
+Replay is per-iteration, not a reproduction of macOS timestamps or the entire human game. Tracking is screen-space, not physical coordinates. The marker enters the scenery witness region during this displacement: do not claim it stayed static or that the camera moved from these pixels alone. No successful jump verified and no input fix justified for now.
 
-Preuve numérique et profil complet sans ROM/image/état :
-third_party/captured-motion-evidence.json. Méthode : docs/CAPTURED_MOTION.md.
-Les prototypes de rejeu étaient hors dépôt dans /tmp ; les scripts permanents
-n'ont pas été modifiés. La forme numérique suffit pour de prochains essais
-contrôlés à partir de scripts/measure-impulses.mjs et du traceur existant.
+Digital evidence and full profile without ROM/image/state: third_party/captured-motion-evidence.json. Method: docs/CAPTURED_MOTION.md. Replay prototypes were outside the repo in /tmp; permanent scripts were not modified. Numerical shape suffices for future controlled tests from scripts/measure-impulses.mjs and the existing tracer.
 
-Check de cette intervention : npm run check réussi, 179 tests/21 fichiers,
-99,29 % instructions, 99,39 % branches, 100 % fonctions, 99,24 % lignes ; format,
-lint, types et build passent. Tests navigateur permanents dev/preview non
-relancés, aucun code UI modifié ; les cinq essais réels décrits ci-dessus ont
-été exécutés. Avertissement habituel BabylonJS conservé. Aucun gain modifié,
-ROM téléchargée/copiée, nouvelle dépendance ou dépôt Git initialisé.
+Check for this task: npm run check succeeded, 179 tests / 21 files, 99.29% statements, 99.39% branches, 100% functions, 99.24% lines; format, lint, types, and build pass. Permanent dev/preview browser tests not re-run, no UI code modified; all five real trials described above were executed. Usual BabylonJS warning kept. No gain modified, ROM downloaded/copied, new dependency, or Git repository initialized.
 
-Prochaine action concrète : comparer les amplitudes/calibrations de ce même
-profil conservé dans une scène de départ contrôlée, sans recontacter Michel
-pour refaire la capture. Ne pas réintroduire le limiteur 416 rejeté, une inertie
-ou un turbo ; documenter un effet réel avant de proposer une correction.
+Concrete next action: compare amplitudes/calibrations of this same kept profile in a controlled start scene, without contacting Michel again to redo capture. Do not reintroduce the rejected 416 limiter, inertia, or turbo; document a real effect before proposing a fix.
 
-## Historique — calibration 0,50× rejetée depuis par Michel
+## History — 0.50× calibration since rejected by Michel
 
-Cette section décrit la livraison précédente ; appliquer l’état actuel en tête
-de fichier. Le bouton et la recommandation 0,50× ne sont plus disponibles.
+This section describes the previous delivery; apply the current state at the top of the file. The 0.50× button and recommendation are no longer available.
 
-Commande permanente npm run measure:calibration ajoutée au banc existant,
-avec --phase-check et --refine ; serveur dev/ZIP locaux requis. Module pur
-src/diagnostics/captureCalibration.ts : validation numérique, profil X/Y, mise
-à l'échelle des préfixes avec erreur <1 count/axe, refus des dépassements int16,
-fenêtre de huit itérations autour du pic (indices 62..69) et plans de contrôle.
-20 tests unitaires nouveaux, sans ROM. Pas d'import de ce module dans l'app.
+Permanent command npm run measure:calibration added to the existing harness, with --phase-check and --refine; dev server/local ZIPs required. Pure module src/diagnostics/captureCalibration.ts: numerical validation, X/Y profile, prefix scaling with error <1 count/axis, int16 overflow rejection, eight-iteration window around peak (indices 62..69), and check planes. 20 new unit tests, ROM-free. No import of this module in the app.
 
-25 essais réels Chrome 157 : 12 complets/coups aux gains équivalents
-0,425/0,85/1,275/1,70/2,125 ; 5 de phase (entrée/observations décalées de +1) ;
-8 affinés sur 0,40/0,45/0,50 aux deux phases. Polls conformes, départs comparables,
-neutres immobiles, aucun pixel témoin modifié sur40000 pixels par image, aucune
-erreur JS/trace perdue/erreur d'observation. 1,70× complet identique au rejeu
-précédent. Contrôle du mode historique ports quick : neutre/256/neutre, 64
-lectures par cas, succès. Aucun profil redistribué dans le temps.
+25 real Chrome 157 trials: 12 full/stroke at equivalent gains 0.425/0.85/1.275/1.70/2.125; 5 phase (input/observations shifted by +1); 8 refined at 0.40/0.45/0.50 in both phases. Compliant polls, comparable starts, neutrals motionless, no witness pixel modified across 40000 pixels per frame, no JS errors/lost trace/observation errors. Full 1.70× identical to previous replay. Check of historical quick ports mode: neutral/256/neutral, 64 reads per case, success. No profile redistributed in time.
 
-0,85× paraissait bon dans la première phase mais devient presque nul avec +1
-itération : ne pas le recommander sur son seul résultat favorable. Les gains
-affinés restent dans la direction attendue aux deux timings, 0,50× a la réponse
-la plus importante dans ce groupe. À36 itérations : 0,50× donne (−9,141,+2,788)
-puis (−12,115,+4,804) pixels natifs ; 1,70× donne (+2,985,−3,136) puis
-(−5,061,+0,889). Ce sont des positions optiques, pas une preuve de vitesse,
-physique interne ou saut réussi. Les centièmes ne sont pas une précision physique.
-0,50× complet n'a pas été rejoué dans cette matrice ; choix sur coup isolé et
-régularité de direction, pas un optimum universel ni un confort certifié.
+0.85× looked good in the first phase but becomes near-zero with +1 iteration: do not recommend it on its single favorable result. Refined gains stay in the expected direction at both timings; 0.50× has the largest response in this group. At 36 iterations: 0.50× gives (−9.141,+2.788) then (−12.115,+4.804) native pixels; 1.70× gives (+2.985,−3.136) then (−5.061,+0.889). These are optical positions, not proof of speed, internal physics, or successful jump. Hundredths are not physical precision. Full 0.50× was not replayed in this matrix; choice based on isolated stroke and direction consistency, not a universal optimum or certified comfort.
 
-Bouton « Essayer 0,50× pour les accélérations » ajouté dans les commandes.
-Même setter que le curseur/reset : seule une action explicite change/mémorise
-le gain. Aucun changement avant clic, défaut toujours 1×, reset toujours 1×,
-aucune reprise depuis pause. Retour à 1,70× au curseur. Gain purement linéaire,
-pas de limiteur 416, inertie ou turbo. Une constante candidate dans relativeMotion,
-un test supplémentaire vérifie de grands deltas linéaires. Capture automatique
-de la mesure conservée, nouveau candidat enregistré après clic puis capture.
+Button "Essayer 0,50× pour les accélérations" added to controls. Same setter as slider/reset: only an explicit action changes/stores gain. No change before click, default still 1×, reset still 1×, no resume from pause. Return to 1.70× via slider. Purely linear gain, no 416 limiter, inertia, or turbo. Candidate constant in relativeMotion, additional test verifies large linear deltas. Automatic measurement capture preserved, new candidate stored after click then capture.
 
-Chrome : nouveau test du bouton sans reprise, persistance et retour à 1,70×.
-Vrai runtime : 1,70× confirmé avant clic, 0,50× confirmé après, capture/Échap
-conserve le bon gain, zéro erreur JS. Mouvements automatisés, pas trackpad physique.
+Chrome: new test of button without resume, persistence, and return to 1.70×. Real runtime: 1.70× confirmed before click, 0.50× confirmed after, capture/Esc preserves the right gain, zero JS errors. Automated movements, not physical trackpad.
 
-Documentation : docs/CALIBRATION.md, README, ARCHITECTURE, DECISIONS, VALIDATION.
-Preuves numériques/profils/ports sans ROM, image ou état :
-third_party/capture-calibration-evidence.json. Rapports test-results temporaires,
-nettoyés par Playwright ; preuves sauvegardées avant les tests navigateur.
+Documentation: docs/CALIBRATION.md, README, ARCHITECTURE, DECISIONS, VALIDATION. Digital evidence/profiles/ports without ROM, image, or state: third_party/capture-calibration-evidence.json. Test-results reports temporary, cleaned up by Playwright; evidence saved before browser tests.
 
-Validation finale : npm run check réussi, **200 tests / 22 fichiers**, couverture
-99,39 % instructions, 99,46 % branches, 100 % fonctions, 99,35 % lignes.
-Chrome dev 19 tests, preview 3 tests réussis. Avertissement habituel de chunk
-BabylonJS conservé. Pas de nouvelle dépendance ou déploiement ; pas de Git
-initialisé. ROMs et préférences utilisateur réelles inchangées par les bancs.
+Final validation: npm run check succeeded, **200 tests / 22 files**, coverage 99.39% statements, 99.46% branches, 100% functions, 99.35% lines. Chrome dev 19 tests, preview 3 tests succeeded. Usual BabylonJS chunk warning kept. No new dependency or deployment; no Git initialized. ROMs and real user preferences unchanged by harnesses.
 
-Prochaine action : Michel peut recharger, lancer une partie, Échap, cliquer sur
-le bouton d'essai puis Capturer et jouer normalement. Demander seulement le
-ressenti sur les accélérations/saut et les petits gestes, pas de nouvelle
-capture identique à qualifier. Gain candidat à confirmer humainement ; freinage
-niveau 3 et recette de session/endurance restent ouverts.
+Concrete next action: Michel can reload, start a game, Esc, click the test button then Capturer and play normally. Ask only for feel on accelerations/jumping and small gestures, not a new identical capture to qualify. Candidate gain to be human-confirmed; Level 3 braking and session/endurance test run remain open.

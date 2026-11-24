@@ -1,137 +1,138 @@
-# Durée des gestes et profils d'impulsion
+# Gesture Duration and Impulse Profiles
 
-Le 9 novembre 2026, le banc compare un même déplacement natif total sur plusieurs
-itérations. **Le résultat varie fortement avec la répartition, y compris son
-sens.** Augmenter le pic ne garantit donc pas une meilleure accélération.
-Le saut du niveau 1 reste non corrigé ; aucun nouveau réglage de contrôle n'est appliqué.
+On November 9, 2026, the harness compares the same total native displacement
+across several iterations. **The result varies strongly with distribution,
+including its direction.** Increasing the peak therefore does not guarantee
+better acceleration. The level 1 jump remains unfixed; no new control setting
+is applied.
 
-## Relever une accélération
+## Recording an Acceleration
 
-La première version enregistrait seulement le premier geste après la capture.
-Le relevé de Michel montrait ainsi 300 ms et un pic natif L1 de 319, alors que
-les statistiques de l'essai contenaient un pic X de 916 absent de ce premier
-segment. La consigne était ambiguë : Michel avait bien fait une accélération,
-puis Échap et Copier. La sélection est désormais automatique sur tout l'essai.
+The first version recorded only the first gesture after capture.
+Michel's recording thus showed 300 ms and an L1 native peak of 319, whereas
+trial statistics contained an X peak of 916 absent from that first segment.
+The instructions were ambiguous: Michel had indeed performed an acceleration,
+then Escape and Copy. Selection is now automatic across the entire trial.
 
-1. Recharger complètement la page, lancer une partie et garder le gain habituel.
-2. Cliquer **Capturer** : la mesure démarre automatiquement, au gain courant.
-3. Faire une accélération, puis **Échap**. Pas d'attente ou de durée à respecter.
-4. Cliquer **Copier les diagnostics** et coller le texte dans la discussion.
+1. Fully reload the page, start a game, and keep the usual gain.
+2. Click **Capture**: measurement starts automatically at the current gain.
+3. Perform an acceleration, then **Escape**. No waiting or duration to meet.
+4. Click **Copy diagnostics** and paste the text into the discussion.
 
-Un message visible indique « Essai prêt », « Mesure en cours » puis « Mesure
-terminée ». Pas de second essai moyen à identifier pour utiliser ce relevé.
-Les petits déplacements préparatoires peuvent précéder l'accélération.
+A visible message shows "Trial ready", "Measuring", then "Measurement complete".
+No second average trial needs to be identified to use this recording.
+Small preparatory movements may precede the acceleration.
 
-## Sélection et limites du relevé
+## Recording Selection and Limits
 
-Chaque capture remet les mesures à zéro et arme le relevé, sans clic préalable
-sur Nouvel essai. Le relevé reste actif jusqu'à Échap, perte de focus/capture ou changement de
-gain. Un silence ferme un segment, **pas l'essai** : un mouvement plus fort
-survenu ensuite remplace le précédent. La sélection utilise le plus grand pic
-L1 (|X|+|Y|) entre la commande accumulée avant lecture et le dernier poll natif
-observé. Elle ne mesure pas une accélération physique de bille. En cas d'égalité,
-le premier segment est gardé. `selection` expose le critère, le nombre de
-segments, l'identifiant choisi, son pic et sa cause de fin. Le statut global
-passe à complete lors de l'interruption explicite ; reason indique cette fin.
+Each capture resets measurements and arms the recording, without clicking New
+Trial beforehand. Recording remains active until Escape, focus/capture loss,
+or gain change. Silence closes a segment, **not the trial**: a stronger
+movement occurring afterward replaces the previous one. Selection uses the
+largest L1 peak (|X|+|Y|) between the accumulated command before read and the
+last observed native poll. It does not measure physical marble acceleration.
+On ties, the first segment is kept. `selection` exposes the criterion, segment
+count, chosen ID, its peak, and its end cause. Global status transitions to
+complete on explicit interruption; reason indicates this end.
 
-Chaque segment contient au plus 128 lignes, finit au premier callback après
-deux secondes ou après silence 0,18 seconde avec dernier poll nul. Une limite
-ferme le segment et permet de poursuivre l'essai. Un segment tronqué est signalé
-par selectedReason=limit. Seuls le meilleur segment terminé et celui en cours
-sont retenus, soit 256 lignes internes au plus ; la copie contient uniquement
-le segment choisi. Nouvel essai reste facultatif pour effacer et réarmer. Une reprise sans
-mouvement ne désarme pas l'essai ; changer le gain le termine et nécessite de
-réarmer pour une autre mesure. Aucun stockage, upload, listener ou timer ajouté.
+Each segment contains at most 128 lines, ending on the first callback after
+two seconds or after 0.18 seconds of silence with a zero last poll. A limit
+closes the segment and allows continuing the trial. A truncated segment is
+flagged by selectedReason=limit. Only the best completed segment and the current
+one are retained, at most 256 internal lines; the copy contains only the
+chosen segment. New Trial remains optional to clear and re-arm. Resuming without
+movement does not disarm the trial; changing gain ends it and requires re-arming
+for another measurement. No storage, upload, listener, or timer added.
 
-Les lignes regroupent les événements non nuls entre callbacks : compte, sommes
-avant/après gain, première/dernière heure d'événement relative au segment, pic
-transmis intermédiaire `peakSentL1`, frame interne et dernier poll X/Y. Des
-événements opposés peuvent s'annuler dans les sommes sans effacer leur pic.
-`unsampledEvents` conserve séparément les événements du segment sélectionné
-interrompus avant son prochain callback : ne pas les présenter comme des polls.
-Une accélération suivie immédiatement d'Échap peut ainsi être conservée même si
-le dernier lot n'a pas encore été lu. Les autres segments ne sont pas exportés.
+Lines group non-zero events between callbacks: count, pre/post-gain sums,
+first/last event time relative to segment, intermediate transmitted peak
+`peakSentL1`, internal frame, and last X/Y poll. Opposite events can cancel
+in the sums without erasing their peak. `unsampledEvents` separately preserves
+events from the selected segment interrupted before its next callback: do not
+present them as polls. An acceleration immediately followed by Escape can thus
+be preserved even if the last batch has not yet been read. Other segments are
+not exported.
 
-Temps en secondes depuis performance.now à la réception, pas timestamps
-matériels. Le dernier poll peut omettre des lectures intermédiaires ; ne pas
-sommer ces samples comme un compteur exhaustif. Aucun accès aux coordonnées
-tactiles ou identification garantie du périphérique. La chaîne de commande
-et la physique ne sont pas modifiées par cette sélection de diagnostic.
+Times in seconds from performance.now at receipt, not hardware timestamps.
+The last poll may omit intermediate reads; do not sum these samples as an
+exhaustive counter. No access to touch coordinates or guaranteed device
+identification. The command pipeline and physics are not modified by this
+diagnostic selection.
 
-## Banc de profils synthétiques
+## Synthetic Profile Harness
 
-Serveur dev loopback déjà lancé et ZIP locaux disponibles :
+Loopback dev server already running and local ZIPs available:
 
 ```sh
 npm run measure:profiles
-# Sous-ensemble avec contrôle du décor :
+# Subset with scenery check:
 npm run measure:profiles -- --quick
 ```
 
-Rapports ignorés : `test-results/impulse-profiles.json` pour la série complète,
-`test-results/impulse-profiles-quick.json` pour le sous-ensemble. Le banc ne
-s'exécute pas en CI. Processus navigateur isolé, document/runtime neuf pour
-chaque essai, sans modifier les préférences de Michel. Aucune ROM/image/état dans
-les preuves livrées. Environ 4 minutes pour 11 essais, 2 minutes pour 6 contrôles.
+Ignored reports: `test-results/impulse-profiles.json` for the full series,
+`test-results/impulse-profiles-quick.json` for the subset. The harness does
+not run in CI. Isolated browser process, fresh document/runtime for each
+trial, without modifying Michel's preferences. No ROM/image/state in delivered
+evidence. About 4 minutes for 11 trials, 2 minutes for 6 checks.
 
-Crédit avant itérations 700..707, Start 710..717, entrée à partir de 1200,
-mesures vidéo 1199/1206/1212/1224/1236. Deltas X natifs seuls, Y=0, gain et
-événements hôtes volontairement contournés. Chaque valeur réellement pollée est
-comparée à la consigne ; départs identiques à un pixel près et zéro erreur JS
-exigés. `profile` contient les valeurs par itération et `total` leur somme.
-En mode profils, le champ historique `amplitude` est le total demandé, **pas**
-le pic ; utiliser `profile` pour interpréter les valeurs. Le mode ancien
-`measure:impulses` conserve son sens et ses frames.
+Credit before iterations 700..707, Start 710..717, input starting at 1200,
+video measurements 1199/1206/1212/1224/1236. Native X deltas only, Y=0, gain
+and host events intentionally bypassed. Each actually polled value is checked
+against the setpoint; identical starts within one pixel and zero JS errors
+required. `profile` contains per-iteration values and `total` their sum.
+In profile mode, the historical `amplitude` field is the requested total,
+**not** the peak; use `profile` to interpret values. The legacy `measure:impulses`
+mode keeps its meaning and frames.
 
-Les profils sont des consignes de diagnostic. Ils ne lissent, n'étalent ou
-n'amplifient jamais les gestes dans le jeu normal.
+Profiles are diagnostic setpoints. They never smooth, spread, or amplify
+gestures in normal gameplay.
 
-## Résultats observés
+## Observed Results
 
-Onze essais complets : départ identique (525,494 ; 168,016), canvas 1110×832,
-neutres immobiles au début et à la fin, chaque poll conforme, zéro erreur JS.
-Déplacement horizontal du marqueur en pixels de présentation, depuis 1199 :
+Eleven complete trials: identical start (525.494; 168.016), 1110×832 canvas,
+motionless neutrals at start and end, every poll conforming, zero JS errors.
+Horizontal marker displacement in presentation pixels, from 1199:
 
-| Total X | Profil    | ΔX à 1212 | ΔX à 1236 |
-| ------: | --------- | --------: | --------: |
-|   1 536 | 1 × 1 536 |    −16,72 |    −53,12 |
-|   1 536 | 2 × 768   |     −3,22 |     −9,92 |
-|   1 536 | 4 × 384   |    −36,35 |   −112,22 |
-|   1 536 | 6 × 256   |    +29,66 |   +105,71 |
-|   1 536 | 12 × 128  |    +16,31 |    +95,79 |
-|     416 | 1 × 416   |    −23,21 |    −63,04 |
-|     416 | 2 × 208   |     +9,73 |    +29,66 |
-|     416 | 4 × 104   |     +9,73 |    +29,66 |
-|     416 | 8 × 52    |     +9,73 |    +26,15 |
+| Total X | Profile   | ΔX at 1212 | ΔX at 1236 |
+| ------: | --------- | ---------: | ---------: |
+|   1 536 | 1 × 1 536 |     −16.72 |     −53.12 |
+|   1 536 | 2 × 768   |      −3.22 |      −9.92 |
+|   1 536 | 4 × 384   |     −36.35 |    −112.22 |
+|   1 536 | 6 × 256   |     +29.66 |    +105.71 |
+|   1 536 | 12 × 128  |     +16.31 |     +95.79 |
+|     416 | 1 × 416   |     −23.21 |     −63.04 |
+|     416 | 2 × 208   |      +9.73 |     +29.66 |
+|     416 | 4 × 104   |      +9.73 |     +29.66 |
+|     416 | 8 × 52    |      +9.73 |     +26.15 |
 
-Six essais de contrôle répètent les neutres et les profils 1536 sur 1/4/6/12
-itérations : mêmes centroïdes à chaque image, zéro erreur JS. Sur la région
-(100,300)–(1000,700), les 360000 pixels RGBA restent strictement identiques à
-l'image initiale pour les 24 comparaisons postérieures ; pas de scroll détecté
-sur ces contrôles. La série initiale de onze essais n'avait pas ce contrôle
-intégré ; ne pas l'attribuer rétroactivement aux autres cas.
+Six check trials repeat neutrals and the 1536 profiles over 1/4/6/12
+iterations: same centroids at each frame, zero JS errors. On region
+(100,300)–(1000,700), all 360000 RGBA pixels remain strictly identical to
+the initial image across the 24 subsequent comparisons; no scroll detected
+on these checks. The initial eleven-trial series did not have this built-in
+check; do not retroactively attribute it to the other cases.
 
-Cela ne définit pas une durée optimale universelle : 4 × 384 reste inversé,
-et les nombres de frames de stimulation diffèrent. Les mesures à 1236 sont
-postérieures à toutes les stimulations ; elles ne sont pas des vitesses ou
-des coordonnées internes. Aucun essai de saut vers les plateformes.
+This does not define a universal optimal duration: 4 × 384 remains inverted,
+and stimulation frame counts differ. Measurements at 1236 are after all
+stimulations; they are not internal velocities or coordinates. No jump trials
+toward platforms.
 
-Contrôle du raccord dans le vrai runtime, Chrome automatisé : trois événements
-souris fiables au sens navigateur, trois samples natifs non nuls sur trois
-itérations, arrêt silencieux, 14 lignes, zéro erreur JS. Ce test **n'est pas un
-mouvement physique de trackpad** et ne valide pas le confort de Michel.
-Preuves numériques : `third_party/impulse-profile-evidence.json`.
+Bridge check in the real runtime, automated Chrome: three browser-trusted
+mouse events, three non-zero native samples over three iterations, silent stop,
+14 lines, zero JS errors. This test **is not a physical trackpad movement** and
+does not validate Michel's comfort.
+Numeric evidence: `third_party/impulse-profile-evidence.json`.
 
-La comparaison MAME native précédente reproduisait déjà le comportement après
-alignement de phase : ne pas conclure à un défaut spécifique à 2003-Plus sur
-ces seuls résultats. La suite utile dépend maintenant du relevé automatique d’une accélération
-réelle : vérifier sa durée, les paquets et les grands polls avant d’envisager
-une correction documentée.
+The previous native MAME comparison already reproduced the behavior after
+phase alignment: do not conclude a defect specific to 2003-Plus from these
+results alone. The useful next step now depends on automatic recording of a real
+acceleration: check its duration, packets, and large polls before considering
+a documented fix.
 
-## Premier relevé humain analysé
+## First Human Recording Analyzed
 
-Le relevé suivant est exploitable et a été rejoué dans les deux cœurs :
-[CAPTURED_MOTION.md](CAPTURED_MOTION.md). Les 95 lignes correspondent aux commandes
-natives observées ; la trajectoire mesurée concorde avec la référence native.
-Le profil est conservé pour les prochains essais, sans demander à Michel de
-recommencer la capture. Ce résultat ne déclare pas le saut corrigé.
+The following recording is usable and was replayed in both cores:
+[CAPTURED_MOTION.md](CAPTURED_MOTION.md). All 95 lines match the observed
+native commands; the measured trajectory agrees with the native reference.
+The profile is preserved for future trials, without asking Michel to repeat
+the capture. This result does not declare the jump fixed.

@@ -1,275 +1,275 @@
 # Marble Madness Web — Architecture
 
-## Palette native partagée des quatre premières courses
+## Shared Native Palette for the First Four Races
 
-`emulation/terrainPalette` (anciennement `level4Palette`) vérifie la carte
-mémoire du cœur épinglé et lit 64 mots de RAM terrain et 16 mots de la banque de sprites des vagues. `practicePose`
-les expose sur les quatre niveaux ; l'adaptateur réutilise le tableau
-inchangé et le rendu n'actualise les uniforms que lors d'un changement.
-`TerrainPalettePaint` possède les couleurs et leur liaison au matériau,
-sans observer, texture supplémentaire ou lecture GPU. Les matériaux et
-plugins sont détruits avec la scène.
+`emulation/terrainPalette` (formerly `level4Palette`) checks the memory map
+of the pinned core and reads 64 words of terrain RAM and 16 words from the wave sprite bank. `practicePose`
+exposes them across all four levels; the adapter reuses the unchanged
+array and the renderer only updates uniforms when a change occurs.
+`TerrainPalettePaint` owns the colors and their material binding,
+with no observer, extra texture, or GPU readback. Materials and
+plugins are disposed with the scene.
 
-`ArcadeTerrainPaint` choisit les teintes natives pour les niveaux 1 à 3 :
-sols éclairés selon leurs normales et le soleil, murs par orientation,
-motifs de tours du niveau 3, seconde banque verte et atlas cyan de glace.
-Le grain et les motifs existants sont conservés ; le shader évite le
-suréclairage ajouté par les anciennes couleurs de sommets. La glace a
-un éclairage déjà décrit dans l'atlas et n'ajoute plus de reflet blanc.
-Les indices 0–63 du relevé correspondent au playfield ; 64–79 correspondent
-aux couleurs de motion objects 80–95. La lecture reste bornée à ces deux
-zones de RAM graphique. `IntermediatePipePaint` sélectionne les violets de
-la banque 3 ; les vagues utilisent le vert plat du playfield 63 et les
-teintes de crête de la banque de sprites. Les normales des vagues pointent
-vers le haut, leur amplitude reste celle du profil arcade, et leurs surfaces
-ne reçoivent pas d'ombres. Les valeurs inchangées ne réécrivent pas les buffers.
-Les deux niches du niveau 2 ont sept cases de largeur et trois de profondeur.
-Les deux tablettes restent entièrement derrière le plan de façade.
-`refineIntermediatePipe` subdivise la surface fermée du Y en conservant les
-lèvres et les limites de matériaux, puis `fitIntermediatePipeHoods` applique
-une déformation continue sans découpe ni aplatissement de peaux distinctes.
-Le fichier extrait et le J séparé sont conservés. Les normales sont recalculées
-sur les sommets coïncidents pour lisser intérieur, extérieur et raccords.
-Les copies et buffers restent possédés par les meshes de la scène ; aucune
-mise à jour par frame ni lecture GPU supplémentaire. L'audit local
-`node scripts/audit-intermediate-pipe.mjs` vérifie les arêtes et triangles du Y
-et recherche les croisements non coplanaires entre faces non voisines.
-`practiceDisplayTerrain` corrige aussi les trois coins SW du dallage devant
-la tour centrale qui reprennent son profil de collision ; le terrain visible
-reste plan à cet endroit, sans changer les données de collision du cœur.
-Les aspirateurs du niveau 4 sont procéduraux : un ruban coudé à 90 degrés,
-parenté au support, raccorde la tige à la tête. Seule cette dernière reçoit
-le tremblement natif ; le raccord s'enfonce dans son dos pour éviter un jour.
-Le matériau des parois du niveau 1 inclut explicitement l'alpha de la texture
-dans le test alpha final de BabylonJS, y compris avec les couleurs de sommets.
+`ArcadeTerrainPaint` selects the native tints for levels 1 through 3:
+floors lit by their normals and the sun, walls by orientation,
+level 3 tower patterns, second green bank, and cyan ice atlas.
+Existing grain and patterns are preserved; the shader avoids the
+over-brightening added by the old vertex colors. Ice has
+lighting already baked into the atlas and no longer adds a white highlight.
+Indices 0–63 of the readout correspond to the playfield; 64–79 correspond
+to motion object colors 80–95. Reading remains bounded to these two
+graphics RAM regions. `IntermediatePipePaint` selects the purples from
+bank 3; the waves use flat playfield green 63 and the
+crest tints from the sprite bank. Wave normals point
+upward, their amplitude matches the arcade profile, and their surfaces
+do not receive shadows. Unchanged values do not rewrite buffers.
+The two niches in level 2 are seven tiles wide and three tiles deep.
+The two ledges remain entirely behind the facade plane.
+`refineIntermediatePipe` subdivides the closed Y surface while preserving the
+lips and material boundaries, then `fitIntermediatePipeHoods` applies
+a continuous deformation without splitting or flattening distinct skins.
+The extracted file and the separate J are preserved. Normals are recomputed
+on coincident vertices to smooth interior, exterior, and joints.
+Copies and buffers remain owned by the scene meshes; no
+per-frame updates or extra GPU readbacks. The local audit
+`node scripts/audit-intermediate-pipe.mjs` checks the Y edges and triangles
+and scans for non-coplanar intersections between non-adjacent faces.
+`practiceDisplayTerrain` also fixes the three SW corners of the paving in front
+of the central tower that inherit its collision profile; the visible terrain
+remains flat there, without altering the core's collision data.
+The level 4 vacuums are procedural: a 90-degree bent ribbon,
+parented to the mount, connects the stem to the head. Only the head receives
+native wobble; the connector recesses into its back to avoid a gap.
+The level 1 wall material explicitly includes the texture alpha
+in BabylonJS's final alpha test, including with vertex colors.
 
-`Level4PalettePaint` partage la liaison des uniforms tout en gardant les
-swatches et le masque de paroi spécifiques au niveau 4.
+`Level4PalettePaint` shares the uniform binding while keeping the
+level 4-specific swatches and wall mask.
 
-## Reconstitution des sols des couloirs du niveau 3
+## Level 3 Corridor Floor Reconstruction
 
-Dans le labyrinthe initial, `level3DisplayTerrain` corrige les échantillons
-SW pris sur le plateau à 16384 quand les trois autres coins appartiennent
-au couloir inférieur et définissent un plan cohérent. La correction locale
-précède la génération de `terrainMesh` et `terrainCliffs` : elle supprime
-les fausses rampes et permet des parois verticales raccordées au vrai sol.
-Elle ne modifie ni la simulation ni les données sources et conserve les
-pentes progressives et les rampes définies séparément.
+In the initial maze, `level3DisplayTerrain` fixes SW samples
+taken on the plateau at 16384 when the other three corners belong
+to the lower corridor and define a consistent plane. The local fix
+precedes `terrainMesh` and `terrainCliffs` generation: it eliminates
+false ramps and enables vertical walls joined to the true floor.
+It modifies neither the simulation nor the source data and preserves
+gradual slopes and separately defined ramps.
 
-## Tuyau du niveau 3 et aspirateurs procéduraux
+## Level 3 Pipe and Procedural Vacuums
 
-`widenLevel3Pipe` prépare une copie des positions/normales du conduit importé,
-avec diamètre augmenté uniquement sur la partie verticale et transitions aux
-extrémités. `createLevel3Pipe` partage cette copie entre coque et intérieur.
-`level3DisplayTerrain` place les trois rangées de dallage sur Z=76..78 et
-l'ouverture sur Z=79..82. `createLevel3Pipe` translate coque et doublure d'une
-case sur +Z ; leur rive Z=83 rejoint la plateforme existante. Le bord de la
-grande plateforme comprend ainsi sept cases avant ce bloc.
+`widenLevel3Pipe` prepares a copy of the imported duct's positions/normals,
+with diameter increased only on the vertical section and transitions at the
+ends. `createLevel3Pipe` shares this copy between outer shell and interior.
+`level3DisplayTerrain` places the three paving rows on Z=76..78 and
+the opening on Z=79..82. `createLevel3Pipe` translates shell and liner by one
+tile along +Z; their Z=83 edge meets the existing platform. The edge of the
+large platform thus spans seven tiles before this block.
 
-`createLevel4Vacuums` possède les six mécanismes procéduraux et leurs matériaux
-partagés, nettoyés avec la scène. `readLevel4VacuumMouthFrames` transmet les
-deux images natives actives via `PracticePose.vacuumMouthFrames` et
-`setLevel4VacuumExtensions`. Le setter déforme la tête et sa cible de fragments,
-sans bouger le conduit et sans observer ou horloge supplémentaire. La descente
-et le reset rétablissent la pose neutre. `public/assets/README.md` recense les
-modèles Rolling Madness réellement sélectionnés et ceux seulement disponibles.
+`createLevel4Vacuums` owns the six procedural mechanisms and their shared
+materials, disposed with the scene. `readLevel4VacuumMouthFrames` forwards the
+two active native frames via `PracticePose.vacuumMouthFrames` and
+`setLevel4VacuumExtensions`. The setter deforms the head and its fragment target,
+without moving the duct and without an extra observer or clock. Retraction
+and reset restore the neutral pose. `public/assets/README.md` lists the
+Rolling Madness models actually selected versus those only available.
 
-## Ajustement local de l'axe de catapulte
+## Local Catapult Axle Adjustment
 
-`fitCatapultAxle` prépare une copie des poses importées pour
-`createRollingCatapult`. Les sommets des extrémités de l'axe sont identifiés
-sur la pose de repos et ajustés dans toutes les poses. Le modèle source,
-la coupelle, le bras et la synchronisation arcade restent inchangés.
-Les copies sont possédées par le rendu de la scène, sans nouvelle ressource GPU.
+`fitCatapultAxle` prepares a copy of the imported poses for
+`createRollingCatapult`. The axle end vertices are identified
+on the rest pose and adjusted across all poses. The source model,
+cup, arm, and arcade synchronization remain unchanged.
+The copies are owned by the scene renderer, with no new GPU resource.
 
-## Finitions des mécanismes et murs du niveau 4
+## Level 4 Mechanism and Wall Refinements
 
-`level4Hammers` lit le pointeur de dernière image émise (+0x42), distinct du
-pointeur d'interprétation suivant (+0x3e). Sa table d'ordinaux des sprites
-préserve les répétitions natives pour les deux représentations des marteaux.
-`level4CliffColors` encode par face les murs bas entièrement jaunes ;
-`Level4CliffPaint` conserve la frise des murs élevés et le traitement lumineux
-des faces internes des deux paires d'arches. Ces dernières reçoivent et projettent
-les ombres du soleil existant. `createCatapultMasonry` possède un matériau
-supplémentaire gris sans texture, partagé par les six dessus et libéré avec
-la scène. Aucun observer ni nouvelle carte d'ombre n'est ajouté.
+`level4Hammers` reads the last-emitted frame pointer (+0x42), distinct from the
+next-interpretation pointer (+0x3e). Its sprite ordinal table
+preserves native repeats for both hammer representations.
+`level4CliffColors` encodes per-face entirely yellow low walls;
+`Level4CliffPaint` preserves the high-wall frieze and the lighting treatment
+of the inner faces of both arch pairs. The latter receive and cast
+shadows from the existing sun. `createCatapultMasonry` owns an extra
+untextured gray material, shared by all six tops and disposed with
+the scene. No observer or new shadow map is added.
 
-## Palette arcade du niveau 4
+## Level 4 Arcade Palette
 
-`emulation/terrainPalette` lit 64 mots de palette terrain et 16 mots de palette des vagues depuis la RAM
-B00400 du cœur figé, après vérification des tables et des bornes mémoire.
-`practicePose` les publie ; l'adaptateur conserve le dernier tableau et
-réutilise son identité s'il ne change pas. `createLivePracticeView` transmet
-les changements à `level4PalettePaint`. Les uniforms de murs et pistes sont
-mis à jour sans nouvelle ressource ni lecture GPU. Le repli de l'étude est
-mesuré dans le même checkpoint. La palette du PNG complet est différente :
-ce fichier reste une référence d'architecture, pas la vérité colorimétrique.
+`emulation/terrainPalette` reads 64 terrain palette words and 16 wave palette words from RAM
+B00400 of the pinned core, after checking tables and memory bounds.
+`practicePose` publishes them; the adapter keeps the last array and
+reuses its identity if unchanged. `createLivePracticeView` forwards
+changes to `level4PalettePaint`. Wall and track uniforms are
+updated without new resources or GPU readbacks. The study fallback is
+measured in the same checkpoint. The full PNG's palette is different:
+that file remains an architectural reference, not the colorimetric truth.
 
-`Level4CliffPaint` garde les zones de peinture par hauteur, les joints gris,
-et le mélange clair/ombre via `key`. Le grand mur extérieur X=90, Z=72..90
-possède en complément une limite d'ombre issue des tuiles originales,
-fixée dans les coordonnées du mur, car aucun obstacle géométrique ne masque
-le soleil sur cette façade. Ce masque local se combine aux ombres 3D,
-sans nouveau projecteur et sans toucher aux montants d'arches.
-`Level4GoldPaint` change aussi la teinte des pistes selon leur orientation
-(brun, beige, rose), puis applique le grain et l'ombre existante.
-Les matériaux restent possédés par la scène. Aucune simulation ne dépend
-de la palette ou des shaders.
+`Level4CliffPaint` retains height-based paint zones, gray joints,
+and light/shadow blending via `key`. The tall outer wall X=90, Z=72..90
+additionally has a shadow boundary derived from the original tiles,
+baked in wall coordinates, because no geometric obstacle occludes
+the sun on that facade. This local mask combines with 3D shadows,
+with no new light and without touching the arch piers.
+`Level4GoldPaint` also shifts track tint by orientation
+(brown, beige, pink), then applies existing grain and shadow.
+Materials remain owned by the scene. No simulation depends
+on the palette or shaders.
 
-## Éclairage et raccords locaux du niveau 4
+## Level 4 Lighting and Local Joints
 
-`level4LandingNormals` prépare les normales par dalle du palier, sans changer
-la géométrie des autres zones. `level4DisplayTerrain` donne au raccord de
-pente une arête commune avec la partie plate.
+`level4LandingNormals` prepares per-tile normals for the landing, without changing
+geometry in other zones. `level4DisplayTerrain` gives the slope joint
+a shared edge with the flat section.
 
-Le matériau des falaises éclaire les deux faces visibles. Le premier secteur
-ne reçoit pas de frise jaune. Une correction de palette localisée garde la
-façade de gauche uniforme, sans fausse auto-ombre au raccord du tremplin.
-Les parois profondes du croisement reçoivent la carte complète du soleil
-`key`, avec les grandes falaises et les tremplins comme projecteurs.
-Il n'y a plus de lumière ni de carte d'ombre dédiée au croisement. Les
-ressources de scène et le calendrier arcade restent inchangés.
+The cliff material lights both visible faces. The first sector
+does not receive a yellow frieze. A localized palette fix keeps the
+left facade uniform, without false self-shadowing at the ramp joint.
+The deep crossing walls receive the full `key` sun
+map, with the tall cliffs and ramps as casters.
+There is no longer a dedicated light or shadow map for the crossing. Scene
+resources and arcade timing remain unchanged.
 
-## Raccords et contours du niveau 4
+## Level 4 Joints and Contours
 
-`createLevel4ArchBridge` construit des profils sinusoïdaux de trois cases,
-relevés séparément pour les deux paires. Les profondeurs sous la rive sont
-9/15 unités arcade (sommet/extrémités) pour la première paire et 10/16 pour
-la seconde ; les rives horizontales sont peintes en gris.
-Il construit les dessus horizontaux du second passage
-à 16272. `level4DisplayTerrain` raccorde les deux cases centrales à 16260,
-les deux pentes latérales et le grand plan incliné adjacent. La peinture du
-passage utilise une frontière rouge/jaune locale constante.
-`openLevel4Bridge` conserve les parois terminales des berges X=87/90, qui
-reçoivent l'ombre courbe des montants. `splitLevel4LandingWalls` répartit les
-faces entre falaises et palier en conservant les quatre sommets de chaque quad
-pour la peinture. Les deux meshes projettent et reçoivent la carte globale.
-`createLevel4RampEndJoints` possède le mesh et le matériau de mortier des
-cubes terminaux suspendus. Ils sont détruits avec la scène ; aucun nouvel
-observer ou chargement n'est ajouté.
+`createLevel4ArchBridge` builds three-tile sinusoidal profiles,
+sampled separately for both pairs. Depths below the bank are
+9/15 arcade units (crown/ends) for the first pair and 10/16 for
+the second; horizontal banks are painted gray.
+It builds the horizontal tops of the second passage
+at 16272. `level4DisplayTerrain` joins the two central tiles at 16260,
+the two side slopes, and the adjacent large inclined plane. The passage
+paint uses a constant local red/yellow boundary.
+`openLevel4Bridge` keeps the end walls of banks X=87/90, which
+receive the curved shadow of the piers. `splitLevel4LandingWalls` distributes
+faces between cliffs and landing while preserving the four vertices of each quad
+for painting. Both meshes cast and receive the global map.
+`createLevel4RampEndJoints` owns the mesh and mortar material of the
+suspended end cubes. They are disposed with the scene; no new
+observer or asset load is added.
 
-## Présentation du niveau 4 — 21 novembre 2026
+## Level 4 Presentation — November 21, 2026
 
-Les rampes dorées ont des bandeaux et des sous-faces sans support plein.
-Les deux sous-faces partagent le croisement sans superposition. Le pont
-orienté sur X inverse ses indices pour garder ses normales vers l'extérieur ;
-le palier voisin conserve ses deux biseaux. Le niveau 4 utilise le filtrage
-PCF de sa carte d'ombre pour atténuer les artefacts des grandes parois.
+The gold ramps have fascias and undersides without solid support.
+Both undersides share the crossing without overlap. The X-oriented
+bridge reverses its indices to keep normals pointing outward;
+the neighboring landing retains both bevels. Level 4 uses PCF filtering
+on its shadow map to soften artifacts on tall walls.
 
-`level4Hammers` convertit les coordonnées entières RAM en cases (division par
-huit). `createRollingHammers` ne possède aucune horloge d'animation live :
-les images natives pilotent les poses importées, et une réinitialisation les
-masque. Le secours procédural suit le même flux en mode jeu. Les aperçus de
-la page d'étude restent distincts de ce fonctionnement natif.
+`level4Hammers` converts integer RAM coordinates into tiles (division by
+eight). `createRollingHammers` has no live animation clock:
+native frames drive the imported poses, and a reset hides
+them. The procedural fallback follows the same flow in game mode. Study
+page previews remain separate from this native behavior.
 
-## Présentation des falaises et du pont du niveau 4
+## Level 4 Cliffs and Bridge Presentation
 
-`createLevel4ArchBridge` retire les faces du relevé sous les deux
-longs côtés du pont et construit les deux arcs. `level4CliffPaint`
-fournit la coloration des falaises par fragment selon la hauteur.
-Les capuchons de cylindres appartiennent à la scène. La catapulte
-importée possède une lumière limitée à ses meshes et une carte
-d’ombre locale possédée par la scène.
+`createLevel4ArchBridge` removes the survey faces beneath both
+long sides of the bridge and builds both arches. `level4CliffPaint`
+provides per-fragment cliff coloring by height.
+Cylinder caps belong to the scene. The imported catapult
+has a light restricted to its meshes and a local shadow
+map owned by the scene.
 
-## Support maçonné de catapulte
+## Catapult Masonry Support
 
-`createCatapultMasonry` construit le couronnement en U et ses parois
-profondes avec les matériaux de piste et de falaise de la scène.
-Les joints sont alignés dans le repère monde. La scène possède les
-maillages et le générateur d’ombres les réutilise.
+`createCatapultMasonry` builds the U-shaped coping and its deep
+walls using the scene's track and cliff materials.
+Joints are aligned in world space. The scene owns the
+meshes and the shadow generator reuses them.
 
-## Catapulte importée
+## Imported Catapult
 
-`createRollingCatapult` réutilise `createRollingActor` pour les deux
-maillages de catapulte de la bibliothèque locale. Il remplace le pilote
-de poses de la scène et masque les pièces mobiles procédurales. La
-bibliothèque est transmise à la scène live et chargée localement dans
-la page d’étude. La scène possède les géométries, matériaux et textures.
+`createRollingCatapult` reuses `createRollingActor` for the two
+catapult meshes from the local library. It replaces the scene's
+pose driver and hides procedural moving parts. The
+library is passed to the live scene and loaded locally in
+the study page. The scene owns geometries, materials, and textures.
 
-## Cylindres du niveau 4
+## Level 4 Cylinders
 
-`emulation/level4Pistons` lit les seuls slots à l’état levé dans la table
-native du niveau 4. `practicePose` transmet leur position et leur pas
-d’animation. La scène live possède 36 maillages réutilisables et applique
-chaque pose aux slots visibles. Le cœur reste responsable des compteurs,
-des zones et des rebonds.
+`emulation/level4Pistons` reads only raised slots from the native
+level 4 table. `practicePose` forwards their position and animation
+step. The live scene owns 36 reusable meshes and applies
+each pose to the visible slots. The core remains responsible for counters,
+zones, and bounces.
 
-## Effets natifs du niveau 4
+## Level 4 Native Effects
 
-`practicePose` transmet la progression de l’aspiration par joueur et le
-pointeur de tir converti en numéro de pose. La vue live masque la bille
-pendant sa fragmentation et pilote la catapulte sans horloge de rendu.
-Les fragments sont alloués à la création de la scène. Le cœur conserve
-le déclenchement, l’impulsion et la reconstruction.
+`practicePose` forwards per-player suction progress and the
+shot pointer converted to a pose number. The live view hides the marble
+during fragmentation and drives the catapult without a render clock.
+Fragments are allocated at scene creation. The core retains
+triggering, impulse, and reconstruction.
 
-## Aspirateurs du niveau 4
+## Level 4 Vacuums
 
-Le lecteur `emulation/level4Vacuums` lit les pointeurs d’image des objets du
-cœur épinglé. `practicePose` transmet les taux de déploiement du niveau 4 et
-`createLivePracticeView` les applique aux six mécanismes procéduraux de la
-scène. Les maillages appartiennent à la scène. Leur hauteur dépend de la
-pose native en jeu. La scène d’étude les présente déployés. La restauration
-d’un point de reprise confirme le niveau demandé avant de rendre la main à
-l’interface.
+The `emulation/level4Vacuums` reader reads object frame pointers from the
+pinned core. `practicePose` forwards level 4 deployment ratios and
+`createLivePracticeView` applies them to the scene's six procedural mechanisms.
+The meshes belong to the scene. Their height depends on the
+native pose in-game. The study scene displays them deployed. Restoring
+a checkpoint confirms the requested level before handing control back to
+the UI.
 
-`createMarbleMaterial` possède les peintures par joueur (six anneaux de 8 points
-jaunes projetés sans distorsion sphérique), partagées entre la bille normale et
-ses morphs. `practicePose` lit les pointeurs natifs de casse/balai (`0x72`, `0x7a`,
-`0x7f`), les 7 paliers natifs du pont d'Intermediate Race (`0x772`/`0x774`), les
-événements natifs de magie/récompenses, et maintient la vue 3D pendant `mode === 4`
-(Out of Time / Game Over) avec lecture des bandeaux alpha-RAM dans `practiceHud`.
-`createIntermediateBridge` expose un pilotage live (`setIntermediateBridgeStep`)
-distinct de la boucle d'étude, et `createTerrainStudy` installe une lumière
-directionnelle statique dédiée (`intermediate-pipe-wall-light`, `REFRESHRATE_RENDER_ONCE`)
-pour projeter les ombres des tuyaux sur `terrain-cliffs`.
+`createMarbleMaterial` owns per-player paints (six rings of 8 yellow dots
+projected without spherical distortion), shared between the normal marble and
+its morphs. `practicePose` reads native break/broom pointers (`0x72`, `0x7a`,
+`0x7f`), the 7 native steps of the Intermediate Race bridge (`0x772`/`0x774`),
+native magic/reward events, and maintains the 3D view during `mode === 4`
+(Out of Time / Game Over) with alpha-RAM banner reading in `practiceHud`.
+`createIntermediateBridge` exposes live driving (`setIntermediateBridgeStep`)
+separate from the study loop, and `createTerrainStudy` installs a dedicated
+static directional light (`intermediate-pipe-wall-light`, `REFRESHRATE_RENDER_ONCE`)
+to cast pipe shadows onto `terrain-cliffs`.
 
-`createCameraOcclusion` installe un plugin de matériau sur les murs/tours/rebords.
-Les fragments proches du segment caméra–bille sont rendus traversables visuellement
-par tramage à seuil, en excluant le sol au pied de la bille (`mmAboveFoot`/`mmClearFoot`).
-Le cadrage `chase` est réservé au mode 1 joueur (`resolvePracticeCamera` /
-`practiceCameraControls`). Le balayage d'ouverture (`createLivePracticeCamera`)
-parcourt linéairement le niveau de la fin vers le départ sans retour en arrière.
-`practiceChannelTerrain` coupe les coins extérieurs sur les diagonales limites
-`±21` du relevé complet, et `createPracticeGoal` cadre les 4 lignes de la rigole
-de Practice Race tout en conservant le format compact pour Intermediate Race.
+`createCameraOcclusion` installs a material plugin on walls/towers/rims.
+Fragments near the camera–marble segment are made visually passable
+via threshold dithering, excluding the floor at the marble's foot (`mmAboveFoot`/`mmClearFoot`).
+`chase` framing is restricted to 1-player mode (`resolvePracticeCamera` /
+`practiceCameraControls`). The opening sweep (`createLivePracticeCamera`)
+traverses the level linearly from finish to start without backtracking.
+`practiceChannelTerrain` clips outer corners along the `±21` diagonal bounds
+of the full survey, and `createPracticeGoal` frames the 4 lines of the
+Practice Race chute while keeping the compact format for Intermediate Race.
 
-Les vers sont des meshes articulés possédés par la scène (`createWorm.ts`).
-Le calcul des appuis, de la courbure et des phases de repas est pur et testable
-sans GPU (`game/modern/wormPose.ts`), piloté par les scripts natifs lus dans
-`intermediateActors.ts`. `readModernPhase` distingue introductions de niveau
-et écrans arcade : `createVideoView` garde la 3D uniquement dans les premières,
-et restitue la vidéo originale pour résultats/game over. `playControls` possède
-la recapture par clic sur les canvas, avec le même chemin de contrôle que le
-bouton Capturer et le même nettoyage.
+Worms are articulated meshes owned by the scene (`createWorm.ts`).
+Calculation of contacts, curvature, and eating phases is pure and testable
+without GPU (`game/modern/wormPose.ts`), driven by native scripts read in
+`intermediateActors.ts`. `readModernPhase` distinguishes level introductions
+from arcade screens: `createVideoView` keeps 3D only in the former,
+and restores original video for results/game over. `playControls` owns
+canvas-click recapture, using the same control path as the
+Capture button and the same cleanup.
 
-Le raccord des balayages appartient à `rendering/createLivePracticeCamera.ts`.
-Il utilise la progression native de Practice, ou 180 frames du compteur du cœur
-pour une nouvelle scène/reprise F2, et interpole également la projection vers
-la caméra de jeu. `createVideoView` prépare le terrain préféré avant une pose
-valide et conserve sa présentation entre les phases natives. Le lecteur
-`practicePose` accepte l'introduction native du niveau 2 après initialisation
-du joueur. Ces modules ne font pas avancer le cœur. F2 conserve son point de
-reprise jouable ; le balayage n'arrête pas le chrono et C l'interrompt.
+Sweep handoff belongs to `rendering/createLivePracticeCamera.ts`.
+It uses native Practice progression, or 180 frames of the core counter
+for a new scene/F2 resume, and also interpolates projection toward
+the gameplay camera. `createVideoView` prepares the preferred terrain before a valid
+pose and preserves its presentation across native phases. The
+`practicePose` reader accepts level 2's native introduction after player
+initialization. These modules do not advance the core. F2 keeps its playable
+checkpoint; the sweep does not stop the timer and C interrupts it.
 
-La section Prototype 03 décrit les ajouts actuels. Les sections précédentes
-conservent les choix et les preuves des incréments antérieurs.
+The Prototype 03 section describes the current additions. Earlier sections
+preserve the choices and evidence from prior increments.
 
-Prototype du jeu arcade original dans le navigateur, en TypeScript/Vite,
-avec **EmulatorJS 4.2.3 + MAME 2003-Plus** et sa vidéo sur un plan BabylonJS.
-Une seule session fournit les vues directe, comparée et 3D. Crédit, Start,
-trackpad relatif, pause/reprise, volume et diagnostics sont disponibles.
+Prototype of the original arcade game in the browser, in TypeScript/Vite,
+with **EmulatorJS 4.2.3 + MAME 2003-Plus** and its video on a BabylonJS plane.
+A single session provides direct, comparison, and 3D views. Credit, Start,
+relative trackpad, pause/resume, volume, and diagnostics are available.
 
-Michel a joué au trackpad et confirmé la correction du clignotement dans la vue
-BabylonJS. Le dernier gain essayé est **1,70×** ; le freinage en fin du niveau 3
-reste un point ouvert. Les impulsions de boost et le saut vers les plateformes
-latérales du niveau 1 ne sont pas validés. L'endurance de 10 minutes et l'écoute audio complète
-restent à confirmer. Le [bilan de livraison](docs/RELEASE.md) sépare validations
-acquises et limites ; les preuves détaillées restent dans
+Michel played with the trackpad and confirmed the flicker fix in the BabylonJS
+view. The latest tested gain is **1.70×**; braking at the end of level 3
+remains an open item. Boost impulses and jumping onto the side platforms
+of level 1 are not validated. The 10-minute endurance run and full audio listening
+remain to be confirmed. The [release summary](docs/RELEASE.md) separates acquired
+validations from limits; detailed evidence remains in
 [docs/VALIDATION.md](docs/VALIDATION.md).
 
-## Installation et démarrage
+## Setup and Startup
 
-Node.js **24 ou supérieur**, npm. Sur le Mac de référence, utiliser Chrome avec WebGL2.
+Node.js **24 or higher**, npm. On the reference Mac, use Chrome with WebGL2.
 
 ```sh
 npm ci
@@ -277,112 +277,112 @@ npm run setup:emulator
 npm run dev
 ```
 
-La préparation télécharge uniquement les fichiers d'émulation versionnés, vérifie
-leurs SHA-256 et copie leurs notices dans `public/vendor/`. Elle ne télécharge
-aucune ROM. Les fichiers déjà présents et corrects sont réutilisés. L'application
-utilise ensuite les ressources locales, sans CDN au lancement du jeu.
+Setup downloads only pinned emulation files, verifies
+their SHA-256 hashes, and copies their notices into `public/vendor/`. It downloads
+no ROMs. Existing valid files are reused. The application
+then uses local assets, with no CDN at game launch.
 
-Vite fournit le serveur HTTP : ouvrir `http://127.0.0.1:5173/` dans Chrome.
-Pour les lancements suivants, `npm run dev` suffit depuis le dossier du projet.
-Garder ce terminal ouvert ; Ctrl+C arrête le serveur. Ne pas ouvrir `index.html`
-directement avec `file://`.
+Vite provides the HTTP server: open `http://127.0.0.1:5173/` in Chrome.
+For subsequent launches, `npm run dev` is sufficient from the project folder.
+Keep this terminal open; Ctrl+C stops the server. Do not open `index.html`
+directly with `file://`.
 
-Pour précharger les archives de test, placer `marble.zip` et, si nécessaire,
-`atarisy1.zip` dans le dossier `roms/` à la racine du projet, puis recharger la
-page. Elle affiche les archives préchargées ; aucun sélecteur n'est nécessaire.
-Ce mécanisme est réservé à `npm run dev`, sur cette machine : `roms/` est ignoré
-par Git et absent du build. `npm run preview` conserve la sélection manuelle.
+To preload test archives, place `marble.zip` and, if needed,
+`atarisy1.zip` in the `roms/` folder at the project root, then reload the
+page. It displays the preloaded archives; no file picker is needed.
+This mechanism is reserved for `npm run dev`, on this machine: `roms/` is ignored
+by Git and absent from the build. `npm run preview` retains manual selection.
 
-## Premier essai sur le Mac de Michel
+## First Trial on Michel's Mac
 
-1. Si les archives ne sont pas déjà préchargées depuis `roms/`, choisir **marble.zip** dans le champ **Jeu**. Si le BIOS est séparé, choisir
-   également **atarisy1.zip** dans le champ **BIOS facultatif**. Les 30 dumps du
-   set parent `marble` sont recherchés à la racine des deux ZIP ; les fichiers des
-   clones présents dans des sous-dossiers sont ignorés.
-2. Cliquer sur **Vérifier et préparer** : les tailles et SHA-1 des données
-   décompressées sont vérifiés localement. Les noms seuls ne suffisent pas.
-3. Cliquer sur **Démarrer l'émulation**, puis attendre l'écran du jeu après les
-   messages de démarrage de MAME (quelques secondes). L’écran de disclaimer
-   est passé par l’option du cœur ; aucun mouvement de trackpad n’est nécessaire.
-4. Cliquer sur **Crédit**, puis **Start joueur 1**. Après le compte à rebours de la
-   course, cliquer sur **Capturer le trackpad**. Déplacer un doigt, sans maintenir
-   de clic. Le pointeur devient invisible et les gestes contrôlent la bille.
-5. **Échap**, perte de focus ou onglet masqué : pause, son suspendu et entrées
-   vidées. **Reprendre / activer le son** relance explicitement l'émulation et
-   l'audio ; **Capturer le trackpad** reprend aussi et recapture sur votre clic.
-   Le retour dans l'onglet ne reprend jamais automatiquement.
-6. Si nécessaire, ajuster **Sensibilité X/Y** après Échap, puis recapturer.
-   Gain commun 0,25–4×, défaut 1× : réglage expérimental, pas une valeur de fidélité.
-   Le bouton de réinitialisation remet 1×. Volume réglable, 0 % pour couper le son.
-   Seuls gain et volume sont mémorisés localement.
-7. **Nouvelle session** recharge entièrement la page et recharge les archives de `roms/`
-   en développement (sinon, les sélectionner à nouveau) ;
-   une confirmation apparaît si l'émulation a déjà démarré.
+1. If archives are not already preloaded from `roms/`, choose **marble.zip** in the **Jeu** field. If the BIOS is separate, also choose
+   **atarisy1.zip** in the **BIOS facultatif** field. The 30 dumps of the
+   parent `marble` set are searched at the root of both ZIPs; clone files
+   present in subfolders are ignored.
+2. Click **Vérifier et préparer**: sizes and SHA-1 hashes of the uncompressed
+   data are verified locally. Filenames alone are not sufficient.
+3. Click **Démarrer l'émulation**, then wait for the game screen after MAME's
+   startup messages (a few seconds). The disclaimer screen
+   is skipped via the core option; no trackpad movement is needed.
+4. Click **Crédit**, then **Start joueur 1**. After the race countdown,
+   click **Capturer le trackpad**. Move one finger, without holding
+   a click. The pointer becomes invisible and gestures control the marble.
+5. **Esc**, focus loss, or hidden tab: pause, audio suspended, and inputs
+   cleared. **Reprendre / activer le son** explicitly resumes emulation and
+   audio; **Capturer le trackpad** also resumes and recaptures on your click.
+   Returning to the tab never resumes automatically.
+6. If needed, adjust **Sensibilité X/Y** after Esc, then recapture.
+   Shared gain 0.25–4×, default 1×: experimental setting, not a fidelity value.
+   The reset button restores 1×. Adjustable volume, 0% to mute.
+   Only gain and volume are stored locally.
+7. **Nouvelle session** reloads the page completely and reloads archives from `roms/`
+   in development (otherwise, select them again);
+   a confirmation appears if emulation has already started.
 
-Les dumps système `136032.205`, `136032.206` et `136032.107` peuvent être dans
-le jeu ou le BIOS séparé. Les noms Atari `136032.205.l13`, `136032.206.l12`,
-`136032.107.b2` et l'équivalent `136032.104.f5` sont reconnus uniquement si leurs
-tailles et SHA-1 correspondent. L'application assemble les seuls 30 fichiers
-validés sous les noms MAME dans un ZIP mémoire ; les originaux restent inchangés.
-La liste exacte des noms, tailles, CRC et SHA-1 est dans
-[src/emulation/marble-roms.json](src/emulation/marble-roms.json), et les noms sont
-consultables dans l'interface. Limite du banc : 16 Mio par archive.
+System dumps `136032.205`, `136032.206`, and `136032.107` may be in
+the game or separate BIOS archive. Atari names `136032.205.l13`, `136032.206.l12`,
+`136032.107.b2`, and the equivalent `136032.104.f5` are recognized only if their
+sizes and SHA-1 hashes match. The application assembles only the 30 validated
+files under MAME names in an in-memory ZIP; originals remain untouched.
+The exact list of names, sizes, CRCs, and SHA-1s is in
+[src/emulation/marble-roms.json](src/emulation/marble-roms.json), and names are
+viewable in the UI. Harness limit: 16 MiB per archive.
 
-Aucun upload ni stockage persistant des ROMs, BIOS ou sauvegardes. Les archives sont lues et assemblées uniquement en mémoire. Les préférences natives du frontend sont désactivées ; seuls nos réglages de
-gain et de volume sont conservés sous les clés `marble.gain` et `marble.volume`.
-Ne pas placer les archives dans `public/` : utiliser `roms/` pour le test local
-ou les sélecteurs de fichiers. Le serveur ne reçoit aucun upload.
-Une erreur d'archive permet un nouvel essai ; une erreur de runtime nécessite une
-nouvelle session. Si les ressources manquent, relancer `npm run setup:emulator`.
+No upload or persistent storage of ROMs, BIOSes, or save states. Archives are read and assembled solely in memory. Native frontend preferences are disabled; only our
+gain and volume settings are stored under keys `marble.gain` and `marble.volume`.
+Do not place archives in `public/`: use `roms/` for local testing
+or the file pickers. The server receives no uploads.
+An archive error allows a retry; a runtime error requires a
+new session. If assets are missing, re-run `npm run setup:emulator`.
 
-Pour le premier essai, vérifier surtout les petits gestes, les diagonales et le
-repositionnement du doigt. Aucun lissage, accélération supplémentaire, inertie ou
-rotation de 45° n'est ajouté. La physique reste celle du programme arcade. La
-molette et les événements tactiles ne commandent pas la bille. Le comportement
-standard du navigateur est utilisé ; le mode non accéléré n'est pas activé.
+For the first trial, check especially small gestures, diagonals, and
+finger repositioning. No smoothing, extra acceleration, inertia, or
+45° rotation is added. Physics remain those of the arcade program. Scroll
+wheel and touch events do not control the marble. Standard browser
+behavior is used; unadjusted movement mode is not enabled.
 
-Pour le réglage du trackpad, Michel trouve **1,80× assez confortable**, avec une
-difficulté sur les fortes accélérations : il précise que les gestes rapides
-semblent plafonner. Ce point reste en investigation.
-Les diagnostics affichent les pics de commande `peakRaw` (avant gain), `peakSent`
-(après gain) et `peakPending` (avant consommation native), ainsi que `saturated`
-(nombre d'écrêtages du raccord). Comparer quelques gestes doux puis rapides au
-même gain. Les pics restent disponibles après Échap ; ils ne mesurent pas la
-vitesse de la bille et ne prouvent pas à eux seuls une limite du programme arcade.
+Regarding trackpad tuning, Michel finds **1.80× quite comfortable**, with
+difficulty on strong accelerations: he notes that fast gestures
+seem to plateau. This remains under investigation.
+Diagnostics display command peaks `peakRaw` (before gain), `peakSent`
+(after gain), and `peakPending` (before native consumption), as well as `saturated`
+(hook clipping count). Compare a few gentle then fast gestures at the
+same gain. Peaks remain available after Esc; they do not measure
+marble speed and do not by themselves prove a limit in the arcade program.
 
-Pour relever un essai exploitable :
+To record a usable trial:
 
-1. Garder le gain habituel (actuellement 1,70×).
-2. Cliquer **Capturer**, faire une accélération, puis **Échap**.
-3. Cliquer **Copier les diagnostics** et coller le texte dans la discussion.
+1. Keep the usual gain (currently 1.70×).
+2. Click **Capturer**, perform an acceleration, then **Esc**.
+3. Click **Copier les diagnostics** and paste the text into the discussion.
 
-L'essai de protection à 416 a été **retiré** : Michel n'a constaté aucune
-amélioration du saut. Les commandes restent linéaires au gain choisi, sans
-limiteur supplémentaire ni inertie ajoutée. Les impulsions/sauts ne sont pas
-encore validés comme fidèles au jeu original.
+The clamp trial at 416 was **removed**: Michel observed no
+improvement in jumping. Commands remain linear at the chosen gain, with no
+extra limiter or added inertia. Impulses/jumps are not
+yet validated as faithful to the original game.
 
-Un [banc de réponse aux impulsions](docs/INPUT_RESPONSE.md) mesure maintenant
-la bille à l'image après des démarrages identiques. Il s'exécute volontairement,
-avec les archives locales et le serveur de développement déjà lancé :
+An [impulse response benchmark](docs/INPUT_RESPONSE.md) now measures
+the marble on screen after identical starts. It is run manually,
+with local archives and the dev server already running:
 
 ```sh
 npm run measure:impulses -- --quick
-# Série complète (environ 4 minutes) :
+# Full suite (about 4 minutes):
 npm run measure:impulses
 ```
 
-Pour comparer un même total sur plusieurs durées : `npm run measure:profiles`
-(environ 4 minutes), ou `npm run measure:profiles -- --quick` (environ 2 minutes).
-Le [protocole des gestes et profils](docs/MOTION_PROFILES.md) décrit les résultats
-et le relevé humain suivant. **Capturer → une accélération → Échap → Copier les diagnostics**.
-Chaque nouvelle capture démarre automatiquement la mesure et remet ses compteurs
-à zéro. « Nouvel essai » reste un raccourci facultatif de remise à zéro. Inutile de chronométrer ou de qualifier le geste :
-le relevé conserve automatiquement le mouvement au plus grand pic de commande,
-même si un petit mouvement l'a précédé. Le bloc `motionTimeline` est local,
-borné, inclus dans la copie et conservé après Échap.
+To compare the same total across multiple durations: `npm run measure:profiles`
+(about 4 minutes), or `npm run measure:profiles -- --quick` (about 2 minutes).
+The [gestures and profiles protocol](docs/MOTION_PROFILES.md) describes the results
+and the next human recording: **Capturer → one acceleration → Esc → Copier les diagnostics**.
+Each new capture automatically starts measurement and resets its counters
+to zero. "Nouvel essai" remains an optional reset shortcut. No need to time or label the gesture:
+the recorder automatically keeps the motion with the highest command peak,
+even if a small movement preceded it. The `motionTimeline` block is local,
+bounded, included in the copy, and preserved after Esc.
 
-Le [banc de calibration du geste enregistré](docs/CALIBRATION.md) compare les gains
-sans modifier les préférences du joueur :
+The [recorded gesture calibration benchmark](docs/CALIBRATION.md) compares gains
+without altering player preferences:
 
 ```sh
 npm run measure:calibration
@@ -390,87 +390,87 @@ npm run measure:calibration -- --phase-check
 npm run measure:calibration -- --refine
 ```
 
-Il rejoue le profil complet puis un coup isolé, vérifie les polls et les vrais
-ports, et contrôle un décalage d'une itération avant de retenir un candidat.
-Les gains sont des consignes de diagnostic ; aucun réglage n'est changé au lancement.
+It replays the full profile then an isolated stroke, checks polls and real
+ports, and verifies a one-iteration offset before selecting a candidate.
+Gains are diagnostic setpoints; no setting is changed at launch.
 
-Pour observer également les [lectures effectives des ports trackball](docs/TRACKBALL_PORTS.md) :
+To also observe the [actual trackball port reads](docs/TRACKBALL_PORTS.md):
 
 ```sh
 npm run measure:ports -- --quick
 ```
 
-La [comparaison avec MAME 0.271 natif](docs/REFERENCE_COMPARISON.md) se lance
-séparément, avec un exécutable déjà installé et les mêmes archives locales :
+The [comparison with native MAME 0.271](docs/REFERENCE_COMPARISON.md) is run
+separately, with an already-installed executable and the same local archives:
 
 ```sh
 MAME_BINARY=/Applications/mame0271-arm64/mame npm run measure:reference
 ```
 
-Elle ne nécessite pas de serveur HTTP et ne change pas le cœur de la page Web.
-Les mesures concordent après alignement de phase ; le saut reste non résolu.
+It requires no HTTP server and does not alter the web page's core.
+Measurements agree after phase alignment; jumping remains unresolved.
 
-Le traceur vérifie le binaire et sa carte de lecture, conserve les vrais arguments
-et retours du handler, puis le restaure. Le rapport va dans
-`test-results/trackball-ports.json` ; cet outil ne tourne ni dans le jeu normal
-ni en CI. Le saut n'est toujours pas déclaré corrigé.
+The tracer verifies the binary and its read map, preserves real handler
+arguments and return values, then restores it. The report goes to
+`test-results/trackball-ports.json`; this tool runs neither in normal gameplay
+nor in CI. Jumping is still not declared fixed.
 
-Les rapports numériques vont dans `test-results/impulse-response.json` (ignoré
-par Git). Aucun instantané du jeu ou image n'y est conservé. Le banc injecte des
-deltas natifs de diagnostic sans utiliser le trackpad ni le gain : ce n'est pas
-un contrôle de jeu accessible au joueur. Il ne valide pas un saut réussi.
+Numeric reports go to `test-results/impulse-response.json` (ignored
+by Git). No game snapshot or image is kept there. The benchmark injects
+native diagnostic deltas without using the trackpad or gain: this is not
+a player-accessible game control. It does not validate a successful jump.
 
-Le bloc `nativeSampling` conserve le dernier poll natif échantillonné après
-chaque itération de l'émulateur : extrema signés `minX/maxX/minY/maxY`, derniers
-mouvements non nuls et inversions `reversalsX/Y`. Les zéros ne créent pas
-artificiellement d'inversion. Une pause rompt la séquence de signes sans effacer
-les statistiques. Ce ne sont ni des compteurs exhaustifs de polls ni des mesures
-de freinage de la bille ; plusieurs polls dans une itération peuvent échapper à
-l'observation et une valeur peut rester identique entre deux échantillons.
+The `nativeSampling` block keeps the last native poll sampled after
+each emulator iteration: signed extrema `minX/maxX/minY/maxY`, last
+non-zero movements, and reversals `reversalsX/Y`. Zeros do not artificially
+create a reversal. A pause breaks the sign sequence without clearing
+statistics. These are neither exhaustive poll counters nor marble braking
+measurements; multiple polls within one iteration may escape
+observation and a value may remain identical across two samples.
 
-Michel signale une difficulté de freinage dans la forte pente en sortie des
-vagues, en fin de niveau 3. Pour l'essai suivant, garder le même gain et comparer
-un essai de gestes moyens puis un essai de gestes rapides opposés, en remettant
-les mesures à zéro entre les deux et en copiant chaque résultat après Échap.
-Noter le ressenti de freinage et le gain ; ne pas changer la physique originale.
+Michel reports difficulty braking on the steep slope exiting the
+waves, at the end of level 3. For the next test, keep the same gain and compare
+a run of medium gestures then a run of fast opposite gestures, resetting
+measurements between the two and copying each result after Esc.
+Note the braking feel and gain; do not change the original physics.
 
-La remise à zéro concerne seulement les statistiques, sans changer le contrôle,
-les fractions ou la partie. La copie est locale, sans upload ; si elle est
-refusée par le navigateur, sélectionner le texte des diagnostics manuellement.
+Resetting only clears statistics, without changing control,
+fractions, or the game. Copying is local, with no upload; if
+blocked by the browser, select the diagnostics text manually.
 
-Si le son manque, vérifier le volume puis cliquer sur **Reprendre / activer le son**
-après le lancement du cœur. Les diagnostics indiquent `audioState` et `audioRms` :
-un niveau nul à un instant peut correspondre à un silence normal. Une mesure de
-signal ne remplace pas l'écoute. Le signal `start` du frontend seul ne prouve pas
-le lancement du programme arcade.
+If sound is missing, check volume then click **Reprendre / activer le son**
+after the core launches. Diagnostics report `audioState` and `audioRms`:
+a zero level at a given instant may correspond to normal silence. A signal
+measurement does not replace listening. The frontend `start` signal alone does not prove
+the arcade program has launched.
 
-Après démarrage, le sélecteur **Affichage de la même session** propose :
+After startup, the **Affichage de la même session** selector offers:
 
-- **Vue directe** : affichage EmulatorJS, sans copies BabylonJS.
-- **Comparer les deux vues** : vidéo directe et plan 3D côte à côte.
-- **Plan BabylonJS seul** : source masquée, même émulateur et mêmes commandes.
+- **Vue directe**: EmulatorJS display, without BabylonJS copies.
+- **Comparer les deux vues**: direct video and 3D plane side by side.
+- **Plan BabylonJS seul**: source hidden, same emulator and same controls.
 
-La caméra est fixe et n'intercepte aucune entrée. La copie ne remplace l'image
-que lorsqu'un dessin effectif du cœur a eu lieu ; les itérations sans image
-conservent la dernière texture. Un filtrage bilinéaire limite le scintillement
-des arêtes pendant le scroll quand la vidéo est affichée à une taille fractionnaire. Crédit, Start, capture, gain,
-volume et Échap fonctionnent dans les trois modes. Aucun nouveau chargement de
-ROM ni seconde chaîne audio lors d'un changement de vue. Le changement de vue
-ne reprend pas une partie en pause. En cas d'échec GPU, la vue directe reste
-accessible. Après Échap, changer de vue puis recapturer pour reprendre.
+The camera is fixed and intercepts no input. Copying only replaces the image
+when an actual core draw has occurred; iterations without an image
+keep the last texture. Bilinear filtering limits edge
+flicker during scrolling when video is displayed at a fractional size. Credit, Start, capture, gain,
+volume, and Esc work in all three modes. No ROM reload
+nor second audio chain when switching views. Switching views
+does not resume a paused game. On GPU failure, direct view remains
+accessible. After Esc, switch views then recapture to resume.
 
-`videoGeometry` indique dimensions natives et aspect annoncés par le cœur ;
-`videoView` indique dimensions du canvas copié, nombre de copies et coût CPU
-moyen/maximal de soumission copie+rendu. Ce ne sont ni des temps GPU complets,
-ni une preuve de vitesse normale d'émulation. Le canvas inclut les éventuelles
-bandes noires du frontend ; sa résolution peut différer du framebuffer natif.
+`videoGeometry` reports native dimensions and aspect announced by the core;
+`videoView` reports copied canvas dimensions, copy count, and average/max CPU cost
+of copy+render submission. These are neither full GPU times,
+nor proof of normal emulation speed. The canvas includes any
+black bars from the frontend; its resolution may differ from the native framebuffer.
 
-La [scène technique indépendante](http://127.0.0.1:5173/scene.html) reste une
-ancienne démo statique. Le sélecteur de la page principale donne accès à la
-vidéo réelle. Le confort du freinage, l'endurance et les écrans 120 Hz restent
-à valider sur le matériel de Michel.
+The [standalone technical scene](http://127.0.0.1:5173/scene.html) remains an
+older static demo. The main page selector gives access to real
+video. Braking comfort, endurance, and 120 Hz displays remain
+to be validated on Michel's hardware.
 
-## Vérifications
+## Checks
 
 ```sh
 npm run check
@@ -478,524 +478,524 @@ npm run test:browser
 npm run test:preview
 ```
 
-Pour les tests navigateur, installer Chromium une fois :
+For browser tests, install Chromium once:
 
 ```sh
 npx playwright install chromium
 ```
 
-Sur le Mac avec Chrome déjà installé, on peut utiliser :
+On a Mac with Chrome already installed, you can use:
 
 ```sh
 PLAYWRIGHT_CHANNEL=chrome npm run test:browser
 ```
 
-Les tests n'utilisent **que des données synthétiques sans ROM**. Le test de runtime
-contourne le validateur uniquement dans le contexte de test, pour vérifier le
-chargement du vrai cœur, la reconnaissance de `marble` et l'échec attendu faute
-de dumps. Les tests UI de commandes utilisent un adaptateur de test sans ROM ;
-les essais avec les archives utilisateur restent ponctuels et documentés. Il ne valide pas une partie jouable. Résultats et limites :
+Tests use **synthetic data only, without ROMs**. The runtime test
+bypasses the validator solely in the test context, to verify
+loading of the real core, recognition of `marble`, and the expected failure due to
+missing dumps. UI control tests use a ROM-less test adapter;
+trials with user archives remain ad-hoc and documented. It does not validate a playable game. Results and limits:
 [docs/VALIDATION.md](docs/VALIDATION.md).
 
-| Commande                            | Usage                                           |
-| ----------------------------------- | ----------------------------------------------- |
-| `npm run setup:emulator`            | Installer/vérifier frontend et cœur locaux      |
-| `npm test`                          | Tests unitaires et intégration NullEngine       |
-| `npm run test:watch`                | Tests en continu                                |
-| `npm run test:coverage`             | Couverture des règles et contrôles d'archive    |
-| `npm run test:preview`              | Build puis tests HTTP du résultat de production |
-| `npm run test:browser`              | Vérifications navigateur sans ROM               |
-| `npm run typecheck`                 | TypeScript strict, y compris tests navigateur   |
-| `npm run lint`                      | ESLint sans avertissement                       |
-| `npm run format`                    | Formater avec Prettier                          |
-| `npm run check`                     | Format, lint, typage, couverture, build         |
-| `npm run build` / `npm run preview` | Build de production / prévisualisation          |
+| Command                             | Usage                                      |
+| ----------------------------------- | ------------------------------------------ |
+| `npm run setup:emulator`            | Install/verify local frontend and core     |
+| `npm test`                          | Unit tests and NullEngine integration      |
+| `npm run test:watch`                | Watch mode tests                           |
+| `npm run test:coverage`             | Coverage of rules and archive checks       |
+| `npm run test:preview`              | Build then HTTP tests of production output |
+| `npm run test:browser`              | ROM-less browser checks                    |
+| `npm run typecheck`                 | Strict TypeScript, including browser tests |
+| `npm run lint`                      | ESLint with zero warnings                  |
+| `npm run format`                    | Format with Prettier                       |
+| `npm run check`                     | Format, lint, typecheck, coverage, build   |
+| `npm run build` / `npm run preview` | Production build / preview                 |
 
-La CI installe les assets vérifiés et exécute les contrôles et tests Chromium.
-`test:preview` utilise un serveur dédié sur `127.0.0.1:4173`, puis l'arrête.
-Il contrôle la page compilée, la validation d'archives synthétiques, les empreintes
-et notices du runtime, ainsi que l'absence des ROMs et routes de préchargement dev.
-Pour Chrome installé : `PLAYWRIGHT_CHANNEL=chrome npm run test:preview`.
+CI installs the verified assets and runs checks and Chromium tests.
+`test:preview` uses a dedicated server on `127.0.0.1:4173`, then stops it.
+It verifies the compiled page, synthetic archive validation, runtime
+hashes and notices, and the absence of ROMs and dev preload routes.
+For installed Chrome: `PLAYWRIGHT_CHANNEL=chrome npm run test:preview`.
 
-Pour essayer manuellement le build :
+To test the build manually:
 
 ```sh
 npm run build
 npm run preview -- --host 127.0.0.1 --port 4173 --strictPort
 ```
 
-Ouvrir `http://127.0.0.1:4173/`, puis sélectionner les ZIP avec les champs locaux.
-Ce test reste local et ne publie rien. En développement, conserver `npm run dev`
-pour le préchargement de `roms/`. Après une modification du raccord d'émulation,
-recharger entièrement la page pour remplacer le glue déjà chargé en mémoire.
+Open `http://127.0.0.1:4173/`, then select the ZIPs with the local fields.
+This test remains local and publishes nothing. In development, keep `npm run dev`
+for `roms/` preloading. After modifying the emulation hook,
+perform a full page reload to replace the glue already loaded in memory.
 
-Les fichiers téléchargés de tiers sont ignorés par les outils de format/lint ;
-ils sont contrôlés par empreinte, sans réécriture de leurs sources.
+Downloaded third-party files are ignored by format/lint tools;
+they are verified by hash, without rewriting their sources.
 
-## Agents et documentation
+## Agents and Documentation
 
-- [AGENTS.md](AGENTS.md) : consignes communes, tests obligatoires pour toute feature importante.
-- [BABYLONJS_BEST_PRACTICES.md](BABYLONJS_BEST_PRACTICES.md) : lecture obligatoire à chaque intervention.
-- [ARCHITECTURE.md](ARCHITECTURE.md) : modules et dépendances.
-- [HANDOFF.md](HANDOFF.md) : état réel et prochaine action.
-- [Spécification](Marble_Madness_Prototype_01_SPEC.md) : périmètre et incréments A à E.
-- [Livraison](docs/RELEASE.md) : bilan et dernière recette manuelle.
-- [Décisions](docs/DECISIONS.md) : versions, API vérifiées, preuves et choix du cœur.
-- [Composants tiers](third_party/README.md) : provenance, empreintes et licences distinctes.
+- [AGENTS.md](AGENTS.md): shared guidelines, mandatory tests for any major feature.
+- [BABYLONJS_BEST_PRACTICES.md](BABYLONJS_BEST_PRACTICES.md): mandatory reading for every task.
+- [ARCHITECTURE.md](ARCHITECTURE.md): modules and dependencies.
+- [HANDOFF.md](HANDOFF.md): actual status and next action.
+- [Specification](Marble_Madness_Prototype_01_SPEC.md): scope and increments A through E.
+- [Release](docs/RELEASE.md): summary and latest manual acceptance.
+- [Decisions](docs/DECISIONS.md): versions, verified APIs, evidence, and core choice.
+- [Third-Party Components](third_party/README.md): provenance, hashes, and separate licenses.
 
-`CLAUDE.md`, `GEMINI.md` et `.github/copilot-instructions.md` renvoient aux consignes
-communes. Si un outil ne les charge pas automatiquement, lui demander explicitement
-de lire `AGENTS.md`. Aucun skill supplémentaire n'est nécessaire.
+`CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` point to the shared
+guidelines. If a tool does not load them automatically, explicitly ask it
+to read `AGENTS.md`. No extra skill is required.
 
-Le dossier n'est pas encore initialisé en dépôt Git. Aucun déploiement public.
-Ne pas versionner ROMs/BIOS, secrets, `node_modules`, `dist`, `coverage`,
-`public/vendor` ou rapports de tests. Les variables `VITE_*` sont publiques.
+The folder is not yet initialized as a Git repository. No public deployment.
+Do not commit ROMs/BIOSes, secrets, `node_modules`, `dist`, `coverage`,
+`public/vendor`, or test reports. `VITE_*` variables are public.
 
-Le candidat TRACKPAD_TRIAL_GAIN (0,50×) reste une constante de gain linéaire dans
-input/relativeMotion, distincte du défaut inchangé 1×. Le bouton UI appelle le
-même applyGain que le curseur et la réinitialisation ; aucune importation des
-outils de calibration dans l'application, aucun chargement de preuve numérique
-au lancement. Stockage explicite après clic, pas de reprise automatique. Le
-réglage préféré existant est conservé avant l'action utilisateur.
+The TRACKPAD_TRIAL_GAIN (0.50×) candidate remains a linear gain constant in
+input/relativeMotion, distinct from the unchanged 1× default. The UI button calls the
+same applyGain as the slider and reset; no import of
+calibration tools in the app, no loading of numeric evidence
+at launch. Explicit storage after click, no automatic resume. Existing
+preferred setting is preserved prior to user action.
 
-## Mode confort Espace et présentation 3D — section 15 de la spec
+## Space Comfort Mode and 3D Presentation — Spec Section 15
 
-`input/boostMotion.ts` est un générateur pur, temps injecté en secondes, sans DOM
-ou boucle autonome. Le dernier déplacement donne une direction ; une direction
-vieille de plus de 0,25 s ne lance pas un boost sans nouveau geste. Pendant le
-maintien, chaque itération native reçoit un vecteur de norme L1 256, réutilisé
-sans allocation par frame. Les mouvements du trackpad guident alors le boost,
-au lieu de s'ajouter sous forme de grands pics. Relâcher revient immédiatement
-au contrôle relatif normal. Ni force, vitesse ou position de la bille n'est écrite.
+`input/boostMotion.ts` is a pure generator, time injected in seconds, with no DOM
+or standalone loop. The last displacement gives a direction; a direction
+older than 0.25 s does not trigger a boost without a new gesture. While
+held, each native iteration receives an L1-norm 256 vector, reused
+without per-frame allocation. Trackpad movements then steer the boost,
+instead of adding up as large spikes. Releasing immediately returns
+to normal relative control. No marble force, velocity, or position is written.
 
-`emulation/emulatorjs.ts` possède le générateur et l'alimente depuis les événements
-acceptés. Son pré-hook natif existant écrit la commande une fois avant l'itération,
-sans dépendre de BabylonJS. Changement de mode : pending vidé, fractions purgées ;
-entrée en boost démarre une mesure propre. Le registre de commandes générées est
-séparé des événements souris (`generatedCommands`) dans la timeline. Les compteurs
-de gain normaux concernent les commandes normales ; boost expose son émission
-séparément, nativeSampling observe le dernier poll des deux modes.
+`emulation/emulatorjs.ts` owns the generator and feeds it from accepted
+events. Its existing native pre-hook writes the command once before the iteration,
+without depending on BabylonJS. Mode switch: pending cleared, fractions purged;
+entering boost starts a clean measurement. The generated command log is
+separate from mouse events (`generatedCommands`) in the timeline. Normal gain
+counters cover normal commands; boost exposes its emission
+separately, nativeSampling observes the last poll of both modes.
 
-`ui/playControls.ts` consomme Espace seulement en capture, sans répétition,
-relâche sur keyup et toute interruption ; le focus quitte le bouton Capturer pour
-éviter qu'un nouvel Espace après Échap ne recapture implicitement. Pas de scroll
-sur Espace lorsque le canvas/body attend en pause ; les champs UI restent éditables.
-Gain 0,50× rejeté migré à 1,70× ; les autres choix utilisateur sont conservés.
-DEFAULT_GAIN vaut désormais 1,70× et le bouton normal restaure cette valeur.
+`ui/playControls.ts` consumes Space only during capture, without repeat,
+releasing on keyup and any interruption; focus leaves the Capture button to
+prevent a new Space after Esc from implicitly recapturing. No scrolling
+on Space when canvas/body waits while paused; UI fields remain editable.
+Rejected 0.50× gain migrated to 1.70×; other user choices are preserved.
+DEFAULT_GAIN is now 1.70× and the normal button restores that value.
 
-`rendering/createScreenStage.ts` construit un support d'écran procédural, sol,
-grille et éclairage appartenant à la scène. `createVideoScene` garde le même plan
-vidéo et le même matériau non éclairé ; seule sa présentation passe d'orthographique
-à perspective et le décor est activé. Décor créé paresseusement, conservé en
-mode plan sans multiplier les ressources, détruit avec scène/matériaux/lumières.
-Pas de nouveau listener, moteur ou boucle pour cette vue. `createVideoView` garde
-l'unique texture et abonnement de copie existant ; source masquée comme en plan seul.
-Les modes direct/compare/babylon/stage partagent une seule session et leurs
-changements ne reprennent jamais une partie en pause. GPU indisponible : repli direct.
+`rendering/createScreenStage.ts` builds a procedural screen stand, floor,
+grid, and lighting owned by the scene. `createVideoScene` keeps the same video
+plane and unlit material; only its presentation switches from orthographic
+to perspective and the stage is enabled. Stage created lazily, kept in
+plane mode without multiplying resources, disposed with scene/materials/lights.
+No new listener, engine, or loop for this view. `createVideoView` keeps
+the single existing texture and copy subscription; source hidden as in plane-only mode.
+direct/compare/babylon/stage modes share a single session and switching
+never resumes a paused game. GPU unavailable: direct fallback.
 
-## Présentation plein écran et HUD compact
+## Fullscreen Presentation and Compact HUD
 
-`game/gamePresentation.ts` possède les transitions de présentation sans DOM :
-entrée, sortie native, refus, annulation asynchrone et destruction. Le host
-injecté fournit pause, présentation et API fullscreen. Aucun chemin ne reprend
-le cœur ; les gestes de jeu existants restent propriétaires de cette décision.
-Une génération invalide les résultats anciens sans fermer une entrée plus récente.
+`game/gamePresentation.ts` owns presentation transitions without DOM:
+entry, native exit, denial, async cancellation, and disposal. The injected
+host provides pause, presentation, and fullscreen API. No path resumes
+the core; existing play gestures remain owners of that decision.
+A generation counter invalidates stale results without closing a newer entry.
 
-`ui/gamePresentation.ts` possède le HUD, ses listeners et son MutationObserver.
-Les boutons délèguent aux contrôles communs ; aucune seconde gestion de Crédit,
-Start, Pointer Lock, audio ou boost. Les états disabled et les messages sont
-synchronisés. `feasibility.ts` monte après les contrôles et la comparaison,
-puis démonte la présentation avant eux. L'élément fullscreen englobe vidéo
-source, canvas BabylonJS et HUD. ResizeObserver du rendu adapte le moteur ;
-le cœur reste indépendant. Refus/absence de Fullscreen API : CSS immersive dans
-la fenêtre. Safari antérieur à 18.2 emprunte directement ce chemin pour
-préserver Pointer Lock. Sortie : pause/purge, puis focus du bouton d'entrée après l'événement
-fullscreenchange, lorsque ce bouton redevient accessible hors fullscreen.
+`ui/gamePresentation.ts` owns the HUD, its listeners, and its MutationObserver.
+Buttons delegate to shared controls; no second handler for Credit,
+Start, Pointer Lock, audio, or boost. Disabled states and messages are
+synchronized. `feasibility.ts` mounts after controls and comparison,
+then unmounts presentation before them. The fullscreen element wraps source
+video, BabylonJS canvas, and HUD. Renderer ResizeObserver adapts the engine;
+the core remains independent. Fullscreen API denial/absence: immersive CSS within
+the window. Safari prior to 18.2 takes this path directly to
+preserve Pointer Lock. Exit: pause/purge, then focus the enter button after the
+fullscreenchange event, when that button becomes accessible again outside fullscreen.
 
-## Caméras fixes frontale et perspective
+## Fixed Front and Perspective Cameras
 
-`createVideoScene` possède un `CameraPreset` front/perspective, initialement
-perspective. La vue frontale du décor est orthographique, centrée sur le plan
-vidéo (Y=1,85), cadre fourni par videoFrustum avec marge supplémentaire 8 %
-pour le cadre 3D. La perspective conserve le cadrage précédent. Le plan plat
-reste inchangé et le choix 3D est conservé pendant les autres présentations.
-Une seule FreeCamera est reconfigurée, sans attachControl ni nouvelles ressources.
-Les API mode/position/setTarget/ortho* ont été vérifiées dans BabylonJS installé
-et exercées avec NullEngine puis Chrome GPU.
+`createVideoScene` owns a front/perspective `CameraPreset`, initially
+perspective. The stage's front view is orthographic, centered on the video
+plane (Y=1.85), frame provided by videoFrustum with an extra 8% margin
+for the 3D frame. Perspective keeps the previous framing. The flat plane
+remains unchanged and the 3D choice is preserved across other presentations.
+A single FreeCamera is reconfigured, without attachControl or new resources.
+mode/position/setTarget/ortho* APIs were verified in installed BabylonJS
+and exercised with NullEngine then Chrome GPU.
 
-`createVideoView.setCameraPreset` recadre et redessine la dernière texture même
-pendant la pause, sans copie ou progression du cœur. `videoComparison` possède
-les deux sélecteurs page/HUD, leurs listeners (AbortController), valeurs
-synchronisées et désactivation hors scène 3D/erreur/destruction. Le diagnostic
-videoView.cameraPreset expose ce choix. Aucun accès aux commandes, préférences
-ou états du cœur ; le changement ne pause ni ne reprend une session.
+`createVideoView.setCameraPreset` reframes and redraws the last texture even
+while paused, without copying or advancing the core. `videoComparison` owns
+both page/HUD selectors, their listeners (AbortController), synchronized
+values, and disabling outside 3D scene/error/disposal. The
+videoView.cameraPreset diagnostic exposes this choice. No access to core
+controls, preferences, or states; switching neither pauses nor resumes a session.
 
-## Raccourcis de capture et Start J2
+## Capture Shortcuts and P2 Start
 
-`input/requestPointerCapture` traite la confirmation asynchrone sur le document
-et la variante à promesse. Le jeu et l'exploration utilisent ce raccord
-depuis le geste utilisateur et gèrent séparément leurs interruptions.
+`input/requestPointerCapture` handles async confirmation on the document
+and the promise-based variant. Gameplay and exploration use this hook
+from the user gesture and manage their interruptions separately.
 
-`input/arcadeShortcuts.ts` résout les alias de touches demandés, sans DOM ni temps.
-Il refuse Ctrl/Alt/Meta et composition ; Shift reste permis pour les chiffres
-sur clavier français. `playControls` n'accepte la commande qu'en Pointer Lock
-sur le canvas de session, hors pause et hors saisie. Les répétitions reconnues
-sont absorbées sans seconde impulsion. Le listener document en capture intercepte
-avant les raccourcis natifs EmulatorJS, qui restent neutralisés.
+`input/arcadeShortcuts.ts` resolves requested key aliases, without DOM or time.
+It rejects Ctrl/Alt/Meta and composition; Shift remains allowed for digits
+on French keyboards. `playControls` accepts the command only in Pointer Lock
+on the session canvas, unpaused and outside text inputs. Recognized repeats
+are absorbed without a second impulse. The capture-phase document listener intercepts
+before native EmulatorJS shortcuts, which remain neutralized.
 
-`ProbeSession.pulse(button, player=0)` conserve les appels existants et accepte
-le port1 pour StartJ2. Deux instances du générateur buttonPulses possèdent leurs
-propres timers ; clearInputs libère les deux avant zero_inputs natif. L'adaptateur
-appelle simulateInput(player, button, value), index2=SELECT/crédit, index3=START.
-`heldButtons` reste le port0 ; `heldPlayer2Buttons` expose le port1. Pas de nouvelle
-physique, configuration du cœur ou entrée relative pour le deuxième joueur.
+`ProbeSession.pulse(button, player=0)` keeps existing calls and accepts
+port 1 for StartJ2. Two instances of the buttonPulses generator own their
+own timers; clearInputs frees both before native zero_inputs. The adapter
+calls simulateInput(player, button, value), index2=SELECT/credit, index3=START.
+`heldButtons` remains port 0; `heldPlayer2Buttons` exposes port 1. No new
+physics, core config, or relative input for the second player.
 
-`scripts/measure-endurance.mjs` est un banc volontaire hors application/CI,
-serveur loopback et ROMs locales requis. Il observe la vraie instance de test
-via un proxy du constructeur (comme les autres bancs), les appels natifs d'entrée,
-les diagnostics existants et Chrome CDP Performance. Rapport numérique borné à
-dix échantillons et cent appels d'entrée maximum ; pas d'image, ROM ou état.
-Le navigateur et le contexte sont libérés dans finally. Les métriques n'alimentent
-pas le jeu et la cadence reste celle du cœur. La durée active est chronométrée
-avec performance.now du processus de test, sans modifier les horloges du jeu.
+`scripts/measure-endurance.mjs` is an opt-in benchmark outside app/CI,
+loopback server and local ROMs required. It observes the real test instance
+via a constructor proxy (like the other benchmarks), native input calls,
+existing diagnostics, and Chrome CDP Performance. Numeric report bounded to
+ten samples and one hundred input calls maximum; no image, ROM, or state.
+Browser and context are released in finally. Metrics do not feed
+the game and cadence remains the core's. Active duration is timed
+with test process performance.now, without altering game clocks.
 
-## Prototype02 — borne, bar et interactions autorisés
+## Prototype02 — Allowed Cabinet, Bar, and Interactions
 
-La spec02 amendée par la demande explicite de Michel remplace les exclusions
-historiques borne/bar. `createScreenStage` assemble deux modules : `createCabinet`
-(meuble, écran, enseigne, trackball, monnayeur, boutons) et `createBarRoom`
-(sol, murs, comptoir, étagères, bouteilles, mobilier et quatre lumières).
-`decorTools` fournit géométries/matériaux/enseignes canvas ; ressources nommées
-et possédées par la scène. Textures d'enseignes créées une fois, police système,
-chemin sans DOM pour NullEngine ; la destruction GPU est vérifiée dans Chrome.
-Matériaux répétitifs partagés. Les côtés et le panneau suivent l'aspect vidéo.
-Le sommet du trackball reste sous Y0,85, bord inférieur de l'image, pour ne pas
-masquer le jeu dans la projection frontale.
+Spec02 amended by Michel's explicit request replaces the historical
+cabinet/bar exclusions. `createScreenStage` assembles two modules: `createCabinet`
+(cabinet, screen, marquee, trackball, coin door, buttons) and `createBarRoom`
+(floor, walls, counter, shelves, bottles, furniture, and four lights).
+`decorTools` provides geometries/materials/canvas signs; resources named
+and owned by the scene. Sign textures created once, system font,
+DOM-less path for NullEngine; GPU disposal is verified in Chrome.
+Repeating materials shared. Sides and panel follow video aspect.
+The top of the trackball stays below Y=0.85, bottom edge of the image, so as not to
+occlude the game in front projection.
 
-`game/cabinetAction` filtre les seules métadonnées reconnues credit/start1/
-start2/play ; gauche uniquement, aucune interaction pendant capture. Le ray
-picking est enregistré explicitement par l'import classique Culling/ray dans
-createVideoScene. `createVideoView` possède listeners canvas, survol/tooltip,
-picking et callback d'action typé. `videoComparison` délègue aux boutons existants ;
-play sélectionne front puis appelle Capturer synchroniquement, préservant le
-geste utilisateur PointerLock/audio. Pas d'attente d'animation avant capture.
-Le nouveau bouton StartJ2 partage la même méthode d'impulsion port1 que le clavier.
-Les commandes3D ne sont ni une nouvelle façade d'émulation, ni du code dans les assets.
+`game/cabinetAction` filters only recognized metadata credit/start1/
+start2/play; left-click only, no interaction during capture. Ray
+picking is registered explicitly by the classic Culling/ray import in
+createVideoScene. `createVideoView` owns canvas listeners, hover/tooltip,
+picking, and typed action callback. `videoComparison` delegates to existing buttons;
+play selects front then calls Capture synchronously, preserving the
+PointerLock/audio user gesture. No animation wait before capture.
+The new StartJ2 button shares the same port 1 impulse method as the keyboard.
+The 3D controls are neither a new emulation facade nor code inside assets.
 
-`game/cameraTransition` calcule une interpolation smoothstep à partir de secondes.
-createVideoScene réutilise une seule FreeCamera et des vecteurs de travail.
-Pour interpoler vers/depuis l'orthographique, la transition utilise une FOV
-perspective équivalente au frustum de l'écran, puis restitue la projection cible.
-`resizeLayout` recalcule la cible sans annuler la transition (notamment lorsque
-le statut du HUD change à la capture). La méthode layout explicite peut annuler.
-Trois cadrages : bar, perspective de borne et frontale centrée sur la vidéo.
+`game/cameraTransition` computes smoothstep interpolation from seconds.
+createVideoScene reuses a single FreeCamera and working vectors.
+To interpolate to/from orthographic, the transition uses a perspective
+FOV matching the screen frustum, then restores the target projection.
+`resizeLayout` recomputes the target without canceling the transition (especially when
+HUD status changes on capture). The explicit layout method can cancel.
+Three framings: bar, cabinet perspective, and front centered on video.
 
-`createVideoView` possède une seule tâche rAF temporaire pendant les0,65s de
-transition. Le callback vidéo continue la copie mais laisse le rendu à cette
-tâche ; à la fin le rendu retourne au callback vidéo normal. Pas de boucle
-permanente ni d'itération du cœur depuis BabylonJS. Pendant la pause, la caméra
-peut donc bouger sur la dernière texture. Arrêt/cancel rAF sur changement de
-présentation, désactivation, blur, Échap, visibilité et dispose ; ressources et
-listeners libérés. Une callback scene.executeWhenReady dessine le décor après
-compilation initiale des shaders, même si aucun nouveau dessin arcade n'arrive.
-Le meuble peut être visible avant la première texture vidéo ; son écran attend
-alors le premier dessin effectif du cœur, sans copier un framebuffer invalide.
-Si BabylonJS perd son contexte WebGL, l'adaptateur détache la texture et
-revient à la vue directe. Après restauration, le prochain dessin du cœur
-alimente une nouvelle texture si la vue 3D est sélectionnée. La perte du
-contexte du cœur suit la pause habituelle et apparaît dans les diagnostics.
+`createVideoView` owns a single temporary rAF task during the 0.65 s
+transition. The video callback continues copying but leaves rendering to this
+task; at the end, rendering returns to the normal video callback. No permanent
+loop or core iteration from BabylonJS. During pause, the camera
+can therefore move over the last texture. Stop/cancel rAF on presentation
+change, disable, blur, Esc, visibility, and dispose; resources and
+listeners freed. A scene.executeWhenReady callback draws the scenery after
+initial shader compilation, even if no new arcade draw arrives.
+The cabinet can be visible before the first video texture; its screen then
+waits for the first actual core draw, without copying an invalid framebuffer.
+If BabylonJS loses its WebGL context, the adapter detaches the texture and
+falls back to direct view. After restoration, the next core draw
+feeds a new texture if the 3D view is selected. Loss of the
+core context follows the usual pause and appears in diagnostics.
 
-Les métriques copyAndRender* restent celles du callback vidéo. Le rendu de
-transition rAF est hors de ce chronométrage ; ces valeurs ne décrivent donc pas
-le coût total des animations et ne mesurent jamais la complétion GPU.
+copyAndRender* metrics remain those of the video callback. Transition
+rAF rendering is outside this timing; these values therefore do not describe
+the total cost of animations and never measure GPU completion.
 
-## Prototype 03 — exploration, son et coût du rendu
+## Prototype 03 — Exploration, Sound, and Render Cost
 
-La borne Atari System I utilise les maillages convertis du SKP de Gozer.
-`createCabinet` construit ces maillages et leurs textures locales, puis place
-les deux trackballs et les zones de picking des boutons et du monnayeur.
-`venueLayout` contient les cotes en mètres. Les collisions de visite suivent
-l’encombrement fixe du meuble. La vidéo conserve son aspect dans l’ouverture
-inclinée du moniteur et la caméra frontale s’aligne sur ce plan.
+The Atari System I cabinet uses meshes converted from Gozer's SKP.
+`createCabinet` builds these meshes and their local textures, then places
+the two trackballs and picking zones for buttons and coin door.
+`venueLayout` contains dimensions in meters. Walk collisions follow
+the fixed footprint of the cabinet. Video preserves its aspect in the tilted
+monitor opening and the front camera aligns to that plane.
 
-`ui/crtControls` synchronise l'interrupteur de la page et celui du HUD et
-conserve les réglages via les préférences locales. `createVideoScene` applique
-`rendering/createCrtMaterial` à la surface du moniteur en mode Borne et bar.
-Les dimensions du tube sont fixes au format 4:3. `videoFit` centre la vidéo
-dans l'ouverture selon le rapport du canvas copié, avec des bandes si nécessaire.
-Le maillage subdivisé avance le centre et le milieu des bords du verre.
-Le fragment shader déforme le raster sur les deux axes, avec un reflet du verre,
-et atténue les lignes de balayage lorsque leur projection devient trop petite.
-Les parasites progressent avec les images reçues. Les réglages peuvent
-redessiner l'image en pause sans nouvelle copie. La scène libère le maillage
-et ses matériaux. L'adaptateur vidéo possède la texture partagée.
+`ui/crtControls` synchronizes the page switch and HUD switch and
+persists settings via local preferences. `createVideoScene` applies
+`rendering/createCrtMaterial` to the monitor surface in Cabinet and bar mode.
+Tube dimensions are fixed at 4:3 aspect. `videoFit` centers the video
+in the opening according to the copied canvas ratio, with letterboxing if needed.
+The subdivided mesh bulges the center and mid-edges of the glass.
+The fragment shader warps the raster on both axes, with glass reflection,
+and attenuates scanlines when their projection becomes too small.
+Interference advances with received frames. Settings can
+redraw the paused image without a new copy. The scene disposes the mesh
+and its materials. The video adapter owns the shared texture.
 
-`game/cameraPreset` définit l’ordre des cinq cadrages fixes. En jeu,
-`ui/videoComparison` intercepte C quand le canvas arcade possède Pointer Lock
-et que la scène Borne et bar est active. Le raccourci et les deux sélecteurs
-utilisent le même changement de cadrage et la même transition BabylonJS.
+`game/cameraPreset` defines the order of the five fixed framings. In-game,
+`ui/videoComparison` intercepts C when the arcade canvas has Pointer Lock
+and the Cabinet and bar scene is active. The shortcut and both selectors
+use the same framing change and the same BabylonJS transition.
 
-`game/barNavigation` calcule la pose et les collisions de visite en mètres et
-en secondes. `venueLayout` partage les dimensions de la borne entre le rendu
-et les collisions. `input/barExplorer` possède Pointer Lock sur le canvas
-BabylonJS et les touches de marche. `ui/videoComparison` coordonne les états
-observation, exploration et jeu. E près de la borne termine la marche, rétablit
-le son arcade puis demande la capture sur le canvas natif dans le même geste.
-Pause, Échap, perte de focus ou de capture et page masquée purgent les touches
-et annulent la capture en attente. `playControls` reste propriétaire des
-commandes arcade. L’exploration fait jouer le cœur pour entendre le bar, avec
-les entrées arcade désactivées.
+`game/barNavigation` computes walk pose and collisions in meters and
+seconds. `venueLayout` shares cabinet dimensions between rendering
+and collisions. `input/barExplorer` owns Pointer Lock on the BabylonJS
+canvas and walk keys. `ui/videoComparison` coordinates observation,
+exploration, and gameplay states. E near the cabinet ends walking, restores
+arcade audio, then requests capture on the native canvas in the same gesture.
+Pause, Esc, focus or capture loss, and hidden page purge keys
+and cancel pending capture. `playControls` remains owner of arcade
+controls. Exploration lets the core play so the bar can be heard, with
+arcade inputs disabled.
 
-La session expose `VenueEffects`. Après chaque itération en capture,
-l’adaptateur relaie les deltas natifs de J1 et le mouvement de J2 calculé
-à partir de ses directions maintenues. Chaque notification indique le joueur.
-Le clavier remappable de J2 passe par `ui/player2Controls` et
-`gameManager.simulateInput` sur le port 1 de Libretro. Le filtre du pilote Web
-réserve la souris au port 0. La pause purge les directions des deux joueurs.
-`createTrackball` applique un quaternion incrémental à chaque boule et
-attache les marbrures à ses sommets. La bleue suit J1 et la rouge suit J2.
-`createVideoView` fait tourner la rouge pendant un glisser commencé sur
-cette boule hors Pointer Lock et planifie le rendu avec la boucle existante.
-L’axe de l’incrément reste lié au meuble, y compris après une
-rotation composée. Le sommet roule vers +X pour un geste à droite et vers −Z
-pour un geste vers le bas du trackpad. Un plafond de 45° par échantillon
-évite qu’une grande impulsion dessine presque un tour dans une seule mise
-à jour. Ce plafond appartient au rendu.
+The session exposes `VenueEffects`. After each captured iteration,
+the adapter relays P1's native deltas and P2's movement computed
+from held directions. Each notification identifies the player.
+P2's remappable keyboard goes through `ui/player2Controls` and
+`gameManager.simulateInput` on Libretro port 1. The web driver filter
+reserves the mouse for port 0. Pause purges both players' directions.
+`createTrackball` applies an incremental quaternion to each ball and
+attaches marbling to its vertices. Blue follows P1 and red follows P2.
+`createVideoView` rotates red during a drag started on
+that ball outside Pointer Lock and schedules rendering with the existing loop.
+The increment axis stays tied to the cabinet, even after a
+composed rotation. The top rolls toward +X for a right gesture and toward −Z
+for a downward trackpad gesture. A 45° cap per sample
+prevents a large impulse from drawing nearly a full turn in a single update.
+This cap belongs to the renderer.
 
-`game/spatialMix` calcule le gain et la balance à partir de la pose. L’adaptateur
-connaît le master OpenAL `Module.AL.currentCtx.gain` du build épinglé.
-`audio/spatialOutput` remplace sa liaison directe par un gain et un
-`StereoPannerNode` du contexte existant pendant la visite. L’arrêt de la visite
-rétablit la liaison directe. Les nœuds et les abonnements suivent le cycle de
-vie de la session. Le diagnostic distingue le signal de la branche
-positionnelle et le nombre de sources du cœur.
+`game/spatialMix` computes gain and pan from pose. The adapter
+knows the OpenAL master `Module.AL.currentCtx.gain` of the pinned build.
+`audio/spatialOutput` replaces its direct link with a gain and a
+`StereoPannerNode` from the existing context during the walk. Stopping the walk
+restores the direct link. Nodes and subscriptions follow the session
+lifecycle. Diagnostics distinguish the positional branch signal
+and the core's source count.
 
-`createVideoView` possède la tâche rAF pendant l’exploration et les transitions.
-Le callback vidéo continue de mettre à jour la texture, puis reprend le rendu
-quand la tâche rAF se termine. La cadence du cœur est indépendante de ces
-deux chemins. `game/renderQuality` fixe le plafond de DPR du canvas BabylonJS.
-`createScreenStage` utilise une carte d’ombres statique, rafraîchie lors d’un
-changement de qualité. Le profil Éco désactive les ombres.
-`renderMetrics` encadre le rendu manuel avec beginFrame/endFrame et possède
-l’instrumentation de scène et de moteur. Les imports classiques
-`abstractEngine.timeQuery` et `engine.query` enregistrent les extensions
-requises de BabylonJS. La mesure CPU englobe la soumission du rendu, tandis que
-le GPU utilise les horodatages asynchrones du pilote si disponibles.
+`createVideoView` owns the rAF task during exploration and transitions.
+The video callback continues updating the texture, then resumes rendering
+when the rAF task ends. Core cadence is independent of these
+two paths. `game/renderQuality` sets the DPR cap of the BabylonJS canvas.
+`createScreenStage` uses a static shadow map, refreshed on a
+quality change. The Eco profile disables shadows.
+`renderMetrics` wraps manual rendering with beginFrame/endFrame and owns
+scene and engine instrumentation. Classic imports
+`abstractEngine.timeQuery` and `engine.query` register the required
+BabylonJS extensions. CPU measurement covers render submission, while
+GPU uses asynchronous driver timestamps when available.
 
-## Prototype 04 — terrain
+## Prototype 04 — Terrain
 
-En développement sur la boucle locale, `terrain.html` instancie la page de jeu
-dans un cadre de même origine pour précharger et vérifier les archives pendant
-l’étude. La session unique EmulatorJS démarre au clic. Le départ direct charge
-un point de reprise solo créé par un rejeu des commandes avec le même cœur Web,
-via `scripts/record-intermediate-checkpoint.mjs`. Le serveur de développement
-sert le point et le relevé du niveau 2 par des noms fixes. Le point reste dans
-`local-roms/`, hors du build. Le rendu BabylonJS lit les coordonnées, la
-hauteur et le défilement du niveau actif après chaque itération émulée.
+In development on loopback, `terrain.html` instantiates the game page
+in a same-origin frame to preload and verify archives during
+the study. The single EmulatorJS session starts on click. Direct start loads
+a solo checkpoint created by replaying commands with the same web core,
+via `scripts/record-intermediate-checkpoint.mjs`. The dev server
+serves the checkpoint and level 2 survey under fixed names. The checkpoint remains in
+`local-roms/`, outside the build. BabylonJS rendering reads coordinates,
+height, and scroll of the active level after each emulated iteration.
 
-`emulation/intermediateCheckpoint` complète l’état du cœur avec les
-accumulateurs de ports et l’état Slapstic du WASM épinglé. La reprise
-reconstitue la banque ROM par le même adressage que le périphérique Atari.
-`localStudy` précharge les deux relevés complets. `createVideoView` garde
-les relevés en mémoire et remplace la scène quand le niveau lu change.
+`emulation/intermediateCheckpoint` supplements core state with
+port accumulators and Slapstic state from the pinned WASM. Resuming
+reconstructs the ROM bank using the same addressing as the Atari device.
+`localStudy` preloads both full surveys. `createVideoView` keeps
+the surveys in memory and replaces the scene when the read level changes.
 
-`intermediateActors` lit les enregistrements de la boule noire et des quatre
-slots de créatures. `rollingActors` valide la bibliothèque locale des modèles.
-`createRollingActor` possède les meshes de poses, matériaux et textures dans
-la scène. `createIntermediateActors` applique les positions et états natifs.
-`createMarbleAnimation` sélectionne les animations de la bille. L’horloge est
-le compteur de frames du cœur et se fige pendant la pause.
-`cameraRelativeMotion` convertit les gestes en axes trackball selon la
-direction horizontale de la caméra. Le boost utilise ce même repère.
+`intermediateActors` reads records for the black ball and the four
+creature slots. `rollingActors` validates the local model library.
+`createRollingActor` owns pose meshes, materials, and textures in
+the scene. `createIntermediateActors` applies native positions and states.
+`createMarbleAnimation` selects marble animations. The clock is
+the core's frame counter and freezes while paused.
+`cameraRelativeMotion` converts gestures into trackball axes according to the
+camera's horizontal direction. Boost uses this same frame.
 
-`game/modern/terrainMesh.ts` prend une grille de hauteurs et émet positions,
-indices et UV sans dépendance graphique. `rendering/createTerrainStudy.ts`
-crée la scène BabylonJS de test. `terrain.html` réutilise le cycle de vie
-de `createApplication` pour la boucle et le nettoyage.
-La sonde MAME et l'analyse des données restent dans les outils locaux.
+`game/modern/terrainMesh.ts` takes a height grid and emits positions,
+indices, and UVs with no graphics dependency. `rendering/createTerrainStudy.ts`
+creates the test BabylonJS scene. `terrain.html` reuses the lifecycle
+of `createApplication` for the loop and cleanup.
+The MAME probe and data analysis remain in local tools.
 
-Le diagnostic local `scripts/measure-terrain.mjs` exporte les sommets d'un
-tronçon de Practice Race depuis MAME 0.271. `practiceTerrain` valide et
-normalise le JSON choisi dans `terrain.html` ou dans la vue de jeu. Le format
-associe les cellules à leur origine et à la plage de défilement mesurée. `terrainMesh` construit les
-surfaces et `terrainCliffs` les faces exposées et les marches. Les garde-corps
-et les pointes du départ appartiennent à `createPracticeLandmarks`. Ce
-module pose les poteaux sur les triangles du dallage. Les constructeurs
-`createPracticeGuardrail` et `createPracticeTower` reçoivent leurs matériaux
-depuis la scène. Les dimensions et les points d’ancrage sont décrits dans
-[l’inventaire des éléments du décor](docs/SCENE_ELEMENTS.md). Le chargement se fait depuis
-le fichier choisi et la scène d’étude possède seule sa boucle de rendu.
-`createPracticeSun` reprend l’azimut mesuré sur l’image 1199 et règle
-l’élévation à 24°. La scène d’étude possède le générateur sans filtrage
-des garde-corps et des tours. La vue en jeu peut y ajouter les billes
-sur demande. Le dallage et les marquages reçoivent les ombres portées. Les
-parois verticales sont éclairées par leur matériau et le soleil.
-Les normales du relief déterminent les gris sur une texture
-de dallage uniforme. `practiceDisplayTerrain` reconstruit
-les marches de la fosse centrale et complète les dalles au-dessus de
-la paroi extérieure droite pour raccorder son arête au terrain.
-Le rendu ajuste aussi la lèvre des fosses latérales à leur découpe dans
-la vue arcade. Le relevé des hauteurs est conservé pour la projection.
-`createPracticeNumberSigns` dessine les trois marquages 3–4–5–6 sur le
-dallage. La variante gauche inverse les chiffres dans leurs dalles et
-les deux marquages orientés vers la droite partagent leur matériau.
-`createPracticeGoal` fournit les trois palettes du lettrage à empattements,
-posé sur la première pente de la rigole. Il anime les drapeaux à damier
-3 × 2 dans la boucle de rendu de la scène. La vue en jeu
-choisit la palette grise au départ, puis celle de `PracticePose.goalOwner`,
-le premier joueur arrivé selon le cœur. Le dallage utilise une texture
-de 16 × 16 texels avec des joints en escalier et un tramage léger.
-`practiceChannelTerrain` raccorde les sommets partagés de la rigole et
-complète les rebords rectilignes dans le maillage de présentation. Il
-prolonge les falaises exposées de la dernière descente sous le cadrage.
+The local diagnostic `scripts/measure-terrain.mjs` exports vertices of a
+Practice Race segment from MAME 0.271. `practiceTerrain` validates and
+normalizes the JSON chosen in `terrain.html` or in the game view. The format
+associates cells with their origin and measured scroll range. `terrainMesh` builds
+surfaces and `terrainCliffs` exposed faces and steps. Guardrails
+and start spikes belong to `createPracticeLandmarks`. This
+module places posts on the paving triangles. The
+`createPracticeGuardrail` and `createPracticeTower` builders receive their materials
+from the scene. Dimensions and anchor points are described in
+[the scenery element inventory](docs/SCENE_ELEMENTS.md). Loading happens from
+the chosen file and the study scene alone owns its render loop.
+`createPracticeSun` uses the azimuth measured on frame 1199 and sets
+elevation to 24°. The study scene owns the generator without filtering
+guardrails and towers. The in-game view can add marbles to it
+on demand. Paving and markings receive cast shadows. Vertical
+walls are lit by their material and the sun.
+Terrain normals determine grays on a uniform
+paving texture. `practiceDisplayTerrain` reconstructs
+the central pit steps and completes tiles above the
+right outer wall to join its edge to the terrain.
+The renderer also adjusts the side pit lip to match its cutout in
+the arcade view. The height survey is preserved for projection.
+`createPracticeNumberSigns` draws the three 3–4–5–6 markings on the
+paving. The left variant mirrors digits within their tiles and
+both right-facing markings share their material.
+`createPracticeGoal` provides the three palettes for the serif lettering,
+placed on the first slope of the chute. It animates the 3 × 2 checkered flags
+in the scene's render loop. The in-game view
+selects the gray palette at start, then that of `PracticePose.goalOwner`,
+the first player to finish according to the core. Paving uses a
+16 × 16 texel texture with stepped joints and light dithering.
+`practiceChannelTerrain` joins shared chute vertices and
+completes straight rims in the presentation mesh. It
+extends exposed cliffs of the final descent below the frame.
 
-`practiceProjection` décrit le cadrage arcade en pixels natifs et
-`createPracticeCamera` le transpose à la caméra orthographique.
-Le banc local compare la projection à la bille observée et la page
-de terrain peut superposer une capture chargée depuis un fichier local.
-La page d’étude accepte aussi `intermediate-terrain-v1`, un relevé
-de 130 × 130 cellules avec un cadrage réglable sur la plage mesurée.
-Le maillage et la caméra sont partagés entre les deux niveaux.
-Intermediate Race applique son matériau de falaises bleues. Ses trois
-tours utilisent le modèle `createIntermediateTower`, avec un socle
-décalé de 14 dalles préparé dans `intermediateLandmarks`.
-`intermediateRims` raccorde les dalles incomplètes avant de générer
-les falaises. Les falaises et le tablier du pont projettent leurs
-ombres sur le dallage. `createIntermediateBridge` remplace la zone
-relevée du pont par un tablier articulé et son mécanisme. La scène
-d’étude anime ces meshes selon la cadence observée dans MAME.
-Une copie locale du relevé peut inclure les maillages décoratifs des deux
-tuyaux. `parseIntermediatePipeGeometry` valide sommets, indices et normales
-optionnelles avant que `createIntermediatePipes` construise les surfaces.
-`intermediatePipeSurfaces` découpe les soudures dans les triangles du modèle
-et sépare les dalles grises des deux bouches pour leur appliquer un matériau
-qui reçoit les ombres. `intermediateFinish` sélectionne les dalles de glace et
-d’arrivée. Le panneau et les drapeaux réutilisent `createPracticeGoal` avec
-les coordonnées et couleurs d’Intermediate Race.
-`intermediateIceMaterial` projette les motifs de reflet dans les UV à partir
-du relief. `intermediateIceWalls` partage les faces verticales entre la
-glace et la falaise au niveau des coulures.
-`createIntermediateBridgeMechanism` construit la mécanique et la texture
-du flanc de tablier. Leur provenance et leur recalage sont documentés dans
+`practiceProjection` describes the arcade framing in native pixels and
+`createPracticeCamera` transposes it to the orthographic camera.
+The local benchmark compares the projection to the observed marble and the terrain
+page can overlay a capture loaded from a local file.
+The study page also accepts `intermediate-terrain-v1`, a 130 × 130 cell
+survey with adjustable framing over the measured range.
+Mesh and camera are shared between both levels.
+Intermediate Race applies its blue cliff material. Its three
+towers use the `createIntermediateTower` model, with a base
+offset by 14 tiles prepared in `intermediateLandmarks`.
+`intermediateRims` joins incomplete tiles before generating
+cliffs. Cliffs and the bridge deck cast their
+shadows onto the paving. `createIntermediateBridge` replaces the surveyed
+bridge zone with an articulated deck and its mechanism. The study
+scene animates these meshes at the cadence observed in MAME.
+A local copy of the survey may include decorative meshes for both
+pipes. `parseIntermediatePipeGeometry` validates vertices, indices, and optional
+normals before `createIntermediatePipes` builds the surfaces.
+`intermediatePipeSurfaces` cuts welds in the model triangles
+and separates gray tiles of both mouths to apply a shadow-receiving
+material to them. `intermediateFinish` selects ice and finish
+tiles. Banner and flags reuse `createPracticeGoal` with
+Intermediate Race coordinates and colors.
+`intermediateIceMaterial` projects reflection patterns into UVs from
+relief. `intermediateIceWalls` splits vertical faces between
+ice and cliff along the drips.
+`createIntermediateBridgeMechanism` builds the mechanism and texture
+of the deck side. Their provenance and alignment are documented in
 `docs/PROTOTYPE_04.md`.
-Le soleil d’Intermediate Race utilise le déplacement de l’ombre du
-sommet de la pyramide centrale. Les falaises bleues reçoivent les
-ombres en plus du dallage.
+The Intermediate Race sun uses the shadow displacement of the
+central pyramid's apex. Blue cliffs receive
+shadows in addition to the paving.
 
-Dans la page de jeu, l’adaptateur `emulation/practicePose` fournit à
-`VideoSource` une lecture du niveau et des poses J1 et J2 réservée au binaire
-WASM épinglé. Le même instantané inclut les scores et chronos lus dans
-les tuiles du HUD arcade par `emulation/practiceHud`. `createVideoView`
-transmet ces valeurs à `ui/videoComparison` quand le terrain moderne
-est visible. `ui/practiceHud` dessine le HUD en 336 × 240 sur un canvas
-2D superposé, cadré sur l’image 4:3, avec un équivalent textuel accessible.
-Il se retire lors du retour à l’arcade. Ses mises à jour suivent
-les notifications vidéo du cœur et la lecture de la pose au changement de vue.
-`createLivePracticeView` réutilise le maillage du relevé
-choisi localement et convertit la pose en coordonnées BabylonJS.
-La lecture conserve les fractions des trois coordonnées pour afficher
-les petits déplacements sans saut d’arrondi.
-`createPracticeStartLift` prépare cinq pentes locales avec leurs parois
-et sélectionne celle indiquée par `PracticePose.startLift`. Ces maillages
-appartiennent à la scène et partagent les matériaux du terrain.
-La différence de position successive fait tourner le motif de la bille.
-L’adaptateur distingue les billes visibles, masquées et en reconstruction.
-`createPracticeMarble` possède le maillage et le roulement de chaque bille.
-Chaque chute ou reconstruction masque la sphère et réinitialise son suivi
-de roulement. `createPracticeRespawn` anime huit éclats de la couleur
-du joueur avec le compteur de l’arcade lu dans la pose. Dans le plan de
-la caméra, l’ellipse se resserre et descend sur le point de reprise.
-Les éclats restent lisibles au-dessus du décor.
-`createPracticeCatchUpLabel` utilise un panneau bitmap face à la caméra
-pour afficher « −5 SEC » au-dessus de la bille rattrapée. La présence
-et le décalage horizontal du texte viennent de la pose arcade.
-Le mot de défilement décale la fenêtre de
-projection orthographique pendant la course, la chute et l’arrivée.
-`createLivePracticeCamera` pilote cette caméra et une caméra perspective
-pour le suivi, la vue du dessus, le cadrage derrière la bille et le survol.
-Les deux partagent la même
-fenêtre dans l’image 4:3. Les perspectives visent J1, puis J2 si J1 est
-masqué, ou gardent le dernier point visé si les deux billes sont masquées.
-Le survol prend sa progression dans
-`PracticePose.opening` pendant le compte à rebours du cœur et se termine
-au passage en jeu. `practiceCameraControls` relie le menu, le curseur de
-champ de vision et les raccourcis à la scène. Les commandes de caméra
-redessinent la vue en pause à partir du même instantané. Le propriétaire
-`createVideoView` rend une seule présentation par notification
-du cœur sur le moteur BabylonJS existant. La scène du relevé est libérée
-au remplacement du fichier ou à la fin de vie de la vue. Le relevé
-complet garde la scène à l’écran pendant les excursions des billes.
-Il borne le cadrage au défilement relevé et prévoit une marge de
-projection autour du maillage. Le relevé partiel conserve son repli
-vidéo hors du tronçon. `gameHelp` commande le panneau H, avec les
-touches affichées par le module de configuration J2.
+In the game page, the `emulation/practicePose` adapter provides
+`VideoSource` with a reading of the active level and P1/P2 poses restricted to the
+pinned WASM binary. The same snapshot includes scores and timers read from
+arcade HUD tiles by `emulation/practiceHud`. `createVideoView`
+forwards these values to `ui/videoComparison` when modern terrain
+is visible. `ui/practiceHud` draws the HUD at 336 × 240 on an overlaid
+2D canvas, framed to the 4:3 image, with an accessible text equivalent.
+It hides when returning to arcade. Its updates follow
+core video notifications and pose reads on view switch.
+`createLivePracticeView` reuses the mesh of the locally chosen
+survey and converts the pose to BabylonJS coordinates.
+Reading preserves fractions of all three coordinates to display
+small movements without rounding jitter.
+`createPracticeStartLift` prepares five local slopes with their walls
+and selects the one indicated by `PracticePose.startLift`. These meshes
+belong to the scene and share terrain materials.
+Successive position differences rotate the marble's pattern.
+The adapter distinguishes visible, hidden, and reconstructing marbles.
+`createPracticeMarble` owns each marble's mesh and rolling.
+Every fall or reconstruction hides the sphere and resets its rolling
+tracking. `createPracticeRespawn` animates eight shards in the player's
+color using the arcade counter read from the pose. In the camera
+plane, the ellipse tightens and descends onto the respawn point.
+Shards remain legible above the scenery.
+`createPracticeCatchUpLabel` uses a camera-facing bitmap panel
+to display "−5 SEC" above the caught-up marble. Presence
+and horizontal offset of the text come from the arcade pose.
+The scroll word shifts the orthographic projection
+window during the race, fall, and finish.
+`createLivePracticeCamera` drives this camera and a perspective camera
+for tracking, top-down view, behind-the-marble framing, and flyover.
+Both share the same
+viewport within the 4:3 image. Perspectives target P1, then P2 if P1 is
+hidden, or keep the last target point if both marbles are hidden.
+Flyover takes its progress from
+`PracticePose.opening` during the core countdown and ends
+when gameplay begins. `practiceCameraControls` wires the menu, FOV
+slider, and shortcuts to the scene. Camera controls
+redraw the paused view from the same snapshot. The owner
+`createVideoView` renders a single presentation per core
+notification on the existing BabylonJS engine. The survey scene is disposed
+on file replacement or end of view lifetime. The full survey
+keeps the scene on screen during marble excursions.
+It clamps framing to the surveyed scroll and provides a projection
+margin around the mesh. The partial survey keeps its video
+fallback outside the segment. `gameHelp` controls the H panel, with the
+keys displayed by the P2 configuration module.
 
-Le mode de comparaison moderne garde le canvas MAME visible à côté de la
-scène BabylonJS. Les deux sorties utilisent la même session, et le rendu de
-la scène moderne utilise la notification vidéo existante sans copie du
-canvas arcade. Les sélecteurs d’affichage et les raccourcis V et Maj+V
-changent la présentation. La capture reste attachée au canvas MAME.
+Modern comparison mode keeps the MAME canvas visible beside the
+BabylonJS scene. Both outputs use the same session, and rendering of
+the modern scene uses the existing video notification without copying the
+arcade canvas. Display selectors and shortcuts V and Shift+V
+switch presentation. Capture remains attached to the MAME canvas.
 
-## Deux passages du niveau 4
+## Level 4 Two Overpasses
 
-Le dallage au croisement inférieur reste à la hauteur du couloir bas.
-Les deux bandes à arches sont des meshes fins distincts. La suppression
-des falaises s’aligne sur leurs bords. La surface basse du croisement
-appartient uniquement à `level4-underpass-surface`. Les deux bandes
-projettent des ombres et gardent un éclairage directionnel sans lecture
-de la carte d’ombre globale sur leurs propres faces.
+Paving at the lower crossing remains at the low corridor height.
+Both arched strips are distinct thin meshes. Cliff
+removal aligns with their edges. The lower crossing surface
+belongs solely to `level4-underpass-surface`. Both strips
+cast shadows and retain directional lighting without reading
+the global shadow map on their own faces.
 
-## Présentation du niveau 5 (Silly Race)
+## Level 5 (Silly Race) Presentation
 
-Le relevé `level5-terrain-v1` et le checkpoint restent locaux. Le chargement F5
-utilise la même session et le même lecteur de poses que les autres niveaux.
-Le scroll décroît : la caméra et le curseur d'étude respectent ce sens.
-`level5Actors` lit les pools natifs séparés (miniatures et oiseaux) ;
-`createLevel5Actors` ne fait qu'afficher leurs positions/états/cycles.
-`createLevel5Terrain` possède les ressources statiques ; `level5DisplayTerrain`
-corrige les échantillons de présentation, dont la petite rampe plane de l’arène.
-`level5FortGeometry` génère séparément un toit symétrique à quatre coins de
-12 unités arcade et ses quatre parois jaunes. Le terrain reste au pied du socle ;
-les coupes de sa grille ne participent pas aux coins. `createPracticeTower`
-conserve le centre du socle pour l’épaulement et l’apex aux niveaux 1 et 5.
-Le masque local des ellipses est dérivé de l'image complète originale par
-`scripts/level5-wall-pattern.mjs`, inclus dans la bibliothèque locale d'acteurs,
-puis projeté sur les faces verticales. Les pigments et ombres restent soumis
-à la palette native et aux lumières de la scène. Tout est libéré par la scène.
+The `level5-terrain-v1` survey and checkpoint remain local. F5 loading
+uses the same session and pose reader as the other levels.
+Scroll decreases: camera and study slider respect this direction.
+`level5Actors` reads the separate native pools (miniatures and birds);
+`createLevel5Actors` only displays their positions/states/cycles.
+`createLevel5Terrain` owns static resources; `level5DisplayTerrain`
+fixes presentation samples, including the small flat arena ramp.
+`level5FortGeometry` separately generates a symmetrical roof with four 12-arcade-unit
+corners and its four yellow walls. Terrain stays at the base of the plinth;
+its grid cuts do not participate in the corners. `createPracticeTower`
+keeps the plinth center for the shoulder and apex in levels 1 and 5.
+The local ellipse mask is derived from the original full image by
+`scripts/level5-wall-pattern.mjs`, included in the local actor library,
+then projected onto vertical faces. Pigments and shadows remain subject
+to the native palette and scene lights. Everything is disposed by the scene.
 
-### Effets de mort du niveau 5
+### Level 5 Death Effects
 
-`birdDeath` lit les groupes de fragments natifs de chaque joueur et transmet
-leurs offsets projetés dans `PracticeMarblePose.birdDeath`. `createBirdDeath`
-possède les huit meshes de présentation par joueur, les met à jour depuis
-la pose et les masque dès qu'elle disparaît. `createLivePracticeView` masque
-la sphère pendant cet effet. Aucun timer supplémentaire. `birdParts` sépare
-les quatre faces du bec pour leur peinture ; `createRollingActor` accepte
-une échelle verticale de présentation, utilisée pour les premiers paliers
-de l'écrasement des miniatures noires et remise à 1 pour les poses normales.
+`birdDeath` reads each player's native fragment groups and forwards
+their projected offsets in `PracticeMarblePose.birdDeath`. `createBirdDeath`
+owns the eight presentation meshes per player, updates them from
+the pose, and hides them as soon as it disappears. `createLivePracticeView` hides
+the sphere during this effect. No extra timer. `birdParts` separates
+the four beak faces for painting; `createRollingActor` accepts
+a presentation vertical scale, used for the first stages
+of black miniature squashing and reset to 1 for normal poses.
 
-Les miniatures écrasées du niveau 5 utilisent aussi un ancrage au sol depuis
-le minimum Y du mesh et une échelle horizontale de présentation ; les mises à
-jour normales rétablissent les valeurs par défaut. `fitBirdPoses` copie et
-ajuste bec et plumes une fois au chargement du modèle ; les normales des poses
-sont recalculées sur ces copies. Aucun observer ni timer supplémentaire.
+Level 5 squashed miniatures also use ground anchoring from
+the mesh's minimum Y and a presentation horizontal scale; normal
+updates restore default values. `fitBirdPoses` copies and
+adjusts beak and feathers once at model load; pose normals
+are recomputed on these copies. No extra observer or timer.
 
-## Profondeur de l’arrivée et bords du niveau 5
+## Level 5 Finish Depth and Edges
 
-La bande de collision de fin est distincte du volume visible. `level5DisplayTerrain`
-reconstruit les plateformes à 16416 ; `level5FinishDepth` décale X/Z/H de 48
-pour la présentation des deux billes dans cette zone. `createLivePracticeView`
-utilise ces coordonnées pour les meshes et les caméras, sans écrire dans le cœur.
-Le déplacement suit le rayon isométrique : la projection arcade est inchangée.
-Les drapeaux sont ancrés dans le terrain présenté. La paroi terminale Z=34
-partage son arête basse avec la pente adjacente, sans volume intermédiaire.
+The finish collision strip is distinct from the visible volume. `level5DisplayTerrain`
+rebuilds platforms at 16416; `level5FinishDepth` shifts X/Z/H by 48
+for presenting both marbles in this zone. `createLivePracticeView`
+uses these coordinates for meshes and cameras, without writing to the core.
+Movement follows the isometric ray: arcade projection is unchanged.
+Flags are anchored in the presented terrain. The Z=34 end wall
+shares its lower edge with the adjacent slope, with no intermediate volume.
 
-`archBridgeGeometry` est le constructeur pur partagé entre les niveaux 4 et 5.
-Le niveau 5 tourne ce profil de trois cellules et ajoute les deux appuis pleins
-de son pont d’approche de six cellules.
-`openLevel5Bridge` enlève seulement les faces sous ce tablier ; la scène possède
-les deux rives, le sol inférieur, leurs matériaux partagés et leurs ombres.
+`archBridgeGeometry` is the pure builder shared between levels 4 and 5.
+Level 5 rotates this three-cell profile and adds the two solid supports
+of its six-cell approach bridge.
+`openLevel5Bridge` only removes faces beneath this deck; the scene owns
+both banks, the lower floor, their shared materials, and their shadows.
 
-Les deux limites diagonales X−Z=±21 sont coupées sur toute la course après les
-réparations des sols. Les SW absents des murs intérieurs sont complétés depuis
-les trois coins cohérents ; ils ne sont pas traités comme les coins extérieurs.
+Both diagonal limits X−Z=±21 are clipped along the entire race after
+floor repairs. Missing SW corners of interior walls are filled from
+the three consistent corners; they are not treated as outer corners.

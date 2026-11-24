@@ -1,152 +1,148 @@
-# Marble Madness — rendu moderne en vraie 3D
+# Marble Madness — Modern True-3D Rendering
 
-## Objectif
+## Objective
 
-Faire tourner une seule partie de Marble Madness dans le cœur MAME 2003-Plus
-déjà intégré à EmulatorJS, avec deux présentations sélectionnables.
-La présentation **Arcade** affiche la vidéo originale, y compris dans la
-borne 3D existante. La présentation **3D moderne** rend le parcours, les billes
-et les objets en maillages texturés et éclairés avec BabylonJS.
+Run a single Marble Madness session in the MAME 2003-Plus core already
+integrated into EmulatorJS, with two selectable presentations.
+The **Arcade** presentation displays the original video, including inside the
+existing 3D cabinet. The **Modern 3D** presentation renders the course, marbles,
+and objects as textured, lit meshes with BabylonJS.
 
-Le premier jalon jouable est **Practice Race**. La cible suivante couvre les
-six parcours, un à un. Le décor du bar et les cadrages de la borne continuent
-de servir d’accès à la présentation arcade.
+The first playable milestone is **Practice Race**. The next target covers all
+six courses, one by one. The bar environment and cabinet camera angles continue
+to provide access to the arcade presentation.
 
-## Invariants de jeu
+## Game Invariants
 
-- Le même cœur exécute la même partie dans les deux présentations. Il reste
-  seul responsable de la physique, des collisions, des règles, des objets
-  actifs, du défilement, de la progression, du score, du chrono et de l’audio.
-- Le parcours d’entrée existant reste commun aux deux présentations, y compris
-  le gain, le boost Espace et les commandes J1/J2. Changer d’affichage conserve
-  la partie, son état de pause et la capture du pointeur. Les interruptions
-  habituelles continuent de mettre en pause et de purger les entrées.
-- BabylonJS consomme des observations en lecture seule. Il ne modifie ni
-  mémoire de jeu, ni ROM, ni réglage du cœur. La cadence d’émulation reste
-  indépendante des images 3D. Toute interpolation sert uniquement à l’affichage.
-- Les ROM et BIOS restent locaux. Les données extraites à partir des archives
-  de Michel restent locales. Les tests permanents utilisent des données
-  synthétiques. Les textures et les matériaux modernes ont une provenance
-  consignée dans `public/assets/README.md`.
+- The same core runs the same game session in both presentations. It remains
+  solely responsible for physics, collisions, rules, active objects,
+  scrolling, progression, score, timer, and audio.
+- The existing input pipeline remains shared between both presentations,
+  including gain, Space boost, and P1/P2 controls. Switching views preserves
+  the game, its pause state, and pointer capture. Standard interruptions
+  continue to pause and purge inputs.
+- BabylonJS consumes read-only observations. It modifies neither game memory,
+  ROMs, nor core settings. Emulation cadence remains independent of 3D frames.
+  Any interpolation is strictly for display.
+- ROMs and BIOS files remain local. Data extracted from Michel's archives
+  remains local. Permanent tests use synthetic data. Modern textures and
+  materials have their provenance recorded in `public/assets/README.md`.
 
-## Sources et responsabilités
+## Sources and Responsibilities
 
-| Source ou module        | Usage                                                                                                                                                                                                    |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| REA avec Ghidra         | Analyser localement le programme 68010, identifier les routines et documenter les champs du terrain, des objets, du défilement et du HUD. Vérifier l’installation avant usage et consigner les versions. |
-| Marble Love             | Utiliser les notes et les sondes de la révision `113cf5d` comme pistes. Recouper chaque champ intégré avec les observations du cœur.                                                                     |
-| MAME 0.271 local        | Rejouer des scènes et collecter des observations reproductibles pour vérifier les interprétations.                                                                                                       |
-| Adaptateur du cœur Web  | Valider la compatibilité du build exact et publier un instantané cohérent après l’itération. Les adresses vérifiées sous MAME local ne sont reportées au Web qu’après validation du raccord.             |
-| Modules TypeScript purs | Convertir les unités et les axes, valider les données, construire la géométrie et le modèle à afficher.                                                                                                  |
-| BabylonJS et interface  | Afficher les maillages, l’éclairage et le HUD. Gérer la caméra, la sélection de vue et le cycle de vie des ressources.                                                                                   |
+| Source or Module        | Purpose                                                                                                                                                                       |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| REA with Ghidra         | Locally analyze the 68010 program, identify routines, and document terrain, object, scroll, and HUD fields. Verify installation before use and record versions.               |
+| Marble Love             | Use notes and probes from revision `113cf5d` as leads. Cross-check every integrated field against core observations.                                                          |
+| Local MAME 0.271        | Replay scenes and collect reproducible observations to verify interpretations.                                                                                                |
+| Web Core Adapter        | Validate exact build compatibility and publish a consistent snapshot after each iteration. Addresses verified in local MAME are ported to Web only after verifying alignment. |
+| Pure TypeScript Modules | Convert units and axes, validate data, build geometry and the display model.                                                                                                  |
+| BabylonJS and UI        | Display meshes, lighting, and HUD. Manage camera, view selection, and resource lifecycle.                                                                                     |
 
-Le contrat d’instantané inclut progressivement l’identifiant du niveau et de
-l’itération, l’état de la partie, le défilement, les poses et états visuels des
-entités, puis le score et le chrono. Chaque donnée publiée doit avoir une source,
-une unité ou un sens documenté, et un test. La caméra 3D traduit le cadrage et
-le défilement observés dans le repère BabylonJS. Les menus, les transitions ou
-les niveaux sans prise en charge affichent la vidéo arcade. Une erreur de données
-ou de rendu 3D déclenche le même repli dans la session en cours.
+The snapshot contract progressively includes level and iteration IDs, game
+state, scroll, entity poses and visual states, then score and timer. Each
+published datum must have a documented source, unit or meaning, and a test.
+The 3D camera translates the observed framing and scrolling into the BabylonJS
+coordinate system. Menus, transitions, or unsupported levels display the arcade
+video. A data or 3D rendering error triggers the same fallback within the
+current session.
 
-## Tâches et critères d’acceptation
+## Tasks and Acceptance Criteria
 
-### 1. Préparer l’analyse et le rejeu de référence
+### 1. Prepare Analysis and Reference Replay
 
-- [ ] Vérifier REA, Ghidra et Java. Préparer le projet d’analyse local et
-      identifier les routines à partir des notes de Marble Love.
-- [x] Rejouer une courte séquence reproductible de Practice Race dans MAME.
-      Documenter le build, l’état initial, les entrées et les itérations échantillonnées.
-- [ ] Établir les correspondances de coordonnées sur une zone plate, une pente
-      et un bord. Valider le sens des axes, l’échelle verticale, l’ordre des
-      échantillons et le codage du vide.
+- [ ] Verify REA, Ghidra, and Java. Prepare the local analysis project and
+      identify routines using Marble Love notes.
+- [x] Replay a short reproducible Practice Race sequence in MAME.
+      Document the build, initial state, inputs, and sampled iterations.
+- [ ] Establish coordinate mappings on a flat area, a slope, and an edge.
+      Validate axis directions, vertical scale, sample ordering, and void encoding.
 
-**Acceptation.** Un second rejeu retrouve les mêmes valeurs, et chaque type de
-surface observé est associé à un repère visible dans la vidéo arcade.
+**Acceptance.** A second replay yields the same values, and each observed
+surface type is matched to a visible landmark in the arcade video.
 
-### 2. Reconstituer le premier tronçon réel
+### 2. Reconstruct the First Real Segment
 
-- [x] Afficher dans `/terrain.html` un premier segment
-      issu des données locales de Practice Race. Réutiliser le maillage indexé et le
-      compléter selon les besoins mesurés.
-- [x] Construire les surfaces, les faces visibles des falaises et les ruptures
-      de niveau. Appliquer des textures originales et un éclairage réglé pour rendre
-      les pentes et les vides lisibles.
-- [x] Comparer des captures arcade et 3D dans un cadrage commun.
-- [ ] Valider les bords encore approximatifs et les proportions des falaises.
+- [x] Display in `/terrain.html` a first segment built from local Practice Race
+      data. Reuse the indexed mesh and extend it according to measured needs.
+- [x] Build surfaces, visible cliff faces, and level drops. Apply original
+      textures and tuned lighting to make slopes and voids readable.
+- [x] Compare arcade and 3D captures in a shared framing.
+- [ ] Validate remaining approximate edges and cliff proportions.
 
-**Acceptation.** Les zones planes, la rampe et les bords du tronçon correspondent
-aux observations. Les ouvertures ne sont pas recouvertes par le maillage.
+**Acceptance.** Flat areas, the ramp, and segment edges match observations.
+Openings are not covered over by the mesh.
 
-### 3. Afficher la bille et le défilement de la partie en cours
+### 3. Display the Marble and Scrolling of the Current Game
 
-- [x] Lire dans le cœur Web le descripteur du niveau et la position de J1
-      pendant le départ de Practice Race. Placer la bille 3D dans le relevé.
-- [x] Mesurer le premier défilement et synchroniser le cadrage avec
-      l’instantané. Étendre le relevé jusqu’à la rampe du premier défilement.
-- [x] Rendre visible le roulement de la bille et ajouter une ombre portée
-      orientée d’après l’arcade.
-- [x] Vérifier une chute et la réapparition de J1 sur la première rampe.
-      Garder la vue 3D pendant l’absence et restaurer la bille au point de reprise.
-- [x] Ajouter le sélecteur **Arcade / 3D moderne**, avec repli dans la même partie
-      si le niveau ou l’état courant ne peut pas être affiché en 3D.
+- [x] Read the level descriptor and P1's position from the Web core during the
+      Practice Race start. Place the 3D marble in the surveyed terrain.
+- [x] Measure the first scroll and synchronize camera framing with the snapshot.
+      Extend the survey up to the first scroll's ramp.
+- [x] Make marble rolling visible and add a drop shadow oriented according to
+      the arcade view.
+- [x] Verify a fall and P1's respawn on the first ramp. Keep the 3D view during
+      absence and restore the marble at the resume point.
+- [x] Add the **Arcade / Modern 3D** toggle, with fallback within the same
+      session if the current level or state cannot be displayed in 3D.
 
-**Acceptation.** Le tronçon est jouable en 3D et la bascule affiche la même partie
-à la même position, y compris pendant la pause. Le test ne constate ni nouvelle
-session, ni nouvelle chaîne audio, ni perte de capture.
+**Acceptance.** The segment is playable in 3D and toggling displays the same
+game at the same position, including while paused. Testing observes no new
+session, no new audio chain, and no loss of capture.
 
-### 4. Livrer Practice Race en entier
+### 4. Deliver Practice Race in Full
 
-- [x] Étendre la géométrie du départ à l’arrivée et encadrer le passage
-      au bilan puis à Intermediate Race en arcade.
-- [x] Afficher le score et le chrono du cœur arcade dans la vue moderne de J1.
-- [x] Afficher la deuxième bille, les scores et les chronos du duo.
-- [ ] Ajouter les éléments visuels manquants et les poses des autres objets.
-- [ ] Vérifier les cas de course à un et deux joueurs, le franchissement des bords,
-      les chutes et le passage à l’écran suivant.
-- [ ] Rejouer la même séquence d’entrées depuis le même état initial en Arcade,
-      en 3D et avec des bascules pendant la partie. Comparer, par itération du cœur,
-      les positions et états des billes, les collisions ou transitions observables,
-      le score, le chrono et l’arrivée.
+- [x] Extend geometry from start to finish and handle the transition to the
+      summary screen and then to Intermediate Race in arcade.
+- [x] Display the arcade core's score and timer in P1's modern view.
+- [x] Display the second marble, plus two-player scores and timers.
+- [ ] Add missing visual elements and poses for other objects.
+- [ ] Verify single-player and two-player race cases, edge crossings,
+      falls, and transition to the next screen.
+- [ ] Replay the same input sequence from the same initial state in Arcade,
+      in 3D, and with mid-game toggles. Compare, per core iteration, marble
+      positions and states, observable collisions or transitions, score, timer,
+      and finish.
 
-**Acceptation.** Les traces de jeu concordent exactement pour les séquences
-testées. Le parcours complet reste lisible et jouable en navigateur, y compris
-lors d’un changement de présentation en cours de partie.
+**Acceptance.** Gameplay traces match exactly for tested sequences. The full
+course remains readable and playable in the browser, including when switching
+presentations mid-game.
 
-### 5. Étendre aux autres parcours
+### 5. Extend to Other Courses
 
-- [ ] Ajouter les parcours suivants individuellement, avec leurs variantes de
-      terrain et leurs objets animés. Les mouvements du décor dérivent des états
-      observés dans le cœur.
-- [ ] Vérifier le chargement entre niveaux, le nettoyage des maillages et textures
-      et les retours aux écrans arcade.
-- [ ] Mesurer le coût du rendu, notamment pendant le défilement et en vue
-      immersive. Vérifier la fluidité et l’audio dans Chrome et Safari.
+- [ ] Add subsequent courses individually, with their terrain variants and
+      animated objects. Scenery movements derive from states observed in the core.
+- [ ] Verify level-to-level loading, cleanup of meshes and textures, and
+      returns to arcade screens.
+- [ ] Measure rendering cost, especially during scrolling and in immersive view.
+      Verify smoothness and audio in Chrome and Safari.
 
-**Acceptation.** Chaque parcours ajouté a une comparaison arcade/3D, un rejeu
-de non-régression et une recette visuelle. Les séquences encore non couvertes
-restent accessibles en présentation arcade.
+**Acceptance.** Each added course has an arcade/3D comparison, a regression
+replay, and a visual sign-off. Uncovered sequences remain accessible in
+arcade presentation.
 
-## Validation à chaque livraison
+## Validation on Every Delivery
 
-- Ajouter des tests Vitest pour chaque fonctionnalité importante. Couvrir
-  notamment le décodage, les cas limites, les conversions de coordonnées, les
-  trous, les transitions de vue et le nettoyage des abonnements.
-- Utiliser NullEngine pour la construction et la destruction de la scène.
-  Vérifier le rendu réel, les commandes et la stabilité en navigateur.
-- Comparer les exécutions sur des itérations d’émulation numérotées. Signaler
-  tout écart au premier instant divergent. Une comparaison d’images seule
-  ne valide pas l’identité du gameplay.
-- Exécuter `npm run check` et les tests navigateur pertinents. Consigner méthodes,
-  résultats et limites dans `docs/VALIDATION.md`, puis mettre à jour `HANDOFF.md`.
+- Add Vitest tests for every significant feature. Notably cover decoding,
+  edge cases, coordinate conversions, holes, view transitions, and subscription
+  cleanup.
+- Use NullEngine for scene construction and disposal. Verify real rendering,
+  controls, and stability in the browser.
+- Compare runs on numbered emulation iterations. Report any discrepancy at the
+  first diverging instant. Image comparison alone does not validate gameplay
+  identity.
+- Run `npm run check` and relevant browser tests. Record methods, results,
+  and limitations in `docs/VALIDATION.md`, then update `HANDOFF.md`.
 
-## Point de départ
+## Starting Point
 
-`/terrain.html` affiche une géométrie de test et accepte le relevé local de Practice Race. La sonde locale a confirmé les
-six descripteurs et lu seize échantillons au départ de Practice Race.
-Le rejeu couvre maintenant le départ, la pente et la sortie du terrain.
-Les correspondances à valider sont suivies dans
-[les notes du prototype 04](docs/PROTOTYPE_04.md).
+`/terrain.html` displays test geometry and accepts the local Practice Race survey.
+The local probe confirmed the six descriptors and read sixteen samples at the
+start of Practice Race.
+Replay now covers the start, the slope, and exiting the terrain.
+Mappings to validate are tracked in
+[Prototype 04 notes](docs/PROTOTYPE_04.md).
 
-- [Notes et preuves du prototype 04](docs/PROTOTYPE_04.md)
+- [Prototype 04 notes and evidence](docs/PROTOTYPE_04.md)
 - [REA](https://github.com/morluto/rea)
-- [Marble Love et son format de niveau](https://github.com/magno73/marble-love/blob/113cf5de969ff62cb1d7b901340206f30122f658/docs/level-header-format.md)
+- [Marble Love and its level format](https://github.com/magno73/marble-love/blob/113cf5de969ff62cb1d7b901340206f30122f658/docs/level-header-format.md)

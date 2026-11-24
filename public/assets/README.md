@@ -1,185 +1,184 @@
 # Assets
 
-## Géométrie corrigée des tours et de l’arrivée — captures 16h06–17h47
+## Corrected Tower and Finish Geometry — Captures 16:06–17:47
 
-La tour pyramidale procédurale commune aux niveaux 1 et 5 est centrée sur son
-socle. Les trois forts du niveau 5 ont un toit et des parois symétriques dédiés ;
-leurs coins reprennent les **12 unités du relevé arcade**, en remplacement des
-8 unités relevées dans le modèle de Rolling Madness. Le fichier extrait de
-Rolling Madness a servi de référence spatiale locale ; aucun nouveau modèle
-ou texture n’est livré. L’arche réutilise le constructeur procédural du niveau 4.
+The procedural pyramidal tower shared by levels 1 and 5 is centered on its
+base. The three forts of level 5 have dedicated symmetrical roofs and walls;
+their corners follow the **12 units from the arcade survey**, replacing the
+8 units found in the Rolling Madness model. The extracted Rolling Madness file
+served as a local spatial reference; no new model or texture is shipped. The arch
+reuses the procedural builder from level 4.
 
-## Retouches complémentaires (captures 15h26–15h31)
+## Follow-up Refinements (Captures 15:26–15:31)
 
-Les coins des trois tours proches de GOAL sont des volumes procéduraux fermés
-avec toutes leurs faces en pierre grise. Le bec et les plumes des oiseaux
-Rolling Madness sont ajustés sur des copies des poses ; les fichiers extraits
-restent intacts. Les aplats écrasés sont ancrés au sol et élargis pour retrouver
-leur visibilité. Aucune texture externe ni nouvelle dépendance.
+The corners of the three towers near GOAL are closed procedural volumes
+with all faces in gray stone. The beak and feathers of the Rolling Madness
+birds are adjusted on copies of the poses; the extracted files
+remain intact. Squashed silhouettes are anchored to the ground and widened to restore
+visibility. No external texture or new dependency.
 
-## Retouches procédurales du niveau 5 — 22 novembre 2026
+## Level 5 Procedural Refinements — November 22, 2026
 
-Les cinq pyramides des oiseaux réutilisent la géométrie procédurale du niveau 1.
-Le bec conserve ses quatre faces du mesh Rolling Madness, avec une peinture
-jaune mate séparée. L'éclatement par oiseau utilise huit fragments procéduraux
-positionnés depuis les enregistrements du cœur ; `player_expl` n'est pas ajouté
-à la bibliothèque. Les trois types de miniatures utilisent leurs meshes finaux
-écrasés déjà extraits ; les deux premières poses de la bille noire sont adaptées
-par compression du mesh normal. Ni son ni physique de Rolling Madness ajoutés.
+The five bird pyramids reuse the procedural geometry from level 1.
+The beak keeps its four faces from the Rolling Madness mesh, with a separate
+matte yellow paint. Bird shattering uses eight procedural fragments
+positioned from the core records; `player_expl` is not added
+to the library. The three miniature types use their already-extracted final
+squashed meshes; the first two poses of the black ball are adapted
+by compressing the normal mesh. Neither sound nor physics from Rolling Madness are added.
 
-## Ajouts locaux du niveau 5 — 22 novembre 2026
+## Level 5 Local Additions — November 22, 2026
 
-Oiseaux : `bird`, `bird_fast`, `bird_expl`. Miniatures : `blacky_mini`,
+Birds: `bird`, `bird_fast`, `bird_expl`. Miniatures: `blacky_mini`,
 `blacky_squashed_mini`, `stick_idle_mini`, `stick_squashed_mini`,
-`amoeba_stretch_mini`, `amoeba_squashed_mini`. L'horloge décorative est le
-sous-ensemble `catapult.png` du modèle statique `lev5.ase.mesh`, enregistré
-localement sous `level5_clock`. Même provenance et accord de Luca Elia que
-les autres meshes extraits ; fichiers conservés dans `local-roms/`.
+`amoeba_stretch_mini`, `amoeba_squashed_mini`. The decorative clock is the
+`catapult.png` subset of the static `lev5.ase.mesh` model, stored
+locally as `level5_clock`. Same provenance and agreement from Luca Elia as
+the other extracted meshes; files kept in `local-roms/`.
 
-Le motif de secours `lev5_side.PNG` vient de cet installateur. Le rendu normal
-utilise désormais un masque dérivé de l'image complète originale du niveau 5
-fournie dans le projet, pour conserver la position de ses ellipses. Ce masque
-est lui aussi local et absent du build. Les couleurs en jeu viennent de la
-palette du cœur. Ni la physique ni le son de Rolling Madness ne sont utilisés.
+The fallback pattern `lev5_side.PNG` comes from this installer. Normal rendering
+now uses a mask derived from the original full image of level 5
+provided in the project, to preserve the position of its ellipses. This mask
+is also local and excluded from the build. In-game colors come from the
+core palette. Neither Rolling Madness physics nor audio are used.
 
-## Inventaire effectivement utilisé — 21 novembre 2026
+## Actual Inventory Used — November 21, 2026
 
-Avec la bibliothèque locale chargée, les modèles Rolling Madness suivants sont
-sélectionnés par le rendu. Le chargement d'un fichier dans la bibliothèque ne
-signifie pas que toutes ses animations sont utilisées.
+With the local library loaded, the following Rolling Madness models are
+selected by the renderer. Loading a file into the library does not
+mean that all of its animations are used.
 
-| Élément                   | Géométrie/poses Rolling Madness utilisées                             | Peinture actuelle                                         |
-| ------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
-| Bille normale             | `player`, pose de base                                                | Peinture procédurale bleue/rouge à marques jaunes         |
-| Étourdissement            | `player_dizzy`                                                        | Peinture du projet ; étoiles procédurales                 |
-| Bille cassée et balai     | `player_broken`, groupes bille et balai                               | Bille repeinte ; `broom.jpg` réutilisé                    |
-| Fonte                     | `player_melt`                                                         | Peinture du projet                                        |
-| Ennemi noir               | `blacky`                                                              | Texture locale du modèle                                  |
-| Amibes                    | `amoeba_stretch`                                                      | Matériau translucide du projet                            |
-| Catapulte                 | `catapult`, `catapult_throw`                                          | `catapult.png` ; axe ajusté dans une copie                |
-| Marteaux                  | `hammer`                                                              | `hammer.png` ; poses synchronisées aux sprites natifs     |
-| Tuyaux des niveaux 2 et 3 | Sous-ensembles des décors importés, conservés dans les relevés locaux | Matériaux du projet ; conduit vertical du niveau 3 élargi |
+| Element                 | Rolling Madness Geometry/Poses Used                | Current Paint                                      |
+| ----------------------- | -------------------------------------------------- | -------------------------------------------------- |
+| Normal marble           | `player`, base pose                                | Procedural blue/red paint with yellow markings     |
+| Dizzy                   | `player_dizzy`                                     | Project paint; procedural stars                    |
+| Broken marble and broom | `player_broken`, marble and broom groups           | Repainted marble; `broom.jpg` reused               |
+| Melting                 | `player_melt`                                      | Project paint                                      |
+| Black enemy             | `blacky`                                           | Local model texture                                |
+| Amoebas                 | `amoeba_stretch`                                   | Project translucent material                       |
+| Catapult                | `catapult`, `catapult_throw`                       | `catapult.png`; axle adjusted in a copy            |
+| Hammers                 | `hammer`                                           | `hammer.png`; poses synchronized to native sprites |
+| Level 2 and 3 pipes     | Subsets of imported scenery, kept in local surveys | Project materials; level 3 vertical duct widened   |
 
-Les aspirateurs du niveau 4 sont **entièrement procéduraux**, conformément au
-choix de Michel du 21 novembre. Ni `hoover_on`, ni `hoover_down`, ni leur texture
-ou son ne sont utilisés. Le tremblement du bec suit les images actives du
-programme arcade. Les cylindres, vers, arches, dallages, murs, drapeaux,
-baguette et fragments d'aspiration sont aussi créés par le projet.
+The level 4 vacuums are **entirely procedural**, in accordance with
+Michel's choice on November 21. Neither `hoover_on`, nor `hoover_down`, nor their texture
+or sound are used. The beak wobble follows the active frames of the
+arcade program. Cylinders, worms, arches, paving tiles, walls, flags,
+wand, and suction fragments are also created by the project.
 
-`stick_idle`, `stick_bend`, `stick_jump_start`, `stick_jump` et `player_hoover`
-figurent dans la bibliothèque mais ne sont pas sélectionnés actuellement.
-Les sons et musiques Rolling Madness ne sont pas utilisés : le son du jeu vient
-du cœur arcade. Les ressources extraites restent locales, hors du build.
+`stick_idle`, `stick_bend`, `stick_jump_start`, `stick_jump`, and `player_hoover`
+are in the library but are not currently selected.
+Rolling Madness sounds and music are not used: game audio comes
+from the arcade core. Extracted assets remain local, outside the build.
 
-## Catapulte de Rolling Madness 3D
+## Rolling Madness 3D Catapult
 
-Michel a confirmé le 20 novembre 2026 avoir obtenu l’accord de l’auteur
-Luca Elia pour réutiliser les modèles de Rolling Madness 3D. Les modèles
-`catapult` et `catapult_throw`, ainsi que `catapult.PNG`, proviennent de
-l’installateur local. Ils sont ajoutés à `local-roms/rolling-actors.json`
-pour la scène d’étude et le jeu. La licence d’origine reste dans
+Michel confirmed on November 20, 2026 that he obtained permission from author
+Luca Elia to reuse the Rolling Madness 3D models. The `catapult` and
+`catapult_throw` models, as well as `catapult.PNG`, come from
+the local installer. They are added to `local-roms/rolling-actors.json`
+for the study scene and the game. The original license remains in
 `3D_assets_for_animated_entities/embedded/license.rtf`.
 
-## Peintures et effets du remaster
+## Remaster Paints and Effects
 
-Les peintures bleue/rouge à marques jaunes de `createMarbleMaterial.ts`, la
-baguette ivoire/or et les notices bitmap de score/temps sont générées par le
-code du projet, sans image extraite des ROMs. Les géométries privées de bille
-normale/dizzy/cassée restent issues de l'installateur local Rolling Madness,
-selon la provenance et les limites indiquées ci-dessous. Elles ne sont pas
-incluses dans les assets publics. Les shaders de visibilité et le ver articulé
-sont également procéduraux, possédés par leur scène.
+The blue/red paints with yellow markings in `createMarbleMaterial.ts`, the
+ivory/gold wand, and the score/time bitmap banners are generated by
+project code, with no image extracted from ROMs. The private geometries for
+normal/dizzy/broken marble remain from the local Rolling Madness installer,
+under the provenance and limits stated below. They are not
+included in public assets. Visibility shaders and the articulated worm
+are also procedural, owned by their scene.
 
-## Borne Atari System I
+## Atari System I Cabinet
 
-Géométrie de [Marble Madness arcade game par Gozer](https://embed-3dwarehouse-classic.sketchup.com/model/0a8f07a9-4747-47e3-84c9-9c2b81f99cd5/Marble-Madness-arcade-game),
-issue du fichier `marble.skp` fourni par Michel. Le champ auteur du SKP indique
-Gozer. Son SHA-256 est `4814722d9bd1c81ec48d4a7f77742bb0eec77184a14e39a408b4ac1e379e5620`.
-Le modèle est intégré à la scène de jeu selon les [conditions 3D Warehouse](https://3dwarehouse.sketchup.com/tou)
-pour les œuvres combinées. Les graphismes et marques appartiennent à leurs
-titulaires.
+Geometry from [Marble Madness arcade game by Gozer](https://embed-3dwarehouse-classic.sketchup.com/model/0a8f07a9-4747-47e3-84c9-9c2b81f99cd5/Marble-Madness-arcade-game),
+derived from the `marble.skp` file provided by Michel. The SKP author field lists
+Gozer. Its SHA-256 is `4814722d9bd1c81ec48d4a7f77742bb0eec77184a14e39a408b4ac1e379e5620`.
+The model is integrated into the game scene under the [3D Warehouse Terms of Use](https://3dwarehouse.sketchup.com/tou)
+for combined works. Graphics and trademarks belong to their respective
+owners.
 
-- `src/rendering/assets/atariSystem1.json` contient les pièces converties depuis
-  SketchUp 2021 via OpenSKP 1.3.0 et glTF. Les transformations sont appliquées,
-  les coordonnées sont centrées en mètres et les pièces sont regroupées par
-  matériau ou élément interactif.
-- `cabinet/marquee.webp`, `cabinet/control-panel.webp`, `cabinet/side-art.webp`
-  et `cabinet/rear-vent.webp` viennent des textures du modèle Gozer. Elles sont
-  converties en WebP. Les UV de l’enseigne et du panneau sont recalés.
-- Les deux sphères, les haut-parleurs et les zones interactives sont construits
-  dans BabylonJS. Le liseré bleu et la boule droite rouge reprennent la variante
-  photographiée par Michel. Le moniteur affiche le canvas du cœur.
+- `src/rendering/assets/atariSystem1.json` contains the parts converted from
+  SketchUp 2021 via OpenSKP 1.3.0 and glTF. Transforms are applied,
+  coordinates are centered in meters, and parts are grouped by
+  material or interactive element.
+- `cabinet/marquee.webp`, `cabinet/control-panel.webp`, `cabinet/side-art.webp`,
+  and `cabinet/rear-vent.webp` come from the Gozer model textures. They are
+  converted to WebP. Marquee and control panel UVs are realigned.
+- The two spheres, speakers, and interactive zones are built
+  in BabylonJS. The blue trim and red right-hand ball follow the variant
+  photographed by Michel. The monitor displays the core canvas.
 
-Le [plan Classic Arcade Cabinets](https://www.classicarcadecabinets.com/marble-madness.html)
-et le [manuel Atari](https://r.mprd.se/MAME/manuals/arcade/marble.pdf) donnent
-des références sur le meuble et l’implantation. Les cotes du rendu proviennent
-du SKP. Les photos fournies servent de références de finition.
+The [Classic Arcade Cabinets plan](https://www.classicarcadecabinets.com/marble-madness.html)
+and the [Atari manual](https://r.mprd.se/MAME/manuals/arcade/marble.pdf) provide
+references on the cabinet and layout. Render dimensions come
+from the SKP. The provided photos serve as finishing references.
 
-## Historique des assets du prototype
+## Prototype Asset History
 
-Pour chaque ajout, renseigner : fichier, auteur, URL d'origine, licence,
-attribution requise et modifications. Vérifier que la licence autorise l'usage prévu.
-Optimiser taille, résolution et formats pour le Web ; ne pas intégrer de gros
-fichiers sources de création dans le bundle sans nécessité.
+For each addition, document: file, author, original URL, license,
+required attribution, and modifications. Verify that the license permits the intended use.
+Optimize size, resolution, and formats for the Web; do not bundle large
+authoring source files unnecessarily.
 
-La présentation d'écran 3D (support, cadre, socle, boutons décoratifs, grille)
-est une géométrie originale du projet créée dans `src/rendering/createScreenStage.ts`.
-Couleurs et matériaux sont définis dans le code ; pas de texture, modèle, police
-ou image externe ajouté. La texture animée provient du canvas d'émulation de la
-session locale, pas d'un asset de ROM exporté ou livré.
+The 3D screen stage (mount, bezel, pedestal, decorative buttons, grid)
+is original project geometry created in `src/rendering/createScreenStage.ts`.
+Colors and materials are defined in code; no external texture, model, font,
+or image added. The animated texture comes from the local session's emulation
+canvas, not from an exported or shipped ROM asset.
 
 ## Prototype02
 
-Borne, bar, mobilier et graphismes géométriques : création originale du projet,
-définie dans src/rendering/createCabinet.ts et createBarRoom.ts ; outils communs
-dans decorTools.ts. Aucune provenance externe, modèleGLB, texture d'artwork Atari,
-police téléchargée ou image extraite de ROM. Les enseignes sont des canvas
-locaux générés une fois avec une police système monospace ; textures possédées
-et détruites par la scène. Le titre du jeu est du texte, pas un artwork reproduit.
-Style de borne original, sans prétendre être une réplique exacte du meuble Atari.
-Pas de nouvelle licence globale imposée aux dépendances ; notices existantes conservées.
+Cabinet, bar, furniture, and geometric graphics: original project creation,
+defined in src/rendering/createCabinet.ts and createBarRoom.ts; shared tools
+in decorTools.ts. No external provenance, GLB model, Atari artwork texture,
+downloaded font, or ROM-extracted image. Signs are local canvases
+generated once with a monospace system font; textures owned
+and destroyed by the scene. The game title is text, not reproduced artwork.
+Original cabinet style, without claiming to be an exact replica of the Atari cabinet.
+No new global license imposed on dependencies; existing notices preserved.
 
 ## Prototype 03
 
-Les graphismes des flancs, les anneaux de la boule et les grains de bois,
-de métal brossé et de peinture sont des créations du projet. Les modules
-`createCabinet.ts` et `decorTools.ts` les produisent à l’initialisation de
-la scène. Aucun fichier image ou modèle externe n’est utilisé.
+Side artwork, ball rings, and wood, brushed metal, and paint grains
+are project creations. The `createCabinet.ts` and `decorTools.ts` modules
+produce them at scene initialization. No external image or model file is used.
 
-La texture de carrelage de `terrain.html` est générée en mémoire par
-`src/rendering/createTerrainStudy.ts` pour le prototype 04. Elle est
-originale au projet et ne provient pas des graphismes Atari.
+The tiling texture in `terrain.html` is generated in memory by
+`src/rendering/createTerrainStudy.ts` for prototype 04. It is
+original to the project and does not come from Atari graphics.
 
-## Tuyaux d’Intermediate Race
+## Intermediate Race Pipes
 
-L’étude accepte une copie locale du relevé avec les faces de tuyau de
-`lev2.ase.mesh`, issues de [Rolling Madness 3D](https://www.lucaelia.com/games.php)
-par Luca Elia (2005). L’installateur comporte sa propre licence. Les
-triangles importés sont recalés en dalles arcade et leurs deux matériaux
-sont créés en BabylonJS. Le relevé reste dans `local-roms/`.
+The study accepts a local copy of the survey with the pipe faces from
+`lev2.ase.mesh`, from [Rolling Madness 3D](https://www.lucaelia.com/games.php)
+by Luca Elia (2005). The installer includes its own license. The
+imported triangles are snapped to arcade tiles and their two materials
+are created in BabylonJS. The survey remains in `local-roms/`.
 
-Le Y conserve désormais toute la surface fermée du modèle local : les
-coiffes, lèvres, peaux intérieure/extérieure et raccords ne sont plus découpés.
-Une subdivision locale adoucit les branches en protégeant les lèvres fines ;
-la jonction est abaissée et les coiffes compactées en mémoire, sans changer
-le fichier extrait. Les normales sont recalculées sur les sommets coïncidents.
-Aucune nouvelle texture externe ; peinture issue de la palette du cœur vivant.
+The Y now retains the full closed surface of the local model: hoods,
+lips, inner/outer skins, and joints are no longer split apart.
+Local subdivision smooths the branches while protecting thin lips;
+the junction is lowered and hoods are compacted in memory, without changing
+the extracted file. Normals are recomputed on coincident vertices.
+No new external texture; paint derived from the live core palette.
 
-## Acteurs animés de Rolling Madness 3D
+## Rolling Madness 3D Animated Actors
 
-L’extraction complète de l’installateur fourni par Michel est conservée
-localement dans `3D_assets_for_animated_entities/`, à la racine du projet.
-La licence de Luca Elia se trouve dans `embedded/license.rtf` dans ce dossier.
-Elle exige une permission pour modifier ou redistribuer le logiciel.
+The full extraction of the installer provided by Michel is kept
+locally in `3D_assets_for_animated_entities/`, at the project root.
+Luca Elia's license is in `embedded/license.rtf` inside that folder.
+It requires permission to modify or redistribute the software.
 
-`local-roms/rolling-actors.json` est produit par
-`scripts/extract-rolling-actors.mjs` depuis l’installateur local fourni
-par Michel. Les modèles et textures sont de Luca Elia, Rolling Madness 3D
-(2005), avec la licence incluse dans l’installateur. Ils restent dans
-le dossier local exclu du dépôt et du build.
+`local-roms/rolling-actors.json` is produced by
+`scripts/extract-rolling-actors.mjs` from the local installer provided
+by Michel. Models and textures are by Luca Elia, Rolling Madness 3D
+(2005), under the license included in the installer. They remain in
+the local folder excluded from the repository and build.
 
-La bibliothèque contient les poses de `stick_idle`, `stick_bend`,
+The library contains poses for `stick_idle`, `stick_bend`,
 `stick_jump_start`, `stick_jump`, `blacky`, `player_dizzy`,
-`player_broken` et `player_melt`. Le balai et les morceaux sont deux
-groupes du même modèle `player_broken`. Les étoiles et la langue
-complémentaires sont des géométries créées dans le projet.
+`player_broken`, and `player_melt`. The broom and shards are two
+groups of the same `player_broken` model. Complementary stars and tongue
+are geometries created in the project.

@@ -1,48 +1,48 @@
-# Marble Madness — prototype 02 : borne et premier bar
+# Marble Madness — Prototype 02: Cabinet and First Bar
 
-La [spécification 03](Marble_Madness_Prototype_03_SPEC.md) autorise ensuite
-l’exploration, le son positionnel et les finitions du rendu.
+[Specification 03](Marble_Madness_Prototype_03_SPEC.md) then authorizes
+exploration, positional audio, and rendering polish.
 
-Périmètre explicitement autorisé par Michel le10novembre2026 : réaliser les
-étapes1,2,3,4 et5 proposées après la livraison technique du prototype01.
-Cette demande remplace les exclusions borne détaillée/bar du prototype01 et
-d'AGENTS.md pour cette évolution. Les invariants arcade du prototype01 restent.
+Scope explicitly authorized by Michel on November 10, 2026: complete
+stages 1, 2, 3, 4, and 5 proposed after the technical delivery of prototype 01.
+This request supersedes the detailed-cabinet/bar exclusions of prototype 01 and
+`AGENTS.md` for this evolution. Prototype 01 arcade invariants remain.
 
-## Livrables
+## Deliverables
 
-1. Borne3D procédurale : meuble complet, écran, enseigne, panneaux, monnayeur,
-   haut-parleurs, panneau de commandes et trackball. Création originale du projet,
-   sans prétendre reproduire exactement le meuble Atari ni utiliser ses artworks.
-2. Vue du bar, vue de la borne et vue de jeu frontale, transition douce en secondes.
-   Caméra sans attachControl pour réserver le trackpad au jeu.
-3. Commandes3D cliquables hors capture : crédit, StartJ1/J2, monnayeur et entrée
-   en jeu par écran/trackball. Délégation aux commandes existantes. Entrée en jeu
-   recadre vers l'écran et demande PointerLock dans le même geste utilisateur.
-   Pas de reprise automatique à la fin d'une transition ou d'une perte de focus.
-4. Matériaux et éclairage cohérents : métal peint, inserts clairs, accents cyan/
-   orange, bois et éclairage chaud/froid. Vidéo non éclairée et couleurs préservées.
-5. Première pièce de bar : sol, murs, comptoir, étagères, bouteilles décoratives,
-   tabourets, table et enseigne. Pièce fixe ouverte pour l'observation ; pas de
-   déplacement FPS, physique de mobilier, clients, réseau ou audio spatial.
+1. Procedural 3D cabinet: full cabinet body, screen, marquee, panels, coin door,
+   speakers, control panel, and trackball. Original project creation,
+   without claiming to exactly reproduce the Atari cabinet or using its artwork.
+2. Bar view, cabinet view, and frontal gameplay view, smooth transition in seconds.
+   Camera without `attachControl` to reserve the trackpad for gameplay.
+3. Clickable 3D controls outside capture: credit, P1/P2 Start, coin door, and
+   entering gameplay via screen/trackball. Delegation to existing commands.
+   Entering gameplay frames toward the screen and requests `PointerLock` in the
+   same user gesture. No auto-resume at the end of a transition or focus loss.
+4. Consistent materials and lighting: painted metal, bright inserts, cyan/orange
+   accents, wood, and warm/cool lighting. Unlit video with preserved colors.
+5. First bar room: floor, walls, counter, shelves, decorative bottles,
+   stools, table, and sign. Fixed open room for observation; no FPS
+   movement, furniture physics, customers, network, or spatial audio.
 
-## Architecture et ressources
+## Architecture and Resources
 
-Une session, un moteur BabylonJS et une texture vidéo. La vidéo n'est copiée
-qu'après dessin effectif du cœur. La caméra peut bouger pendant la pause sans
-avancer l'émulation. Une animation rAF temporaire possède le rendu pendant
-la transition ; pas de boucle permanente concurrente. Arrêt à la fin, interruption,
-changement de vue, visibilité et destruction. Temps en secondes, interpolations
-pures testables, ressources de décor appartenant à la scène et réutilisées.
+One session, one BabylonJS engine, and one video texture. Video is copied
+only after actual core drawing. The camera may move during pause without
+advancing emulation. A temporary `rAF` animation owns rendering during
+the transition; no concurrent permanent loop. Stop on completion, interruption,
+view change, visibility change, and disposal. Time in seconds, testable pure
+interpolations, scenery resources owned by the scene and reused.
 
-Pas de dépendance, asset ou police externe ajouté. Les enseignes utilisent un
-canvas généré une fois et une police système, jamais une image extraite de ROM.
-Les modèles peuvent être améliorés ensuite sans modifier la physique arcade.
+No added dependency, external asset, or external font. Signs use a
+once-generated canvas and a system font, never an image extracted from ROM.
+Models can be improved later without modifying arcade physics.
 
-## Recette
+## Acceptance
 
-Unitaires sur actions reconnues/filtrage, progression de transition, cadrage et
-nettoyage. NullEngine pour géométrie, ressources uniques et destruction ; navigateur
-réel pour picking, shaders, enseignes, transitions en pause, vidéo animée, couleurs,
-resize, capture et commandes. Vérifier le vrai runtime avec les ROMs locales,
-consigner captures examinées et limites dans VALIDATION et HANDOFF. La recette
-10minutes du prototype01 ne vaut pas automatiquement validation du nouveau décor.
+Unit tests for recognized actions/filtering, transition progress, framing, and
+cleanup. `NullEngine` for geometry, single resources, and disposal; real
+browser for picking, shaders, signs, paused transitions, animated video, colors,
+resize, capture, and controls. Verify the real runtime with local ROMs,
+record inspected captures and limitations in VALIDATION and HANDOFF. The
+10-minute test of prototype 01 does not automatically validate the new scenery.

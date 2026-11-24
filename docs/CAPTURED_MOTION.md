@@ -1,77 +1,77 @@
-# Relevé réel et rejeu du geste de Michel
+# Real Recording and Replay of Michel's Gesture
 
-Le relevé reçu le 9 novembre 2026 est désormais complet et utilisable. Aucun
-nouveau geste n'est nécessaire pour refaire cette investigation : le profil
-numérique est conservé dans `third_party/captured-motion-evidence.json`.
-Le saut reste non corrigé ; le contrôle et le gain du joueur ne sont pas modifiés.
+The recording received on November 9, 2026 is now complete and usable. No
+new gesture is needed to repeat this investigation: the numeric profile
+is preserved in `third_party/captured-motion-evidence.json`.
+The jump remains unfixed; player control and gain are not modified.
 
-## Ce que montre le relevé
+## What the Recording Shows
 
-Gain 1,70×, capture terminée par Échap, un segment de 95 lignes, 96 événements
-non nuls sur 1,391 seconde. 52 samples natifs non nuls répartis sur 85 itérations.
-Les sommes transmises sont −5737 en X et +6257 en Y. Pour **chacune des 95 lignes**,
-les deltas transmis sont égaux au dernier poll natif observé. Aucun écrêtage
-signalé et aucun événement en attente non échantillonné à la fin du segment.
-Il s'agit d'une observation au raccord, pas de tous les polls ni de la vitesse
-de bille. Le compteur global inclut aussi un événement sans contribution aux
-sommes, compatible avec le rejet des mouvements nuls par la timeline.
+Gain 1.70×, capture ended with Escape, one segment of 95 lines, 96 non-zero
+events over 1.391 seconds. 52 non-zero native samples spread across 85 iterations.
+Transmitted sums are −5737 on X and +6257 on Y. For **each of the 95 lines**,
+the transmitted deltas equal the last observed native poll. No clipping
+reported and no unsampled pending events at the end of the segment.
+This is an observation at the bridge, not of all polls or marble speed.
+The global counter also includes one event with zero contribution to the sums,
+consistent with zero-movement rejection by the timeline.
 
-Principaux pics diagonaux, temps relatifs au segment :
+Main diagonal peaks, times relative to the segment:
 
-|   Temps | X natif | Y natif | Somme des valeurs absolues |
-| ------: | ------: | ------: | -------------------------: |
-| 0,832 s |    −624 |    +527 |                       1151 |
-| 1,085 s |    −608 |    +574 |                       1182 |
-| 1,335 s |    −515 |    +539 |                       1054 |
+|    Time | Native X | Native Y | Sum of Absolute Values |
+| ------: | -------: | -------: | ---------------------: |
+| 0.832 s |     −624 |     +527 |                   1151 |
+| 1.085 s |     −608 |     +574 |                   1182 |
+| 1.335 s |     −515 |     +539 |                   1054 |
 
-Le pic maximal retenu correspond donc bien à une forte commande du relevé.
-La limite int16 du pont n'est pas atteinte. Cela ne certifie pas le traitement
-en aval ni la réussite du saut.
+The retained maximum peak therefore corresponds to a strong command in the
+recording. The bridge's int16 limit is not reached. This does not certify
+downstream processing or jump success.
 
-## Rejeu contrôlé dans le vrai cœur Web
+## Controlled Replay in the Real Web Core
 
-Sonde ponctuelle dérivée de `scripts/measure-impulses.mjs`, hors dépôt : profil
-numérique X/Y injecté avant les itérations 1200..1294, sans gain supplémentaire.
-Chaque ligne est rejouée sur une itération ; le jitter temporel des callbacks
-macOS n'est pas rejoué. Runtime neuf par cas, Crédit 700..707, Start 710..717.
-Série neutre / profil capturé / neutre. Tous les polls observés sont conformes,
-les départs identiques et les neutres immobiles. Zéro erreur JavaScript.
-Ce ne sont pas le même état de partie ni la position de Michel dans sa course.
+One-off probe derived from `scripts/measure-impulses.mjs`, outside the repo:
+numeric X/Y profile injected before iterations 1200..1294, with no extra gain.
+Each line is replayed over one iteration; macOS callback temporal jitter is not
+replayed. Fresh runtime per case, Credit 700..707, Start 710..717.
+Neutral / captured profile / neutral series. All observed polls match,
+starts are identical, and neutrals are motionless. Zero JavaScript errors.
+These are not the same game state or Michel's position in his run.
 
-Handler trakball_r instrumenté par le module existant, hash/carte/signature
-vérifiés ; appels et retours natifs préservés. 488 lectures par essai sur la
-fenêtre de compteurs 1198..1319, aucune perte ou erreur d'observation. Pour le
-pic (−608,+574), injecté avant 1265, le port 0 passe autour de cet instant de
-212 à 27 puis 190. Des octets seuls ne lèvent pas l'ambiguïté du nombre de tours :
-212→27 peut notamment représenter +71 ou +327 modulo 256. Ne pas présenter
-un décodage signé arbitraire comme l'algorithme du programme arcade.
+`trakball_r` handler instrumented by the existing module, hash/map/signature
+verified; native calls and returns preserved. 488 reads per trial over
+counter window 1198..1319, no observation loss or error. For peak (−608,+574),
+injected before 1265, port 0 transitions around that time from 212 to 27 then 190.
+Bytes alone do not resolve wrap-around ambiguity: 212→27 can notably represent
++71 or +327 modulo 256. Do not present an arbitrary signed decoding as the
+arcade program's algorithm.
 
-Le pilote public figé combine les positions par posx+posy et posx−posy, X inversé,
-sensibilité 30 %, compteurs 8 bits (sources et ABI : TRACKBALL_PORTS.md).
-Les grandes commandes diagonales doivent donc être étudiées en aval du pont,
-mais ces octets seuls ne démontrent pas la cause exacte des sauts manqués.
+The frozen public driver combines positions via posx+posy and posx−posy, X inverted,
+30% sensitivity, 8-bit counters (sources and ABI: TRACKBALL_PORTS.md).
+Large diagonal commands must therefore be studied downstream of the bridge,
+but these bytes alone do not demonstrate the exact cause of missed jumps.
 
-## Contrôle dans MAME 0.271 natif
+## Check in Native MAME 0.271
 
-Rejeu des mêmes octets observés, avec le **décalage fixe −1 déjà calibré avant
-ce relevé**, sans ajustement par point. Un cas neutre et un cas capturé, processus
-neufs, BIOS ttl, configuration/états/NVRAM isolés et non sauvegardés. Deux taps
-indépendants vérifient chacun 488 lectures. Après la fenêtre, le dernier octet
-est maintenu : ne pas remettre les compteurs à zéro et inventer une impulsion.
+Replay of the same observed bytes, with the **fixed −1 offset already calibrated
+before this recording**, without per-point adjustment. One neutral case and one
+captured case, fresh processes, ttl BIOS, isolated and unsaved config/states/NVRAM.
+Two independent taps each verify 488 reads. After the window, the last byte is
+held: do not reset counters to zero and invent an impulse.
 
-À chacun des sept instants 1199/1212/1248/1264/1294/1306/1318, les déplacements
-optiques Web normalisés vers 336×240 et natifs concordent à **0,158 pixel maximum
-par axe**. Au dernier point : Web (−75,987 ; +73,868), référence (−75,980 ; +73,896).
-Ce sont des déplacements écran, pas des coordonnées physiques. La région
-témoin n'est plus statique quand la bille entre dans sa zone ; aucune preuve
-de déplacement dans le monde n'est déduite de ce contrôle.
+At each of the seven instants 1199/1212/1248/1264/1294/1306/1318, Web optical
+displacements normalized to 336×240 and native displacements agree within **0.158
+pixel maximum per axis**. At the last point: Web (−75.987; +73.868), reference
+(−75.980; +73.896). These are screen displacements, not physical coordinates.
+The control region is no longer static when the marble enters its zone; no proof
+of world-space displacement is inferred from this check.
 
-Ce résultat étend à un profil humain les observations antérieures sur impulsions
-isolées. Il ne montre pas un défaut spécifique à 2003-Plus, ne prouve pas l'égalité
-des états internes, ni la fidélité à une borne physique. Les octets seuls et ce
-rejeu ne permettent pas d'affirmer un correctif de saut.
+This result extends earlier observations on isolated impulses to a human profile.
+It does not show a defect specific to 2003-Plus, nor does it prove equality of
+internal states or fidelity to a physical cabinet. Bytes alone and this replay
+do not support claiming a jump fix.
 
-La suite peut s'appuyer sur ce profil conservé pour comparer des amplitudes et
-leurs effets en aval, en gardant le timing par itération. Aucun nouveau limiteur,
-boost ou gain imposé sur la base de ce seul essai. Ne pas redemander la même
-manipulation à Michel : les données existent maintenant.
+Future work can build on this preserved profile to compare amplitudes and their
+downstream effects, keeping per-iteration timing. No new limiter, boost, or
+gain imposed based on this single test. Do not ask Michel to repeat the same
+procedure: the data now exists.

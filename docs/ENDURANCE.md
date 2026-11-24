@@ -1,106 +1,107 @@
-# Recette d'endurance arcade
+# Arcade Endurance Recipe
 
-## Reproduire
+## Reproducing
 
-Node24+, Chrome local et runtime installé. Démarrer npm run dev, avec les ZIP
-personnels dans roms/ ; aucun transfert, téléchargement ou stockage persistant
-n'est effectué par le banc. Dans un second terminal :
+Node24+, local Chrome, and runtime installed. Start npm run dev, with personal
+ZIPs in roms/; no transfer, download, or persistent storage is performed by
+the harness. In a second terminal:
 
 ```sh
 PLAYWRIGHT_CHANNEL=chrome npm run measure:endurance
 ```
 
-MARBLE_TEST_URL peut indiquer un autre serveur HTTP loopback. Le banc refuse
-les hôtes distants. Rapport numérique dans test-results/endurance.json, hors Git.
-Durée : dix intervalles de soixante secondes **actives**, plus les interruptions.
-La durée ne peut pas être raccourcie par un drapeau de validation.
+MARBLE_TEST_URL can point to another loopback HTTP server. The harness refuses
+remote hosts. Numeric report in test-results/endurance.json, outside Git.
+Duration: ten **active** sixty-second intervals, plus interruptions.
+Duration cannot be shortened by a validation flag.
 
-## Figer la version en production
+## Freezing the Production Build
 
-Pour éviter qu'un rechargement à chaud interrompe la session :
+To prevent hot reload from interrupting the session:
 
 ```sh
 npm run build
 npm run preview -- --host 127.0.0.1 --port 4175 --strictPort
 ```
 
-Dans un second terminal :
+In a second terminal:
 
 ```sh
 MARBLE_TEST_URL=http://127.0.0.1:4175/ PLAYWRIGHT_CHANNEL=chrome npm run measure:endurance -- --local-files
 ```
 
---local-files sélectionne les fichiers fixes roms/marble.zip et, s'il existe,
-roms/atarisy1.zip via les champs de fichiers du navigateur. Les archives restent
-hors dist et ne sont jamais uploadées. Le validateur normal de l'app est utilisé.
-Ne pas modifier le build pendant le test. Le mode dev reste possible si aucun
-fichier n'est modifié ; un rechargement invalide la série entière, jamais reprise
-ou assemblée à partir d'une nouvelle session. Le banc signale alors l'absence
-de diagnostics de session. Le rapport expose localFileSelection et le décor.
+--local-files selects fixed files roms/marble.zip and, if present,
+roms/atarisy1.zip via browser file inputs. Archives remain outside dist and
+are never uploaded. The app's normal validator is used.
+Do not modify the build during the test. Dev mode remains possible if no
+file is modified; a reload invalidates the entire series, never resumed
+or stitched from a new session. The harness then reports missing session
+diagnostics. The report exposes localFileSelection and the scenery.
 
-## Actions et observations
+## Actions and Observations
 
-- Charge le vrai runtime et les archives locales via le validateur de la page.
-- Capture le pointeur pour explorer le bar, vérifie la branche audio
-  positionnelle, puis transfère la capture au cœur avec E.
-- Capture réelle Chrome, six alias Crédit/Start : observation des douze appels
-  pressions/relâchements attendus, ports0/1 distincts ; é via CDP clavier natif.
-- Dix minutes de boucle active, mouvements automatisés et boost périodique.
-- Chaque minute : Échap pendant un boost, pause stable, pending et boutons des
-  deux ports vides, sortie plein écran ; puis changement de caméra et recapture.
-- Passages comparaison/direct et retour3D, deux tailles de viewport.
-- Chaque minute, le banc relève les frames, copies, temps CPU et GPU exposés
-  par le navigateur, appels de dessin, état audio, sources, RMS, compteurs
-  DOM et heap JavaScript, listeners et erreurs.
-- Aucun upload, copie d'archive, screenshot ou sauvegarde du jeu dans le rapport.
+- Loads the real runtime and local archives via the page validator.
+- Captures pointer to explore the bar, verifies the positional audio branch,
+  then transfers capture to the core with E.
+- Real Chrome capture, six Credit/Start aliases: observes the twelve expected
+  press/release calls, distinct ports0/1; é via native CDP keyboard.
+- Ten minutes of active loop, automated movements, and periodic boost.
+- Every minute: Escape during a boost, stable pause, pending and buttons on
+  both ports empty, fullscreen exit; then camera switch and recapture.
+- Comparison/direct switches and 3D return, two viewport sizes.
+- Every minute, the harness logs frames, copies, browser-exposed CPU and GPU
+  times, draw calls, audio state, sources, RMS, DOM and JavaScript heap
+  counters, listeners, and errors.
+- No upload, archive copy, screenshot, or game save in the report.
 
-Le résultat doit contenir dix échantillons, plus de600s actives, progression
-des frames et copies, pauses stables et zéro erreurJS. Examiner les tendances
-mémoire/listeners, sans transformer une variation de GC en diagnostic de fuite.
-Les compteurs sont observés, pas des seuils ajustés pour faire passer l'essai.
+The result must contain ten samples, over 600s active, frame and copy
+progression, stable pauses, and zero JS errors. Examine memory/listener
+trends without turning a GC variation into a leak diagnosis.
+Counters are observed, not thresholds tuned to make the test pass.
 
-## Portée
+## Scope
 
-Il s'agit d'une session technique automatisée, mêlant partie démarrée puis
-états décidés par l'arcade (fin de partie/attract inclus). Aucune performance
-humaine, parcours de niveaux ou succès de saut n'est certifié. Le son peut être
-observé en signal/contexte, sans prouver sa qualité à l'écoute. Les compteurs
-heapJS ne couvrent pas toute la mémoire WASM/GPU ; le temps CPU ne mesure pas
-la fin du travail GPU. Ce test Chrome headless n'établit pas le comportement
-sur écran physique120Hz, Safari ou trackpad Apple.
+This is an automated technical session, mixing a started game then
+arcade-decided states (game over/attract included). No human performance,
+level traversal, or jump success is certified. Sound can be observed as
+signal/context without proving listening quality. JS heap counters do not
+cover all WASM/GPU memory; CPU time does not measure GPU work completion.
+This headless Chrome test does not establish behavior on a 120Hz physical
+display, Safari, or Apple trackpad.
 
-Ne pas fermer une partie utilisateur : le banc ouvre son propre navigateur.
-Éviter les autres tests lourds pendant une comparaison de performances. Le
-rapport n'est marqué complete qu'après les dix intervalles et la vérification
-des erreurs. En cas d'échec, failure et les échantillons disponibles sont sauvés.
+Do not close a user game: the harness opens its own browser.
+Avoid other heavy tests during a performance comparison. The report is
+marked complete only after all ten intervals and error verification.
+On failure, failure and available samples are saved.
 
-## Historique prototype 01 — résultat du 10 novembre 2026
+## Prototype 01 History — November 10, 2026 Result
 
-Dix échantillons, **600,40s actives**, frame finale36794, **36090 copies**, zéro
-erreurJS et requête distante. Les six alias produisent les douze appels natifs
-attendus. Dix pauses stables avec entrées et boost purgés, neuf reprises/captures,
-caméras alternées et passages comparaison/direct, deux tailles de viewport.
-Une source audio et718 listeners constants, contexte suspendu à chaque pause.
+Ten samples, **600.40s active**, final frame 36794, **36090 copies**, zero
+JS errors and remote requests. All six aliases produce the twelve expected
+native calls. Ten stable pauses with inputs and boost cleared, nine
+resumes/captures, alternated cameras and comparison/direct switches, two
+viewport sizes. One audio source and 718 constant listeners, context
+suspended on each pause.
 
-Moyenne cumulée CPU copie+rendu0,144–0,177ms, maximum10,2ms. HeapJS19,73–21,58Mio,
-nodes4582–4645 ; la hausse des derniers relevés et la variabilité du GC ne
-permettent pas d'affirmer l'absence de fuite. Pas de dégradation bloquante
-observée pendant ce test. Les premières minutes ont coexisté avec les contrôles
-automatiques ; ne pas en déduire de comparaison fine des performances.
-Écoute, confort physique,120Hz/Safari et mémoire GPU/WASM restent hors preuve.
-Preuve numérique conservée : third_party/endurance-evidence.json.
+Cumulative CPU copy+render average 0.144–0.177ms, max 10.2ms. JS heap
+19.73–21.58MiB, nodes 4582–4645; the rise in late readings and GC variability
+do not allow asserting absence of leaks. No blocking degradation observed
+during this test. Early minutes coexisted with automated checks; do not
+infer fine-grained performance comparisons from them.
+Listening, physical comfort, 120Hz/Safari, and GPU/WASM memory remain unproven.
+Numeric evidence preserved: third_party/endurance-evidence.json.
 
-## Prototype02 — production,10novembre2026
+## Prototype02 — Production, November 10, 2026
 
-La version finale borne/bar a terminé une nouvelle série sur le preview statique
-4175 avec --local-files, après les essais dev interrompus décrits dans VALIDATION.
-Dix nouveaux intervalles, **600,02s actives**, frame36772 et36063 copies.
-Zéro erreurJS/requête distante, dix pauses/purges correctes, trois caméras,
-plein écran/capture et resize. Preuve : third_party/prototype02-endurance-evidence.json.
-La série01 ci-dessus est conservée comme historique, pas fusionnée avec celle-ci.
+The final cabinet/bar version completed a new series on static preview 4175
+with --local-files, after the interrupted dev trials described in VALIDATION.
+Ten new intervals, **600.02s active**, frame 36772 and 36063 copies.
+Zero JS errors/remote requests, ten proper pauses/clears, three cameras,
+fullscreen/capture, and resize. Evidence: third_party/prototype02-endurance-evidence.json.
+The 01 series above is kept as history, not merged with this one.
 
-Listeners721 puis720 après initialisation, source audio1 ; heapJS16,73–28,87Mio
-avec retours après GC, nodes4646–4693. Moyenne du callback vidéo0,459–0,550ms,
-maximum9ms ; hors rendu rAF de transition et complétion GPU. Aucune dégradation
-bloquante observée ; les limites mémoire GPU/WASM, écoute et matériel physique
-restent inchangées. Preview de recette arrêté après sauvegarde de la preuve.
+Listeners 721 then 720 after initialization, audio source 1; JS heap
+16.73–28.87MiB with drops after GC, nodes 4646–4693. Video callback average
+0.459–0.550ms, max 9ms; excluding transition rAF render and GPU completion.
+No blocking degradation observed; GPU/WASM memory, listening, and physical
+hardware limits remain unchanged. Acceptance preview stopped after saving evidence.

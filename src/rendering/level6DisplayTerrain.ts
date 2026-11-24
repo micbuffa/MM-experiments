@@ -234,7 +234,7 @@ export function level6SurfaceKind(
   if (x >= 77 && z >= 79) {
     const elevated = maxY > lowerMazeFloorY + 0.5;
     if (!elevated) return 'stone';
-    // Static entry platform & far-left upper maze cap (x=99..103, z=81..86) stay grey stone; GOAL pad is golden-amber.
+    // Static entry platform, far-left upper maze cap (x=99..103, z=81..86), and GOAL pad stay grey stone.
     if (x <= 82 && z <= 84) return 'stone';
     if (x >= 99 && x <= 103 && z >= 81 && z <= 86) return 'stone';
     if (
@@ -243,7 +243,7 @@ export function level6SurfaceKind(
       z >= level6Goal.z - 1 &&
       z < level6Goal.z + level6Goal.length
     )
-      return 'amber';
+      return 'stone';
     // 4x2 shimmering yellow-peach cap & bridge under the GOAL flags (x=84..87, z=88..89, Playfield Bank 3 indices 56..63)
     if (x >= 84 && x <= 87 && z >= 88 && z <= 89) return 'peach';
     // Strip behind-right of GOAL (x=84..85, z=90..104): amber -> cyan ice -> amber -> ribbed

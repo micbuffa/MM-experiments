@@ -168,21 +168,15 @@ function createLevel6Materials(scene: Scene): Level6MaterialSet {
   const ribbed = new StandardMaterial('level6-ribbed', scene);
   ribbed.specularColor.set(0, 0, 0);
   ribbed.emissiveColor.set(0.1, 0.1, 0.1);
-  // 4x4 embossed metallic micro-checkerboard (2 bright + 2 dark mini-tiles per cell along each axis).
+  // Diagonal (x + y) metallic ribs that project to horizontal stripes in the 45-degree isometric view,
+  // framed by a 1-texel dark grey tile border so individual cell boundaries remain crisp.
   ribbed.diffuseTexture = buildPatternTexture(scene, 16, (x, y) => {
-    const ix = x >> 2;
-    const iy = y >> 2;
-    const fx = x & 3;
-    const fy = y & 3;
-    const raised = ((ix + iy) & 1) === 0;
-    const inner = (fx === 1 || fx === 2) && (fy === 1 || fy === 2);
-    if (raised) {
-      if (inner) return [242, 242, 246, 255];
-      if (fx === 0 || fy === 0) return [186, 186, 192, 255];
-      return [132, 132, 138, 255];
-    }
-    if (inner) return [50, 50, 56, 255];
-    return [96, 96, 102, 255];
+    if (x === 0 || y === 0) return [88, 88, 94, 255];
+    const phase = (x + y) & 3;
+    if (phase === 0) return [242, 242, 246, 255];
+    if (phase === 1) return [212, 212, 218, 255];
+    if (phase === 2) return [148, 148, 154, 255];
+    return [76, 76, 82, 255];
   });
 
   const dark = new StandardMaterial('level6-dark', scene);

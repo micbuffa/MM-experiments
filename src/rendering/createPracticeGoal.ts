@@ -88,7 +88,7 @@ const goalColors = {
   blue: { ink: [24, 25, 164, 255], paper: [163, 170, 238, 255] },
   red: { ink: [166, 23, 23, 255], paper: [237, 166, 166, 255] },
   intermediate: { ink: [44, 44, 44, 255], paper: [131, 131, 131, 255] },
-  level6: { ink: [196, 124, 16, 255], paper: [255, 224, 132, 255] },
+  level6: { ink: [28, 28, 32, 255], paper: [238, 238, 242, 255] },
 };
 
 export function practiceGoalPaint(

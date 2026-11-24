@@ -104,7 +104,7 @@ describe('level6DisplayTerrain', () => {
     expect(level6SurfaceKind(80, 82, flatMazeTop)).toBe('stone');
     expect(
       level6SurfaceKind(level6Goal.x + 1, level6Goal.z + 1, flatMazeTop),
-    ).toBe('amber');
+    ).toBe('stone');
     expect(level6SurfaceKind(84, 89, flatMazeTop)).toBe('peach');
     expect(level6SurfaceKind(84, 93, flatMazeTop)).toBe('ice');
     expect(level6SurfaceKind(92, 104, flatMazeTop)).toBe('ice');

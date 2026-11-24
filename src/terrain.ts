@@ -33,14 +33,16 @@ import {
 } from './game/modern/practiceTerrain';
 
 let rollingLibrary: RollingActors | undefined;
-void loadRollingActors()
-  .then((library) => {
-    if (controller.signal.aborted || !library) return;
-    rollingLibrary = library;
-    if (terrain?.level === 'level4' || terrain?.level === 'level5')
-      showTerrain(terrain);
-  })
-  .catch(() => {});
+if (import.meta.env.DEV) {
+  void loadRollingActors()
+    .then((library) => {
+      if (controller.signal.aborted || !library) return;
+      rollingLibrary = library;
+      if (terrain?.level === 'level4' || terrain?.level === 'level5')
+        showTerrain(terrain);
+    })
+    .catch(() => {});
+}
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const picker = document.querySelector<HTMLInputElement>('#terrain-file')!;
@@ -152,24 +154,29 @@ function loadLevelPng(data: PracticeTerrain) {
   const num = terrainLevelNumber(data);
   const attempt = ++pngGeneration;
   levelPngImage = undefined;
-  if (!import.meta.env.DEV || num < 1 || num > 6) {
-    if (compareMode) compareMode.disabled = true;
+  if (import.meta.env.DEV) {
+    if (num < 1 || num > 6) {
+      if (compareMode) compareMode.disabled = true;
+      return;
+    }
+    const img = new Image();
+    img.src = `/__local-roms/level-png-${num}.png`;
+    void img
+      .decode()
+      .then(() => {
+        if (controller.signal.aborted || attempt !== pngGeneration) return;
+        levelPngImage = img;
+        if (compareMode) compareMode.disabled = false;
+        drawLevelPng();
+        updateCamera();
+      })
+      .catch(() => {
+        if (attempt === pngGeneration && compareMode)
+          compareMode.disabled = true;
+      });
     return;
   }
-  const img = new Image();
-  img.src = `/__local-roms/level-png-${num}.png`;
-  void img
-    .decode()
-    .then(() => {
-      if (controller.signal.aborted || attempt !== pngGeneration) return;
-      levelPngImage = img;
-      if (compareMode) compareMode.disabled = false;
-      drawLevelPng();
-      updateCamera();
-    })
-    .catch(() => {
-      if (attempt === pngGeneration && compareMode) compareMode.disabled = true;
-    });
+  if (compareMode) compareMode.disabled = true;
 }
 
 const intermediateViews = new Map([

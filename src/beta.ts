@@ -435,7 +435,7 @@ async function bootBeta() {
             },
           },
         );
-        view.setQuality('balanced');
+        view.setQuality(renderQuality);
         view.selectPracticeCamera(cameraPreset);
         view.setPracticeFov(fov);
         view.setPracticeMarbleShadows(true);
@@ -447,6 +447,21 @@ async function bootBeta() {
         if (attractState && session.restoreRawState?.(attractState)) {
           attractRestored = true;
         }
+        session.resume();
+
+        // Fallback when browser autoplay policy suspends the core before frames advance:
+        // enter Attract Mode automatically so the user is never stuck on the loading screen.
+        const fallbackTimer = window.setTimeout(() => {
+          if (phase !== 'loading') return;
+          setProgress(100, 'Ready!', 'Click anywhere to start');
+          enterAttract();
+          startBackgroundAssets();
+        }, 1500);
+        signal.addEventListener(
+          'abort',
+          () => window.clearTimeout(fallbackTimer),
+          { once: true },
+        );
 
         unsubscribeVideo = session.video.subscribe(() => {
           const pose = session?.video.practicePose?.() ?? null;

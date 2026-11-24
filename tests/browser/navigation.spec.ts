@@ -147,13 +147,19 @@ test('explorer isole les entrées, E entre dans la borne, la boule suit les comm
       Reflect.get(window, 'navFixture').comparison.diagnostics.exploration.z,
   );
   await page.keyboard.down('w');
-  await page.waitForTimeout(200);
-  await page.keyboard.up('w');
-  const after = await page.evaluate(
-    () =>
-      Reflect.get(window, 'navFixture').comparison.diagnostics.exploration.z,
-  );
-  expect(after).toBeGreaterThan(before);
+  try {
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            Reflect.get(window, 'navFixture').comparison.diagnostics.exploration
+              .z,
+        ),
+      )
+      .toBeGreaterThan(before);
+  } finally {
+    await page.keyboard.up('w');
+  }
   await page.keyboard.press('5');
   await page.keyboard.press('1');
   await page.keyboard.press('Space');

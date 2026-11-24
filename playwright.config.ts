@@ -3,6 +3,7 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/browser',
   fullyParallel: false,
+  retries: process.env.CI ? 1 : 0,
   timeout: 45_000,
   reporter: [['list'], ['json', { outputFile: 'test-results/results.json' }]],
   use: {

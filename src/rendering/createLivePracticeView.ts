@@ -153,9 +153,15 @@ export function createLivePracticeView(
               ? 'level4-finish'
               : 'practice-finish',
   );
-  const goalIdle = scene.getMaterialByName(
-    extended ? 'practice-goal-intermediate' : 'practice-goal-idle',
-  );
+  const goalIdle =
+    finish?.material ??
+    scene.getMaterialByName(
+      level6
+        ? 'practice-goal-level6'
+        : extended
+          ? 'practice-goal-intermediate'
+          : 'practice-goal-idle',
+    );
   const goalBlue =
     scene.getMaterialByName('practice-goal-blue') ??
     createPracticeGoalMaterial(scene, 'blue', extended);

@@ -59,6 +59,7 @@ function buildPatternTexture(
   scene: Scene,
   size: number,
   pixelAt: (x: number, y: number) => readonly [number, number, number, number],
+  samplingMode = Texture.NEAREST_NEAREST_MIPLINEAR,
 ) {
   const pixels = new Uint8Array(size * size * 4);
   for (let y = 0; y < size; y++) {
@@ -73,7 +74,7 @@ function buildPatternTexture(
     scene,
     true,
     false,
-    Texture.NEAREST_NEAREST_MIPLINEAR,
+    samplingMode,
   );
   texture.wrapU = texture.wrapV = Texture.WRAP_ADDRESSMODE;
   return texture;
@@ -168,16 +169,20 @@ function createLevel6Materials(scene: Scene): Level6MaterialSet {
   const ribbed = new StandardMaterial('level6-ribbed', scene);
   ribbed.specularColor.set(0, 0, 0);
   ribbed.emissiveColor.set(0.1, 0.1, 0.1);
-  // Diagonal (x + y) metallic ribs that project to horizontal stripes in the 45-degree isometric view,
-  // framed by a 1-texel dark grey tile border so individual cell boundaries remain crisp.
-  ribbed.diffuseTexture = buildPatternTexture(scene, 16, (x, y) => {
-    if (x === 0 || y === 0) return [88, 88, 94, 255];
-    const phase = (x + y) & 3;
-    if (phase === 0) return [242, 242, 246, 255];
-    if (phase === 1) return [212, 212, 218, 255];
-    if (phase === 2) return [148, 148, 154, 255];
-    return [76, 76, 82, 255];
-  });
+  // Smooth high-resolution diagonal (x + y) ribs with trilinear filtering so they project as
+  // clean horizontal stripes on screen without 16x16 nearest-neighbor staircase teeth.
+  ribbed.diffuseTexture = buildPatternTexture(
+    scene,
+    64,
+    (x, y) => {
+      if (x < 2 || y < 2 || x >= 62 || y >= 62) return [92, 92, 98, 255];
+      const phase = ((x + y) % 16) / 16;
+      const ridge = 0.5 + 0.5 * Math.cos(phase * Math.PI * 2);
+      const shade = Math.round(78 + Math.pow(ridge, 0.75) * 162);
+      return [shade, shade, Math.min(255, shade + 4), 255];
+    },
+    Texture.TRILINEAR_SAMPLINGMODE,
+  );
 
   const dark = new StandardMaterial('level6-dark', scene);
   dark.specularColor.set(0, 0, 0);

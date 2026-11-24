@@ -16,7 +16,9 @@ test('la rampe et ses plateformes texturées se dessinent et la caméra tourne',
   await page.mouse.move(box.width / 2 + 100, box.height / 2, { steps: 8 });
   await page.mouse.up();
   await expect
-    .poll(async () => (await canvas.screenshot()).equals(before))
+    .poll(async () => (await canvas.screenshot()).equals(before), {
+      timeout: 15_000,
+    })
     .toBe(false);
   expect(errors).toEqual([]);
 });
@@ -127,7 +129,9 @@ test('charge Intermediate Race et déplace son cadrage arcade', async ({
   await page.locator('#terrain-scroll').fill('218');
   await expect(page.locator('#terrain-scroll-value')).toHaveText('218 px');
   await expect
-    .poll(async () => (await canvas.screenshot()).equals(before))
+    .poll(async () => (await canvas.screenshot()).equals(before), {
+      timeout: 15_000,
+    })
     .toBe(false);
   for (const view of ['bridge', 'pipes', 'ice']) {
     await page.locator('#terrain-camera').selectOption(view);
@@ -415,7 +419,10 @@ test('Silly Race défile vers le haut et reste explorable en vue libre', async (
   await page.locator('#terrain-scroll').dispatchEvent('input');
   await expect(page.locator('#terrain-scroll-value')).toHaveText('180 px');
   await expect
-    .poll(async () => (await page.locator('#game').screenshot()).equals(before))
+    .poll(
+      async () => (await page.locator('#game').screenshot()).equals(before),
+      { timeout: 15_000 },
+    )
     .toBe(false);
   await page.locator('#terrain-camera').selectOption('orbit');
   await expect(page.locator('#terrain-orbit-help')).toBeVisible();

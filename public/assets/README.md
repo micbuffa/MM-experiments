@@ -49,17 +49,17 @@ With the local library loaded, the following Rolling Madness models are
 selected by the renderer. Loading a file into the library does not
 mean that all of its animations are used.
 
-| Element                 | Rolling Madness Geometry/Poses Used                | Current Paint                                      |
-| ----------------------- | -------------------------------------------------- | -------------------------------------------------- |
-| Normal marble           | `player`, base pose                                | Procedural blue/red paint with yellow markings     |
-| Dizzy                   | `player_dizzy`                                     | Project paint; procedural stars                    |
-| Broken marble and broom | `player_broken`, marble and broom groups           | Repainted marble; `broom.jpg` reused               |
-| Melting                 | `player_melt`                                      | Project paint                                      |
-| Black enemy             | `blacky`                                           | Local model texture                                |
-| Amoebas                 | `amoeba_stretch`                                   | Project translucent material                       |
-| Catapult                | `catapult`, `catapult_throw`                       | `catapult.png`; axle adjusted in a copy            |
-| Hammers                 | `hammer`                                           | `hammer.png`; poses synchronized to native sprites |
-| Level 2 and 3 pipes     | Subsets of imported scenery, kept in local surveys | Project materials; level 3 vertical duct widened   |
+| Element                 | Rolling Madness Geometry/Poses Used                        | Current Paint                                      |
+| ----------------------- | ---------------------------------------------------------- | -------------------------------------------------- |
+| Normal marble           | `player`, base pose                                        | Procedural blue/red paint with yellow markings     |
+| Dizzy                   | `player_dizzy`                                             | Project paint; procedural stars                    |
+| Broken marble and broom | `player_broken`, marble and broom groups                   | Repainted marble; `broom.jpg` reused               |
+| Melting                 | Procedural (`createAcidDissolve.ts`, `player_melt` unused) | Project paint + 16 fizz particles                  |
+| Black enemy             | `blacky`                                                   | Local model texture                                |
+| Amoebas                 | `amoeba_stretch`                                           | Project translucent material                       |
+| Catapult                | `catapult`, `catapult_throw`                               | `catapult.png`; axle adjusted in a copy            |
+| Hammers                 | `hammer`                                                   | `hammer.png`; poses synchronized to native sprites |
+| Level 2 and 3 pipes     | Subsets of imported scenery, kept in local surveys         | Project materials; level 3 vertical duct widened   |
 
 The level 4 vacuums are **entirely procedural**, in accordance with
 Michel's choice on November 21. Neither `hoover_on`, nor `hoover_down`, nor their texture

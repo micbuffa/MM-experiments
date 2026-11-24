@@ -3,6 +3,7 @@ import type { PracticeMarblePose } from '../emulation/practicePose';
 import type { RollingActors } from '../emulation/rollingActors';
 import { createRollingActor } from './createRollingActor';
 import { createDizzyStars } from './createDizzyStars';
+import { createAcidDissolve } from './createAcidDissolve';
 
 export function createMarbleAnimation(
   scene: Scene,
@@ -15,6 +16,7 @@ export function createMarbleAnimation(
   let previousTick: number | undefined;
   let elapsed = 0;
   let stars: ReturnType<typeof createDizzyStars> | undefined;
+  let acidDissolve: ReturnType<typeof createAcidDissolve> | undefined;
   return (
     pose: PracticeMarblePose | undefined,
     position: { x: number; y: number; z: number } | null,
@@ -23,6 +25,7 @@ export function createMarbleAnimation(
     if (!position || next === undefined || pose?.animationTick === undefined) {
       model.hide();
       stars?.(null);
+      acidDissolve?.(null);
       animation = previousTick = undefined;
       return false;
     }
@@ -31,6 +34,7 @@ export function createMarbleAnimation(
     if (next === 7 || next === 11) {
       model.hide();
       stars?.(null);
+      acidDissolve?.(null);
       animation = previousTick = undefined;
       return true;
     }
@@ -39,12 +43,19 @@ export function createMarbleAnimation(
       elapsed += (pose.animationTick - previousTick + 65536) % 65536;
     animation = next;
     previousTick = pose.animationTick;
-    const key =
-      next === 2
-        ? 'player_broken'
-        : next === 9
-          ? 'player_melt'
-          : 'player_dizzy';
+    if (next === 9) {
+      model.hide();
+      stars?.(null);
+      acidDissolve ??= createAcidDissolve(scene, name, red);
+      const progress =
+        pose.melt !== undefined
+          ? Math.max(pose.melt, Math.min(1, elapsed / 48))
+          : Math.min(1, elapsed / 48);
+      acidDissolve(position, progress);
+      return true;
+    }
+    acidDissolve?.(null);
+    const key = next === 2 ? 'player_broken' : 'player_dizzy';
     if (key === 'player_dizzy') {
       stars ??= createDizzyStars(scene, name);
       stars(position, elapsed);
@@ -64,11 +75,6 @@ export function createMarbleAnimation(
         'player.png': marbleFrame,
         'broom.jpg': broomFrame,
       });
-    }
-    if (next === 9) {
-      const last = Math.max(0, source.poses.length - 1);
-      const smoothFrame = Math.min(last, (elapsed / 54) * last);
-      return model.update(key, smoothFrame, position, 0, 0.675);
     }
     const progress =
       (elapsed / Math.max(1, source.seconds * 60)) * source.poses.length;

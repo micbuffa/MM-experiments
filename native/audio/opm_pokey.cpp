@@ -204,27 +204,16 @@ struct PokeyChannel {
   float outBit = 1.0f;
 };
 
-struct OpmPokeyEngine {
-  float sampleRate = kDefaultSampleRate;
-  FmChannel fm[8];
-  PokeyChannel pokey[4];
+struct PokeyChip {
+  PokeyChannel ch[4];
   uint32_t lfsr17 = 0x1ffffu;
   uint32_t lfsr5 = 0x1fu;
   uint32_t lfsr4 = 0xfu;
   float rollLp1 = 0.0f;
   float rollLp2 = 0.0f;
-  float musicGain = 0.75f;
-  float sfxGain = 1.0f;
 
-  void reset(float sr) {
-    sampleRate = (sr > 8000.0f) ? sr : kDefaultSampleRate;
-    for (int c = 0; c < 8; ++c) {
-      fm[c] = FmChannel{};
-      fm[c].updateFreq(sampleRate);
-    }
-    for (int c = 0; c < 4; ++c) {
-      pokey[c] = PokeyChannel{};
-    }
+  void reset() {
+    for (int i = 0; i < 4; ++i) ch[i] = PokeyChannel{};
     lfsr17 = 0x1ffffu;
     lfsr5 = 0x1fu;
     lfsr4 = 0xfu;
@@ -232,17 +221,79 @@ struct OpmPokeyEngine {
     rollLp2 = 0.0f;
   }
 
-  void writeOpm(uint8_t reg, uint8_t val) {
+  void write(uint8_t reg, uint8_t val) {
+    const uint8_t r = reg & 0x0f;
+    if (r < 8) {
+      const uint8_t c = r >> 1;
+      if ((r & 1) == 0) ch[c].audf = val;
+      else ch[c].audc = val;
+    }
+  }
+
+  float step(float sampleRate, bool lowPassCh0) {
+    const uint32_t b17 = ((lfsr17 >> 16) ^ (lfsr17 >> 11)) & 1u;
+    lfsr17 = ((lfsr17 << 1) | b17) & 0x1ffffu;
+    const uint32_t b5 = ((lfsr5 >> 4) ^ (lfsr5 >> 2)) & 1u;
+    lfsr5 = ((lfsr5 << 1) | b5) & 0x1fu;
+    const uint32_t b4 = ((lfsr4 >> 3) ^ (lfsr4 >> 2)) & 1u;
+    lfsr4 = ((lfsr4 << 1) | b4) & 0xfu;
+
+    float mix = 0.0f;
+    const float baseInc = 64000.0f / sampleRate;
+    for (int i = 0; i < 4; ++i) {
+      PokeyChannel& p = ch[i];
+      const uint8_t vol = p.audc & 0x0f;
+      if (vol == 0) continue;
+      const float gain = static_cast<float>(vol) / 15.0f;
+      if (p.audc & 0x10) {
+        mix += gain * 0.25f;
+        continue;
+      }
+      p.counter += baseInc / static_cast<float>(p.audf + 1);
+      if (p.counter >= 1.0f) {
+        p.counter -= std::floor(p.counter);
+        const uint8_t dist = (p.audc >> 5) & 0x07;
+        if (dist >= 5) p.outBit = -p.outBit;
+        else if (dist == 4) p.outBit = (lfsr17 & 1u) ? 1.0f : -1.0f;
+        else if (dist == 0) {
+          if (lfsr5 & 1u) p.outBit = (lfsr17 & 1u) ? 1.0f : -1.0f;
+        } else {
+          p.outBit = (lfsr4 & 1u) ? 1.0f : -1.0f;
+        }
+      }
+      if (lowPassCh0 && i == 0) {
+        // Warm low-passed marble rolling rumble with post-filter makeup gain.
+        const float raw = p.outBit * gain * 0.85f;
+        const float alpha =
+            0.09f + (1.0f - static_cast<float>(p.audf) / 255.0f) * 0.12f;
+        rollLp1 += alpha * (raw - rollLp1);
+        rollLp2 += alpha * (rollLp1 - rollLp2);
+        mix += rollLp2;
+      } else {
+        mix += p.outBit * gain * 0.28f;
+      }
+    }
+    return mix;
+  }
+};
+
+struct OpmChip {
+  FmChannel fm[8];
+
+  void reset(float sampleRate) {
+    for (int c = 0; c < 8; ++c) {
+      fm[c] = FmChannel{};
+      fm[c].updateFreq(sampleRate);
+    }
+  }
+
+  void write(uint8_t reg, uint8_t val, float sampleRate) {
     if (reg == 0x08) {
-      // Key On/Off: bits 2..0 = channel, bits 6..3 = operator mask (M1, M2, C1, C2).
       const uint8_t ch = val & 0x07;
       constexpr int kSlotMap[4] = {0, 2, 1, 3};
       for (int b = 0; b < 4; ++b) {
-        if (val & (1u << (b + 3))) {
-          fm[ch].ops[kSlotMap[b]].keyOn();
-        } else {
-          fm[ch].ops[kSlotMap[b]].keyOff();
-        }
+        if (val & (1u << (b + 3))) fm[ch].ops[kSlotMap[b]].keyOn();
+        else fm[ch].ops[kSlotMap[b]].keyOff();
       }
       return;
     }
@@ -258,7 +309,6 @@ struct OpmPokeyEngine {
       fm[ch].kf = val & 0xfc;
       fm[ch].updateFreq(sampleRate);
     } else if (reg >= 0x40) {
-      // Operator registers: 4 groups of 8 channels (M1, M2, C1, C2).
       constexpr int kSlotMap[4] = {0, 2, 1, 3};
       const int slot = kSlotMap[(reg >> 3) & 0x03];
       FmOperator& op = fm[ch].ops[slot];
@@ -282,71 +332,34 @@ struct OpmPokeyEngine {
     }
   }
 
-  void writePokey(uint8_t reg, uint8_t val) {
-    const uint8_t r = reg & 0x0f;
-    if (r < 8) {
-      const uint8_t ch = r >> 1;
-      if ((r & 1) == 0) {
-        pokey[ch].audf = val;
-      } else {
-        pokey[ch].audc = val;
-      }
-    }
+  void render(float sampleRate, float& outL, float& outR) {
+    for (int c = 0; c < 8; ++c) fm[c].render(sampleRate, outL, outR);
+  }
+};
+
+// Dual YM2151 + Dual POKEY engine:
+// - Music bus (dedicated 8-ch YM2151 + 4-ch POKEY) for full 8-channel VGM playback
+// - SFX bus   (dedicated 8-ch YM2151 + 4-ch POKEY) for zero-collision real-time SFX
+struct OpmPokeyEngine {
+  float sampleRate = kDefaultSampleRate;
+  OpmChip musicOpm;
+  PokeyChip musicPokey;
+  OpmChip sfxOpm;
+  PokeyChip sfxPokey;
+  float musicGain = 0.75f;
+  float sfxGain = 1.0f;
+
+  void reset(float sr) {
+    sampleRate = (sr > 8000.0f) ? sr : kDefaultSampleRate;
+    musicOpm.reset(sampleRate);
+    musicPokey.reset();
+    sfxOpm.reset(sampleRate);
+    sfxPokey.reset();
   }
 
-  float stepPokey() {
-    // Advance Atari POKEY polynomial counters.
-    const uint32_t b17 = ((lfsr17 >> 16) ^ (lfsr17 >> 11)) & 1u;
-    lfsr17 = ((lfsr17 << 1) | b17) & 0x1ffffu;
-    const uint32_t b5 = ((lfsr5 >> 4) ^ (lfsr5 >> 2)) & 1u;
-    lfsr5 = ((lfsr5 << 1) | b5) & 0x1fu;
-    const uint32_t b4 = ((lfsr4 >> 3) ^ (lfsr4 >> 2)) & 1u;
-    lfsr4 = ((lfsr4 << 1) | b4) & 0xfu;
-
-    float mix = 0.0f;
-    // POKEY base clock 64 kHz -> divided by (audf + 1).
-    const float baseInc = 64000.0f / sampleRate;
-    for (int i = 0; i < 4; ++i) {
-      PokeyChannel& ch = pokey[i];
-      const uint8_t vol = ch.audc & 0x0f;
-      if (vol == 0) continue;
-      const float gain = static_cast<float>(vol) / 15.0f;
-      if (ch.audc & 0x10) {
-        // Volume-only DAC mode
-        mix += gain * 0.25f;
-        continue;
-      }
-      ch.counter += baseInc / static_cast<float>(ch.audf + 1);
-      if (ch.counter >= 1.0f) {
-        ch.counter -= std::floor(ch.counter);
-        const uint8_t dist = (ch.audc >> 5) & 0x07;
-        if (dist >= 5) {
-          // Pure tone (square wave)
-          ch.outBit = -ch.outBit;
-        } else if (dist == 4) {
-          // 17-bit white/rumble noise
-          ch.outBit = (lfsr17 & 1u) ? 1.0f : -1.0f;
-        } else if (dist == 0) {
-          // 5-bit + 17-bit poly noise
-          if (lfsr5 & 1u) ch.outBit = (lfsr17 & 1u) ? 1.0f : -1.0f;
-        } else {
-          // 4-bit metallic buzz / rumble
-          ch.outBit = (lfsr4 & 1u) ? 1.0f : -1.0f;
-        }
-      }
-      if (i == 0) {
-        // Channel 0 (rolling marble): smooth 2-pole low-pass filter so it sounds
-        // like a warm ceramic-on-stone roll rather than harsh unfiltered static.
-        const float raw = ch.outBit * gain * 0.14f;
-        const float alpha = 0.045f + (1.0f - static_cast<float>(ch.audf) / 255.0f) * 0.06f;
-        rollLp1 += alpha * (raw - rollLp1);
-        rollLp2 += alpha * (rollLp1 - rollLp2);
-        mix += rollLp2;
-      } else {
-        mix += ch.outBit * gain * 0.22f;
-      }
-    }
-    return mix;
+  void resetMusic() {
+    musicOpm.reset(sampleRate);
+    musicPokey.reset();
   }
 
   void renderBlock(float* left, float* right, int frames) {
@@ -355,16 +368,15 @@ struct OpmPokeyEngine {
       float musR = 0.0f;
       float sfxL = 0.0f;
       float sfxR = 0.0f;
-      for (int c = 0; c < 4; ++c) {
-        fm[c].render(sampleRate, musL, musR);
-      }
-      for (int c = 4; c < 8; ++c) {
-        fm[c].render(sampleRate, sfxL, sfxR);
-      }
-      const float p = stepPokey();
-      // Soft clip master bus for clean headroom with independent music/SFX mix.
-      left[i] = std::tanh(musL * 0.22f * musicGain + (sfxL * 0.22f + p * 0.45f) * sfxGain);
-      right[i] = std::tanh(musR * 0.22f * musicGain + (sfxR * 0.22f + p * 0.45f) * sfxGain);
+      musicOpm.render(sampleRate, musL, musR);
+      const float musP = musicPokey.step(sampleRate, false);
+      sfxOpm.render(sampleRate, sfxL, sfxR);
+      const float sfxP = sfxPokey.step(sampleRate, true);
+
+      left[i] = std::tanh((musL * 0.18f + musP * 0.30f) * musicGain +
+                          (sfxL * 0.30f + sfxP * 0.65f) * sfxGain);
+      right[i] = std::tanh((musR * 0.18f + musP * 0.30f) * musicGain +
+                           (sfxR * 0.30f + sfxP * 0.65f) * sfxGain);
     }
   }
 };
@@ -379,19 +391,31 @@ extern "C" {
 
 void audio_init(float sampleRate) { gEngine.reset(sampleRate); }
 
+void audio_reset_music() { gEngine.resetMusic(); }
+
 void audio_set_mix(float musicGain, float sfxGain) {
   gEngine.musicGain = (musicGain < 0.0f) ? 0.0f : (musicGain > 2.0f ? 2.0f : musicGain);
   gEngine.sfxGain = (sfxGain < 0.0f) ? 0.0f : (sfxGain > 2.0f ? 2.0f : sfxGain);
 }
 
 void opm_write(uint32_t reg, uint32_t val) {
-  gEngine.writeOpm(static_cast<uint8_t>(reg & 0xffu),
-                   static_cast<uint8_t>(val & 0xffu));
+  gEngine.sfxOpm.write(static_cast<uint8_t>(reg & 0xffu),
+                       static_cast<uint8_t>(val & 0xffu), gEngine.sampleRate);
 }
 
 void pokey_write(uint32_t reg, uint32_t val) {
-  gEngine.writePokey(static_cast<uint8_t>(reg & 0x0fu),
-                     static_cast<uint8_t>(val & 0xffu));
+  gEngine.sfxPokey.write(static_cast<uint8_t>(reg & 0x0fu),
+                         static_cast<uint8_t>(val & 0xffu));
+}
+
+void opm_music_write(uint32_t reg, uint32_t val) {
+  gEngine.musicOpm.write(static_cast<uint8_t>(reg & 0xffu),
+                         static_cast<uint8_t>(val & 0xffu), gEngine.sampleRate);
+}
+
+void pokey_music_write(uint32_t reg, uint32_t val) {
+  gEngine.musicPokey.write(static_cast<uint8_t>(reg & 0x0fu),
+                           static_cast<uint8_t>(val & 0xffu));
 }
 
 void audio_render(int frames) {

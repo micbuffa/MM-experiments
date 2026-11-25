@@ -208,4 +208,37 @@ describe('createRemasterSimulation', () => {
     expect(state.remainingTime).toBe(12);
     expect(state.players[0]!.score).toBe(0);
   });
+
+  it('penalizes and respawns the trailing player with -5 SEC when falling off-screen in 2P mode', () => {
+    const level = makeFlatLevel();
+    const physics = makeStubPhysics();
+    const sim = createRemasterSimulation(level, physics, true);
+    sim.skipOpening();
+
+    // Advance P1 far ahead of P2 (> catchUpLagCells)
+    physics.marbles[0] = {
+      position: { x: 18, y: 0, z: 18 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    physics.marbles[1] = {
+      position: { x: -5, y: 0, z: -5 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    const state = sim.step(1 / 60, []);
+    expect(state.events).toContainEqual({
+      type: 'catchUp',
+      player: 2,
+      penaltySeconds: REMASTER_RULES.catchUpPenaltySeconds,
+    });
+    expect(state.players[1]!.life).toBe('respawning');
+    expect(state.players[1]!.catchUpTimer).toBeGreaterThan(0);
+    expect(state.players[1]!.remainingTime).toBeCloseTo(
+      12 - 1 / 60 - REMASTER_RULES.catchUpPenaltySeconds,
+      2,
+    );
+  });
 });

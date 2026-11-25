@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:audio-wasm": "node scripts/build-audio-wasm.mjs",
+    "build:music": "node scripts/generate-remaster-music.mjs",
     "build:beta": "tsc --noEmit && node scripts/build-beta.mjs",
     "build:remaster": "tsc --noEmit && node scripts/build-remaster.mjs",
     "preview": "vite preview",

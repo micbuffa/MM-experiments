@@ -42,7 +42,10 @@ All audio code for the remaster is cleanly isolated from the simulation, physics
 | [`scripts/build-audio-wasm.mjs`](scripts/build-audio-wasm.mjs)                           | Reproducible build script compiling `opm_pokey.cpp` → `public/assets/audio/opm-pokey.wasm` (`~12.7 KiB`).                                                        |
 | [`public/assets/audio/opm-pokey-worklet.js`](public/assets/audio/opm-pokey-worklet.js)   | `AudioWorkletProcessor` instantiating the WASM binary, rendering 128-sample stereo blocks in the audio thread, and running an integrated 44.1 kHz VGM scheduler. |
 | [`src/remaster/audio/vgmParser.ts`](src/remaster/audio/vgmParser.ts)                     | Parses `.vgm` and gzipped `.vgz` (via `fflate`) into timed YM2151 (`0x54`) and POKEY (`0xBB`) register writes with loop support.                                 |
-| [`src/remaster/audio/createRemasterAudio.ts`](src/remaster/audio/createRemasterAudio.ts) | TypeScript `RemasterAudioController` owning the `AudioContext`, `AudioWorkletNode`, built-in FM demo sequencer, and real-time SFX triggers.                      |
+| [`public/assets/audio/level1-practice.vgm`](public/assets/audio/level1-practice.vgm)     | Preloaded original Practice-Race-inspired YM2151 + POKEY loop (standard VGM 1.50, editable in Furnace Tracker / regenerated via `npm run build:music`).          |
+| [`public/assets/audio/goal-fanfare.vgm`](public/assets/audio/goal-fanfare.vgm)           | Preloaded one-shot celebratory YM2151 `GOAL` fanfare triggered automatically on finish.                                                                          |
+| [`public/assets/audio/sfx-bank.json`](public/assets/audio/sfx-bank.json)                 | Human-editable JSON sound-design bank defining all FM SFX operator patches, note macros, and POKEY rolling/shatter curves (loaded at runtime — edit & reload!).  |
+| [`src/remaster/audio/createRemasterAudio.ts`](src/remaster/audio/createRemasterAudio.ts) | TypeScript `RemasterAudioController` owning the `AudioContext`, `AudioWorkletNode`, preloaded VGM tracks, and `sfx-bank.json` SFX triggers.                      |
 
 ### Signal flow
 

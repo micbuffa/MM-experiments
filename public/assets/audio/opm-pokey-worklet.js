@@ -40,6 +40,7 @@ class OpmPokeyWorklet extends AudioWorkletProcessor {
           else this.exports.pokey_write(op[1], op[2]);
         }
       } else if (msg.type === 'vgm') {
+        this.exports?.audio_reset_music?.();
         this.vgm = msg.vgm;
         this.vgmIndex = 0;
         this.vgmWaitSamples = 0;
@@ -76,8 +77,9 @@ class OpmPokeyWorklet extends AudioWorkletProcessor {
         }
       }
       const cmd = cmds[this.vgmIndex++];
-      if (cmd.type === 'opm') this.exports.opm_write(cmd.reg, cmd.val);
-      else if (cmd.type === 'pokey') this.exports.pokey_write(cmd.reg, cmd.val);
+      if (cmd.type === 'opm') this.exports.opm_music_write(cmd.reg, cmd.val);
+      else if (cmd.type === 'pokey')
+        this.exports.pokey_music_write(cmd.reg, cmd.val);
       else if (cmd.type === 'wait') this.vgmWaitSamples += cmd.samples;
     }
   }

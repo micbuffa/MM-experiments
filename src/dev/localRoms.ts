@@ -20,7 +20,37 @@ const STUDY_TYPES = new Map([
   ['level5-web.state', 'application/octet-stream'],
   ['level6-terrain.json', 'application/json'],
   ['level6-web.state', 'application/octet-stream'],
+  ['level1-practice.vgz', 'application/octet-stream'],
+  ['level1-practice.vgm', 'application/octet-stream'],
+  ['goal-fanfare.vgz', 'application/octet-stream'],
+  ['goal-fanfare.vgm', 'application/octet-stream'],
+  ['level2-beginner.vgz', 'application/octet-stream'],
+  ['level2-beginner.vgm', 'application/octet-stream'],
+  ['level3-intermediate.vgz', 'application/octet-stream'],
+  ['level3-intermediate.vgm', 'application/octet-stream'],
+  ['level4-aerial.vgz', 'application/octet-stream'],
+  ['level4-aerial.vgm', 'application/octet-stream'],
+  ['level5-silly.vgz', 'application/octet-stream'],
+  ['level5-silly.vgm', 'application/octet-stream'],
+  ['level6-ultimate.vgz', 'application/octet-stream'],
+  ['level6-ultimate.vgm', 'application/octet-stream'],
 ]);
+// Optional local VGMRips pack inside local-roms/original_FX_and_musics/ (with or without inner folder).
+const ORIGINAL_VGM_FILES: Readonly<Record<string, string>> = {
+  'level1-practice.vgz': '02 Level 1.vgz',
+  'goal-fanfare.vgz': '03 Player 1 Goal In.vgz',
+  'goal-fanfare-p2.vgz': '04 Player 2 Goal In.vgz',
+  'level2-beginner.vgz': '05 Level 2.vgz',
+  'level3-intermediate.vgz': '06 Level 3.vgz',
+  'level4-aerial.vgz': '07 Level 4-1.vgz',
+  'level4-aerial-2.vgz': '08 Level 4-2.vgz',
+  'level5-silly.vgz': '09 Level 5.vgz',
+  'level6-ultimate.vgz': '10 Level 6.vgz',
+  'congratulations.vgz': '11 Congratulations.vgz',
+  'high-score.vgz': '12 High Score Entry.vgz',
+  'game-over.vgz': '13 Game Over.vgz',
+  'coin.vgz': '01 Coin.vgz',
+};
 const LEVEL_PNG_FILES = new Map([
   ['level-png-1.png', 'MarbleMadness_Level1.png'],
   ['level-png-2.png', 'MarbleMadness_Level2.png'],
@@ -75,6 +105,58 @@ export async function handleLocalRoms(
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ game, bios }),
+    };
+  }
+  async function resolveVgmPath(key: string): Promise<string | null> {
+    const direct = join(root, 'local-roms', key);
+    if (await isAvailable(direct)) return direct;
+    const packFile = ORIGINAL_VGM_FILES[key];
+    if (!packFile) return null;
+    for (const folder of [
+      join(root, 'local-roms', 'original_FX_and_musics'),
+      join(
+        root,
+        'local-roms',
+        'original_FX_and_musics',
+        'Marble_Madness_(Atari_System_1)',
+      ),
+    ]) {
+      const candidate = join(folder, packFile);
+      if (await isAvailable(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  if (name === 'vgm-list') {
+    const vgmKeys = new Set([
+      ...[...STUDY_TYPES.keys()].filter(
+        (key) => key.endsWith('.vgz') || key.endsWith('.vgm'),
+      ),
+      ...Object.keys(ORIGINAL_VGM_FILES),
+    ]);
+    const available = await Promise.all(
+      [...vgmKeys].map(async (file) =>
+        (await resolveVgmPath(file)) ? file : null,
+      ),
+    );
+    return {
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        files: available.filter((item): item is string => item !== null),
+      }),
+    };
+  }
+  if (name.endsWith('.vgz') || name.endsWith('.vgm')) {
+    const resolved = await resolveVgmPath(name);
+    if (!resolved) return text(404, 'Piste VGM locale introuvable.');
+    return {
+      status: 200,
+      contentType: 'application/octet-stream',
+      body:
+        request.method === 'HEAD'
+          ? new Uint8Array()
+          : new Uint8Array(await readFile(resolved)),
     };
   }
   const levelPng = LEVEL_PNG_FILES.get(name);

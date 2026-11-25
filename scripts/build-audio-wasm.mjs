@@ -10,7 +10,7 @@ mkdirSync(dirname(output), { recursive: true });
 
 const emcc = process.env.EMCC || 'emcc';
 const exportsList =
-  "['_audio_init','_audio_set_mix','_opm_write','_pokey_write','_audio_render','_audio_left_ptr','_audio_right_ptr']";
+  "['_audio_init','_audio_reset_music','_audio_set_mix','_opm_write','_pokey_write','_opm_music_write','_pokey_music_write','_audio_render','_audio_left_ptr','_audio_right_ptr']";
 
 execFileSync(
   emcc,

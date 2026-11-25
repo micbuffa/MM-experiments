@@ -144,6 +144,7 @@ async function bootRemaster() {
     physics = await createHavokBackend(view.scene, level, twoPlayers);
     sim = createRemasterSimulation(level, physics, twoPlayers);
     accumulator = 0;
+    audio.playLevelTheme();
     updateToolbarLabels();
   }
 
@@ -244,12 +245,17 @@ async function bootRemaster() {
     const p1 = snap.players[0];
     const p2 = snap.players[1];
     scoreEl.textContent = String(p1?.score ?? 0);
-    if (p2) scoreP2El.textContent = String(p2.score);
-    const secs = Math.ceil(snap.remainingTime);
-    timerEl.textContent = String(secs);
+    if (p2) {
+      scoreP2El.textContent = `${p2.score} · ${Math.ceil(p2.remainingTime)}s`;
+    }
+    const secs = Math.ceil(p1?.remainingTime ?? snap.remainingTime);
+    timerEl.textContent = twoPlayers
+      ? `P1 ${secs}s · P2 ${Math.ceil(p2?.remainingTime ?? 0)}s`
+      : String(secs);
     timerEl.classList.toggle(
       'low-time',
-      secs <= 10 && snap.phase === 'playing',
+      Math.min(secs, p2 ? Math.ceil(p2.remainingTime) : secs) <= 10 &&
+        snap.phase === 'playing',
     );
 
     if (snap.phase === 'opening') {
@@ -365,6 +371,7 @@ async function bootRemaster() {
         view.camera.setFov(fov);
       } else if (event.code === 'KeyR') {
         sim.reset();
+        audio.playLevelTheme();
       } else if (event.code === 'KeyM') {
         audioMuted = !audioMuted;
         audio.setMuted(audioMuted);
@@ -434,6 +441,7 @@ async function bootRemaster() {
     () => {
       unlockAudio();
       sim.reset();
+      audio.playLevelTheme();
     },
     { signal },
   );

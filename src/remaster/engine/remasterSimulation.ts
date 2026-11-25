@@ -46,6 +46,11 @@ export type RemasterEvent =
   | { readonly type: 'fall'; readonly player: 1 | 2 }
   | { readonly type: 'respawn'; readonly player: 1 | 2 }
   | {
+      readonly type: 'catchUp';
+      readonly player: 1 | 2;
+      readonly penaltySeconds: number;
+    }
+  | {
       readonly type: 'goal';
       readonly player: 1 | 2;
       readonly timeBonus: number;
@@ -60,7 +65,9 @@ export interface RemasterPlayerState {
   readonly velocity: Vec3;
   readonly grounded: boolean;
   readonly score: number;
+  readonly remainingTime: number;
   readonly stateTimer: number;
+  readonly catchUpTimer: number;
   readonly lastSafe: Vec3;
   readonly maxProgress: number;
 }
@@ -82,7 +89,9 @@ interface MutablePlayer {
   velocity: { x: number; y: number; z: number };
   grounded: boolean;
   score: number;
+  remainingTime: number;
   stateTimer: number;
+  catchUpTimer: number;
   lastSafe: { x: number; y: number; z: number };
   maxProgress: number;
 }
@@ -115,7 +124,9 @@ export function createRemasterSimulation(
       velocity: { x: 0, y: 0, z: 0 },
       grounded: true,
       score: 0,
+      remainingTime: level.timerSeconds,
       stateTimer: 0,
+      catchUpTimer: 0,
       lastSafe: { ...pos },
       maxProgress: progressAlong(pos),
     };
@@ -152,7 +163,9 @@ export function createRemasterSimulation(
         velocity: { ...p.velocity },
         grounded: p.grounded,
         score: p.score,
+        remainingTime: p.remainingTime,
         stateTimer: p.stateTimer,
+        catchUpTimer: p.catchUpTimer,
         lastSafe: { ...p.lastSafe },
         maxProgress: p.maxProgress,
       })),
@@ -202,8 +215,16 @@ export function createRemasterSimulation(
         return snapshot(events);
       }
 
-      // Advance race countdown timer.
-      remainingTime = Math.max(0, remainingTime - dt);
+      // Advance per-player countdown timers.
+      for (const p of players) {
+        if (p.life !== 'goal') {
+          p.remainingTime = Math.max(0, p.remainingTime - dt);
+        }
+        if (p.catchUpTimer > 0) {
+          p.catchUpTimer = Math.max(0, p.catchUpTimer - dt);
+        }
+      }
+      remainingTime = Math.max(...players.map((p) => p.remainingTime));
       const whole = Math.ceil(remainingTime);
       if (
         whole < lastWholeSecond &&
@@ -223,9 +244,32 @@ export function createRemasterSimulation(
         return snapshot(events);
       }
 
-      // Apply player commands to active marbles.
+      // Apply player commands to active marbles, and gentle coast-in for marbles
+      // that just crossed GOAL so they roll into the middle of the pad without blocking P2.
       for (let i = 0; i < players.length; i++) {
         const p = players[i]!;
+        if (p.life === 'goal') {
+          if (p.stateTimer > 0) {
+            p.stateTimer = Math.max(0, p.stateTimer - dt);
+            const targetX =
+              level.goal.minX + (level.goal.maxX - level.goal.minX) * 0.65;
+            const targetZ =
+              level.goal.minZ +
+              (level.goal.maxZ - level.goal.minZ) * (p.id === 1 ? 0.28 : 0.72);
+            const dx = targetX - p.position.x;
+            const dz = targetZ - p.position.z;
+            const dist = Math.hypot(dx, dz);
+            if (dist > 0.35) {
+              const pull = Math.min(18, dist * 9);
+              physics.applyPlayerForce(
+                i as 0 | 1,
+                (dx / dist) * pull,
+                (dz / dist) * pull,
+              );
+            }
+          }
+          continue;
+        }
         if (p.life !== 'active') continue;
         const input = inputs[i];
         if (!input) continue;
@@ -274,7 +318,13 @@ export function createRemasterSimulation(
           continue;
         }
 
-        if (p.life === 'goal') continue;
+        if (p.life === 'goal') {
+          const body = physics.readMarble(idx);
+          p.position = { ...body.position };
+          p.velocity = { ...body.velocity };
+          p.grounded = body.grounded;
+          continue;
+        }
 
         const body = physics.readMarble(idx);
         p.position = { ...body.position };
@@ -340,16 +390,53 @@ export function createRemasterSimulation(
           isInsideGoal(level.goal, body.position.x, body.position.z)
         ) {
           p.life = 'goal';
+          p.stateTimer = 0.8;
           if (goalOwner === undefined) goalOwner = p.id;
           const timeBonus =
-            Math.floor(remainingTime) * REMASTER_RULES.timeBonusPointsPerSecond;
+            Math.floor(p.remainingTime) *
+            REMASTER_RULES.timeBonusPointsPerSecond;
           p.score += timeBonus;
-          physics.setMarbleKinematic(idx, true);
           events.push({ type: 'goal', player: p.id, timeBonus });
           continue;
         }
 
         allAtGoal = false;
+      }
+
+      // Two-player off-screen catch-up: if the trailing marble falls too far
+      // behind the leader, deduct 5 seconds and respawn it near the leader with
+      // the arcade "-5 SEC" floating notice.
+      if (twoPlayers && players.length === 2) {
+        const p0 = players[0]!;
+        const p1 = players[1]!;
+        const d0 = progressAlong(p0.position);
+        const d1 = progressAlong(p1.position);
+        const leaderIdx = d0 >= d1 ? 0 : 1;
+        const trailerIdx = (1 - leaderIdx) as 0 | 1;
+        const leader = players[leaderIdx]!;
+        const trailer = players[trailerIdx]!;
+        if (
+          trailer.life === 'active' &&
+          Math.abs(d0 - d1) > REMASTER_RULES.catchUpLagCells
+        ) {
+          trailer.remainingTime = Math.max(
+            0,
+            trailer.remainingTime - REMASTER_RULES.catchUpPenaltySeconds,
+          );
+          trailer.life = 'respawning';
+          trailer.stateTimer = REMASTER_RULES.respawnInvulnSeconds;
+          trailer.catchUpTimer = REMASTER_RULES.catchUpNoticeSeconds;
+          trailer.lastSafe = { ...leader.lastSafe };
+          trailer.position = { ...leader.lastSafe };
+          trailer.velocity = { x: 0, y: 0, z: 0 };
+          physics.setMarbleKinematic(trailerIdx, true);
+          physics.teleportMarble(trailerIdx, trailer.lastSafe);
+          events.push({
+            type: 'catchUp',
+            player: trailer.id,
+            penaltySeconds: REMASTER_RULES.catchUpPenaltySeconds,
+          });
+        }
       }
 
       if (allAtGoal) {

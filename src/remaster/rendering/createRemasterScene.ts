@@ -15,6 +15,7 @@ import type { PracticeTerrain } from '../../game/modern/practiceTerrain';
 import type { RenderQuality } from '../../game/renderQuality';
 import { createCameraOcclusion } from '../../rendering/createCameraOcclusion';
 import { createLivePracticeCamera } from '../../rendering/createLivePracticeCamera';
+import { createPracticeCatchUpLabel } from '../../rendering/createPracticeCatchUpLabel';
 import { createPracticeGoalMaterial } from '../../rendering/createPracticeGoal';
 import { createPracticeMarble } from '../../rendering/createPracticeMarble';
 import { createPracticeRespawn } from '../../rendering/createPracticeRespawn';
@@ -40,6 +41,16 @@ export function createRemasterScene(
   const secondRespawn = createPracticeRespawn(
     scene,
     'remaster-respawn-2',
+    true,
+  );
+  const firstCatchUp = createPracticeCatchUpLabel(
+    scene,
+    'remaster-catchup-1',
+    false,
+  );
+  const secondCatchUp = createPracticeCatchUpLabel(
+    scene,
+    'remaster-catchup-2',
     true,
   );
 
@@ -137,10 +148,15 @@ export function createRemasterScene(
       }
 
       if (p1) {
+        // In 2P mode follow whichever player is leading down the course.
+        const leader =
+          p2 && p2.position.x + p2.position.z > p1.position.x + p1.position.z
+            ? p2
+            : p1;
         const scroll =
           snapshot.phase === 'opening'
             ? practiceOpeningScroll
-            : computeArcadeScroll(p1.position.x, p1.position.z);
+            : computeArcadeScroll(leader.position.x, leader.position.z);
         const syntheticPose: PracticePose = {
           marble: p1Visible ? 'visible' : 'hidden',
           x: (p1.position.x + columns / 2) * arcadeCellUnits,
@@ -162,13 +178,28 @@ export function createRemasterScene(
               }
             : {}),
         };
-        camera.update(syntheticPose, p1.position);
+        camera.update(syntheticPose, leader.position);
+
+        // Display floating arcade "-5 SEC" notice above a player after 2P catch-up.
+        const catchUpSwing = (timer: number) => Math.sin(timer * 18) * 6;
+        firstCatchUp(
+          p1.catchUpTimer > 0 ? p1.position : null,
+          p1.catchUpTimer > 0 ? catchUpSwing(p1.catchUpTimer) : undefined,
+        );
+        secondCatchUp(
+          p2 && p2.catchUpTimer > 0 ? p2.position : null,
+          p2 && p2.catchUpTimer > 0 ? catchUpSwing(p2.catchUpTimer) : undefined,
+        );
 
         const activePreset = camera.diagnostics.active;
         const shouldOcclude =
           activePreset !== 'opening' &&
           isChasePracticeCamera(activePreset as PracticeCameraPreset);
-        marblePos.set(p1.position.x, p1.position.y + 0.675, p1.position.z);
+        marblePos.set(
+          leader.position.x,
+          leader.position.y + 0.675,
+          leader.position.z,
+        );
         occlusion(p1Visible ? marblePos : null, shouldOcclude, dtSeconds);
       }
     },

@@ -1,4 +1,10 @@
 import type { RemasterEvent } from '../engine/remasterSimulation';
+import {
+  DEFAULT_SFX_BANK,
+  parseSfxBank,
+  type FmChannelPatch,
+  type SfxBankV1,
+} from './sfxBank';
 import { parseVgm, type ParsedVgm } from './vgmParser';
 
 // YM2151 Key Code helper: MIDI note (e.g. 60 = C4) -> OPM KC byte.
@@ -13,51 +19,14 @@ function midiToKc(midi: number): number {
 
 type ChipOp = readonly [0 | 1, number, number]; // 0=OPM, 1=POKEY
 
-function loadFmPatch(
-  ch: number,
-  alg: number,
-  fb: number,
-  ops: readonly [
-    {
-      mul: number;
-      tl: number;
-      ar: number;
-      d1r: number;
-      d1l: number;
-      rr: number;
-    },
-    {
-      mul: number;
-      tl: number;
-      ar: number;
-      d1r: number;
-      d1l: number;
-      rr: number;
-    },
-    {
-      mul: number;
-      tl: number;
-      ar: number;
-      d1r: number;
-      d1l: number;
-      rr: number;
-    },
-    {
-      mul: number;
-      tl: number;
-      ar: number;
-      d1r: number;
-      d1l: number;
-      rr: number;
-    },
-  ],
-): ChipOp[] {
+function loadFmPatch(patch: FmChannelPatch): ChipOp[] {
+  const ch = patch.channel & 7;
   const batch: ChipOp[] = [
-    [0, 0x20 + ch, (0b11 << 6) | ((fb & 7) << 3) | (alg & 7)],
+    [0, 0x20 + ch, (0b11 << 6) | ((patch.fb & 7) << 3) | (patch.alg & 7)],
   ];
   const slotOffsets = [0x00, 0x10, 0x08, 0x18] as const; // M1, C1, M2, C2
   for (let i = 0; i < 4; i++) {
-    const o = ops[i]!;
+    const o = patch.ops[i]!;
     const s = slotOffsets[i]! + ch;
     batch.push(
       [0, 0x40 + s, o.mul & 0x0f],
@@ -76,6 +45,7 @@ export interface RemasterAudioController {
   setMuted(muted: boolean): void;
   setMix(music: number, sfx: number): void;
   setMusicEnabled(enabled: boolean): void;
+  playLevelTheme(): void;
   loadVgm(bytes: Uint8Array): ParsedVgm;
   clearVgm(): void;
   updateRolling(speed: number, grounded: boolean): void;
@@ -85,9 +55,9 @@ export interface RemasterAudioController {
 
 /**
  * Autonomous WebAudio controller for the Yamaha YM2151 (OPM) + Atari POKEY WASM worklet.
- * Channels 0..3: Music (built-in original FM theme or user-loaded .vgm/.vgz).
- * Channels 4..7: Real-time FM SFX (wall bounce, fall whistle, respawn, countdown, GOAL fanfare).
- * POKEY 0..1: Continuous rolling marble rumble + shatter noise burst.
+ * Preloads editable `sfx-bank.json`, `level1-practice.vgm`, and `goal-fanfare.vgm`.
+ * Channels 0..3 (+ POKEY ch 2): Music bus (preloaded or user-dropped .vgm/.vgz).
+ * Channels 4..7 (+ POKEY ch 0..1): Real-time SFX bus driven by `sfx-bank.json`.
  */
 export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
   let ctx: AudioContext | undefined;
@@ -97,10 +67,13 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
   let musicGain = 0.75;
   let sfxGain = 1.0;
   let musicEnabled = true;
-  let customVgmActive = false;
+  let customVgm: ParsedVgm | null = null;
+  let levelThemeVgm: ParsedVgm | null = null;
+  let goalFanfareVgm: ParsedVgm | null = null;
+  let goalFanfareP2Vgm: ParsedVgm | null = null;
+  let gameOverVgm: ParsedVgm | null = null;
+  let sfxBank: SfxBankV1 = DEFAULT_SFX_BANK;
   let disposed = false;
-  let musicTimer: number | undefined;
-  let stepIndex = 0;
   let lastRollReg = -1;
   let shatterTimeout: number | undefined;
 
@@ -108,74 +81,35 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     if (ready && node && !disposed) node.port.postMessage(msg);
   }
 
-  function configureDefaultPatches() {
+  function applySfxPatches() {
     const ops: ChipOp[] = [
-      // Ch 0: Bright FM marimba/bell lead
-      ...loadFmPatch(0, 4, 2, [
-        { mul: 3, tl: 34, ar: 31, d1r: 14, d1l: 6, rr: 9 },
-        { mul: 1, tl: 18, ar: 31, d1r: 10, d1l: 5, rr: 8 },
-        { mul: 2, tl: 42, ar: 31, d1r: 12, d1l: 8, rr: 8 },
-        { mul: 1, tl: 22, ar: 31, d1r: 12, d1l: 6, rr: 8 },
-      ]),
-      // Ch 1: Punchy FM synth bass
-      ...loadFmPatch(1, 0, 5, [
-        { mul: 1, tl: 28, ar: 31, d1r: 16, d1l: 6, rr: 10 },
-        { mul: 2, tl: 36, ar: 31, d1r: 12, d1l: 4, rr: 10 },
-        { mul: 1, tl: 32, ar: 31, d1r: 10, d1l: 4, rr: 10 },
-        { mul: 1, tl: 16, ar: 31, d1r: 8, d1l: 2, rr: 10 },
-      ]),
-      // Ch 4: Wall bounce percussive FM thud
-      ...loadFmPatch(4, 4, 4, [
-        { mul: 4, tl: 18, ar: 31, d1r: 22, d1l: 12, rr: 14 },
-        { mul: 1, tl: 14, ar: 31, d1r: 18, d1l: 12, rr: 14 },
-        { mul: 2, tl: 32, ar: 31, d1r: 20, d1l: 12, rr: 14 },
-        { mul: 1, tl: 18, ar: 31, d1r: 18, d1l: 12, rr: 14 },
-      ]),
-      // Ch 5: Chime / GOAL fanfare / countdown tick
-      ...loadFmPatch(5, 5, 1, [
-        { mul: 4, tl: 28, ar: 31, d1r: 12, d1l: 6, rr: 9 },
-        { mul: 1, tl: 12, ar: 31, d1r: 10, d1l: 4, rr: 8 },
-        { mul: 2, tl: 20, ar: 31, d1r: 12, d1l: 6, rr: 8 },
-        { mul: 3, tl: 26, ar: 31, d1r: 14, d1l: 8, rr: 8 },
-      ]),
-      // Ch 6: Fall descending whistle
-      ...loadFmPatch(6, 4, 0, [
-        { mul: 2, tl: 44, ar: 28, d1r: 8, d1l: 4, rr: 8 },
-        { mul: 1, tl: 16, ar: 28, d1r: 6, d1l: 3, rr: 8 },
-        { mul: 1, tl: 50, ar: 28, d1r: 8, d1l: 4, rr: 8 },
-        { mul: 1, tl: 20, ar: 28, d1r: 6, d1l: 3, rr: 8 },
-      ]),
+      ...loadFmPatch(sfxBank.patches.impact),
+      ...loadFmPatch(sfxBank.patches.chime),
+      ...loadFmPatch(sfxBank.patches.fall),
     ];
     post({ type: 'batch', ops });
   }
 
-  // Original upbeat 80s FM arcade pattern (Dorian groove) played directly on YM2151 ch 0-1.
-  const leadPattern = [
-    62, 65, 69, 72, 74, 72, 69, 67, 65, 69, 72, 76, 74, 72, 69, 65,
-  ];
-  const bassPattern = [
-    38, 38, 45, 38, 41, 41, 45, 43, 38, 38, 45, 38, 43, 43, 45, 48,
-  ];
+  function silenceMusicChannels() {
+    post({
+      type: 'batch',
+      ops: [
+        [0, 0x08, 0x00],
+        [0, 0x08, 0x01],
+        [0, 0x08, 0x02],
+        [0, 0x08, 0x03],
+        [1, 0x05, 0x00],
+      ],
+    });
+  }
 
-  function startBuiltinSequencer() {
-    if (musicTimer !== undefined) return;
-    musicTimer = window.setInterval(() => {
-      if (!ready || muted || !musicEnabled || customVgmActive) return;
-      const lead = leadPattern[stepIndex % leadPattern.length]!;
-      const bass = bassPattern[stepIndex % bassPattern.length]!;
-      stepIndex++;
-      post({
-        type: 'batch',
-        ops: [
-          [0, 0x08, 0x00],
-          [0, 0x28, midiToKc(lead)],
-          [0, 0x08, 0x78],
-          [0, 0x08, 0x01],
-          [0, 0x29, midiToKc(bass)],
-          [0, 0x08, 0x79],
-        ],
-      });
-    }, 150);
+  function playTrack(track: ParsedVgm | null) {
+    silenceMusicChannels();
+    if (musicEnabled && track) {
+      post({ type: 'vgm', vgm: track });
+    } else {
+      post({ type: 'vgm', vgm: null });
+    }
   }
 
   function triggerNote(ch: number, midi: number, durationMs = 140) {
@@ -192,6 +126,75 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     }, durationMs);
   }
 
+  async function listLocalVgms(): Promise<Set<string>> {
+    if (!import.meta.env.DEV) return new Set();
+    try {
+      const res = await fetch('/__local-roms/vgm-list');
+      if (!res.ok) return new Set();
+      const json = (await res.json()) as { files?: unknown };
+      if (!Array.isArray(json.files)) return new Set();
+      return new Set(
+        json.files.filter((item): item is string => typeof item === 'string'),
+      );
+    } catch {
+      return new Set();
+    }
+  }
+
+  async function fetchFirstVgm(
+    urls: readonly string[],
+  ): Promise<ParsedVgm | null> {
+    for (const url of urls) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) return parseVgm(new Uint8Array(await res.arrayBuffer()));
+      } catch {
+        // Try next candidate.
+      }
+    }
+    return null;
+  }
+
+  async function preloadAudioAssets(prefix: string) {
+    const localVgms = await listLocalVgms();
+    const resolveTrackUrls = (stem: string) => {
+      const urls: string[] = [];
+      if (localVgms.has(`${stem}.vgz`)) urls.push(`/__local-roms/${stem}.vgz`);
+      if (localVgms.has(`${stem}.vgm`)) urls.push(`/__local-roms/${stem}.vgm`);
+      if (!import.meta.env.DEV) urls.push(`${prefix}assets/audio/${stem}.vgz`);
+      urls.push(`${prefix}assets/audio/${stem}.vgm`);
+      return urls;
+    };
+
+    const [bankRes, levelTrack, goalTrack, goalP2Track, gameOverTrack] =
+      await Promise.all([
+        fetch(`${prefix}assets/audio/sfx-bank.json`).catch(() => null),
+        fetchFirstVgm(resolveTrackUrls('level1-practice')),
+        fetchFirstVgm(resolveTrackUrls('goal-fanfare')),
+        localVgms.has('goal-fanfare-p2.vgz')
+          ? fetchFirstVgm(['/__local-roms/goal-fanfare-p2.vgz'])
+          : !import.meta.env.DEV
+            ? fetchFirstVgm([`${prefix}assets/audio/goal-fanfare-p2.vgz`])
+            : Promise.resolve(null),
+        localVgms.has('game-over.vgz')
+          ? fetchFirstVgm(['/__local-roms/game-over.vgz'])
+          : !import.meta.env.DEV
+            ? fetchFirstVgm([`${prefix}assets/audio/game-over.vgz`])
+            : Promise.resolve(null),
+      ]);
+    if (bankRes?.ok) {
+      try {
+        sfxBank = parseSfxBank(await bankRes.text());
+      } catch {
+        sfxBank = DEFAULT_SFX_BANK;
+      }
+    }
+    levelThemeVgm = levelTrack;
+    goalFanfareVgm = goalTrack;
+    goalFanfareP2Vgm = goalP2Track;
+    gameOverVgm = gameOverTrack;
+  }
+
   return {
     async unlock() {
       if (disposed) return;
@@ -201,10 +204,13 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       }
       ctx = new AudioContext();
       const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-      await ctx.audioWorklet.addModule(
-        `${prefix}assets/audio/opm-pokey-worklet.js`,
-      );
-      const wasmResponse = await fetch(`${prefix}assets/audio/opm-pokey.wasm`);
+      const [, wasmResponse] = await Promise.all([
+        ctx.audioWorklet.addModule(
+          `${prefix}assets/audio/opm-pokey-worklet.js`,
+        ),
+        fetch(`${prefix}assets/audio/opm-pokey.wasm`),
+        preloadAudioAssets(prefix),
+      ]);
       const wasmBytes = await wasmResponse.arrayBuffer();
       if (disposed) return;
       node = new AudioWorkletNode(ctx, 'opm-pokey-worklet', {
@@ -225,10 +231,10 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
         };
         node.port.postMessage({ type: 'init', wasmBytes }, [wasmBytes]);
       });
-      configureDefaultPatches();
+      applySfxPatches();
       post({ type: 'mute', muted });
       post({ type: 'mix', music: musicGain, sfx: sfxGain });
-      startBuiltinSequencer();
+      playTrack(customVgm ?? levelThemeVgm);
     },
 
     setMuted(value: boolean) {
@@ -244,38 +250,35 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
 
     setMusicEnabled(enabled: boolean) {
       musicEnabled = enabled;
-      if (!enabled) {
-        post({
-          type: 'batch',
-          ops: [
-            [0, 0x08, 0x00],
-            [0, 0x08, 0x01],
-          ],
-        });
-      }
+      playTrack(enabled ? (customVgm ?? levelThemeVgm) : null);
+    },
+
+    playLevelTheme() {
+      playTrack(customVgm ?? levelThemeVgm);
     },
 
     loadVgm(bytes: Uint8Array): ParsedVgm {
       const parsed = parseVgm(bytes);
-      customVgmActive = true;
-      post({ type: 'vgm', vgm: parsed });
+      customVgm = parsed;
+      playTrack(parsed);
       return parsed;
     },
 
     clearVgm() {
-      customVgmActive = false;
-      post({ type: 'vgm', vgm: null });
-      configureDefaultPatches();
+      customVgm = null;
+      applySfxPatches();
+      playTrack(levelThemeVgm);
     },
 
     updateRolling(speed: number, grounded: boolean) {
       if (!ready || muted) return;
-      // POKEY channel 0: low-passed 17-bit rumble scaled gently by marble speed.
-      const effective = grounded && speed > 0.8 ? speed - 0.8 : 0;
-      const vol = Math.min(4, Math.floor(effective * 0.3));
+      const r = sfxBank.rolling;
+      const effective =
+        grounded && speed > r.speedThreshold ? speed - r.speedThreshold : 0;
+      const vol = Math.min(r.maxVolume, Math.floor(effective * r.volumeSlope));
       const audf = Math.max(
-        130,
-        Math.min(245, Math.round(240 - effective * 7)),
+        r.minAudf,
+        Math.min(r.maxAudf, Math.round(r.baseAudf - effective * r.audfSlope)),
       );
       const packed = (audf << 8) | vol;
       if (packed === lastRollReg) return;
@@ -291,39 +294,67 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
 
     handleEvents(events: readonly RemasterEvent[]) {
       if (!ready || muted) return;
+      const cfg = sfxBank.events;
       for (const ev of events) {
         if (ev.type === 'impact') {
-          const midi = 38 + Math.round(ev.intensity * 14);
-          triggerNote(4, midi, 90);
+          const midi =
+            cfg.impact.baseMidi +
+            Math.round(ev.intensity * cfg.impact.intensitySpan);
+          triggerNote(cfg.impact.channel, midi, cfg.impact.durationMs);
         } else if (ev.type === 'shatter') {
-          // POKEY channel 1: 17-bit explosion burst + FM crash
           post({
             type: 'batch',
             ops: [
-              [1, 0x02, 42],
-              [1, 0x03, 0x8d],
+              [1, 0x02, cfg.shatter.pokeyAudf],
+              [1, 0x03, cfg.shatter.pokeyAudc],
             ],
           });
-          triggerNote(4, 34, 240);
+          triggerNote(
+            cfg.shatter.fmChannel,
+            cfg.shatter.fmMidi,
+            cfg.shatter.fmDurationMs,
+          );
           window.clearTimeout(shatterTimeout);
           shatterTimeout = window.setTimeout(() => {
             post({ type: 'pokey', reg: 0x03, val: 0x00 });
-          }, 260);
+          }, cfg.shatter.pokeyDurationMs);
         } else if (ev.type === 'fall') {
-          const notes = [76, 71, 66, 61, 56, 51];
-          notes.forEach((n, idx) => {
-            window.setTimeout(() => triggerNote(6, n, 85), idx * 75);
+          cfg.fall.notes.forEach((n, idx) => {
+            window.setTimeout(
+              () => triggerNote(cfg.fall.channel, n, cfg.fall.durationMs),
+              idx * cfg.fall.stepMs,
+            );
           });
         } else if (ev.type === 'respawn') {
-          triggerNote(5, 64, 90);
-          window.setTimeout(() => triggerNote(5, 76, 140), 90);
-        } else if (ev.type === 'countdownTick') {
-          triggerNote(5, 84, 70);
-        } else if (ev.type === 'goal') {
-          const fanfare = [62, 66, 69, 74, 78, 81];
-          fanfare.forEach((n, idx) => {
-            window.setTimeout(() => triggerNote(5, n, 180), idx * 95);
+          cfg.respawn.notes.forEach((n, idx) => {
+            window.setTimeout(
+              () => triggerNote(cfg.respawn.channel, n, cfg.respawn.durationMs),
+              idx * cfg.respawn.stepMs,
+            );
           });
+        } else if (ev.type === 'catchUp') {
+          // Crisp descending warning chirp for "-5 SEC" 2P catch-up penalty.
+          [72, 66, 60].forEach((n, idx) => {
+            window.setTimeout(() => triggerNote(5, n, 95), idx * 80);
+          });
+        } else if (ev.type === 'countdownTick') {
+          triggerNote(
+            cfg.countdownTick.channel,
+            cfg.countdownTick.midi,
+            cfg.countdownTick.durationMs,
+          );
+        } else if (ev.type === 'goal') {
+          const fanfare =
+            ev.player === 2 && goalFanfareP2Vgm
+              ? goalFanfareP2Vgm
+              : goalFanfareVgm;
+          if (fanfare) {
+            playTrack(fanfare);
+          }
+        } else if (ev.type === 'gameOver') {
+          if (gameOverVgm) {
+            playTrack(gameOverVgm);
+          }
         }
       }
     },
@@ -331,7 +362,6 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     dispose() {
       if (disposed) return;
       disposed = true;
-      window.clearInterval(musicTimer);
       window.clearTimeout(shatterTimeout);
       node?.disconnect();
       void ctx?.close();

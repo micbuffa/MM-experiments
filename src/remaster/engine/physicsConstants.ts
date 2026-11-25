@@ -52,4 +52,10 @@ export const REMASTER_RULES = {
   progressPointsPerCell: 10,
   timeBonusPointsPerSecond: 100,
   lowTimeThresholdSeconds: 10,
+  /** Distance (cells along course) behind the leader that triggers 2P off-screen catch-up. */
+  catchUpLagCells: 17,
+  /** Time penalty deducted from the trailing player in 2P catch-up (matches arcade -5 SEC). */
+  catchUpPenaltySeconds: 5,
+  /** Duration of the floating -5 SEC 3D notice above the respawned marble. */
+  catchUpNoticeSeconds: 1.6,
 } as const;

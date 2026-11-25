@@ -1,0 +1,77 @@
+{
+  "format": "remaster-sfx-bank-v1",
+  "description": "Editable Yamaha YM2151 (OPM) + Atari POKEY sound-design bank for Marble Madness Remaster. Edit any FM operator, note sequence, or POKEY curve and reload the browser.",
+  "patches": {
+    "impact": {
+      "channel": 4,
+      "alg": 4,
+      "fb": 4,
+      "ops": [
+        { "mul": 4, "tl": 18, "ar": 31, "d1r": 22, "d1l": 12, "rr": 14 },
+        { "mul": 1, "tl": 14, "ar": 31, "d1r": 18, "d1l": 12, "rr": 14 },
+        { "mul": 2, "tl": 32, "ar": 31, "d1r": 20, "d1l": 12, "rr": 14 },
+        { "mul": 1, "tl": 18, "ar": 31, "d1r": 18, "d1l": 12, "rr": 14 }
+      ]
+    },
+    "chime": {
+      "channel": 5,
+      "alg": 5,
+      "fb": 1,
+      "ops": [
+        { "mul": 4, "tl": 28, "ar": 31, "d1r": 12, "d1l": 6, "rr": 9 },
+        { "mul": 1, "tl": 12, "ar": 31, "d1r": 10, "d1l": 4, "rr": 8 },
+        { "mul": 2, "tl": 20, "ar": 31, "d1r": 12, "d1l": 6, "rr": 8 },
+        { "mul": 3, "tl": 26, "ar": 31, "d1r": 14, "d1l": 8, "rr": 8 }
+      ]
+    },
+    "fall": {
+      "channel": 6,
+      "alg": 4,
+      "fb": 0,
+      "ops": [
+        { "mul": 2, "tl": 44, "ar": 28, "d1r": 8, "d1l": 4, "rr": 8 },
+        { "mul": 1, "tl": 16, "ar": 28, "d1r": 6, "d1l": 3, "rr": 8 },
+        { "mul": 1, "tl": 50, "ar": 28, "d1r": 8, "d1l": 4, "rr": 8 },
+        { "mul": 1, "tl": 20, "ar": 28, "d1r": 6, "d1l": 3, "rr": 8 }
+      ]
+    }
+  },
+  "rolling": {
+    "speedThreshold": 0.4,
+    "volumeSlope": 0.65,
+    "maxVolume": 10,
+    "baseAudf": 230,
+    "audfSlope": 8,
+    "minAudf": 100,
+    "maxAudf": 240
+  },
+  "events": {
+    "impact": {
+      "channel": 4,
+      "baseMidi": 38,
+      "intensitySpan": 14,
+      "durationMs": 90
+    },
+    "shatter": {
+      "pokeyAudf": 42,
+      "pokeyAudc": 141,
+      "pokeyDurationMs": 260,
+      "fmChannel": 4,
+      "fmMidi": 34,
+      "fmDurationMs": 240
+    },
+    "fall": {
+      "channel": 6,
+      "notes": [76, 71, 66, 61, 56, 51],
+      "stepMs": 75,
+      "durationMs": 85
+    },
+    "respawn": {
+      "channel": 5,
+      "notes": [64, 76],
+      "stepMs": 90,
+      "durationMs": 120
+    },
+    "countdownTick": { "channel": 5, "midi": 84, "durationMs": 70 }
+  }
+}

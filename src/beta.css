@@ -458,6 +458,26 @@ kbd {
   font-weight: 600;
 }
 
+.modern-starting {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #020305;
+  color: #cbd5e1;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.modern-starting[hidden] {
+  display: none;
+}
+
 .banner-accent {
   color: #fde68a;
 }

@@ -649,6 +649,23 @@ it('disallows chase camera in two-player mode and sweeps linearly from finish to
     expect(midPos.x).toBeCloseTo((startPos.x + endPos.x) / 2, 3);
     expect(midPos.z).toBeCloseTo((startPos.z + endPos.z) / 2, 3);
     expect(startPos.x + startPos.z).toBeGreaterThan(endPos.x + endPos.z);
+
+    // Regression: after an arcade opening blend freezes the perspective camera
+    // with an orthographic projection matrix, switching to overhead/chase must
+    // force-recompute a real perspective matrix (m[15] === 0, not 1).
+    view.camera.select('arcade');
+    view.update({ ...pose, opening: 0.9 });
+    view.update({ ...pose, opening: 1 });
+    expect(view.scene.activeCamera!.getProjectionMatrix().m[15]).toBeCloseTo(
+      1,
+      2,
+    );
+    view.camera.select('overhead');
+    view.update(pose);
+    expect(view.scene.activeCamera!.getProjectionMatrix().m[15]).toBeCloseTo(
+      0,
+      4,
+    );
   } finally {
     engine.dispose();
   }

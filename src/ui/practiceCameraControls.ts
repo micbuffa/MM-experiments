@@ -1,5 +1,6 @@
 import {
   clampPracticeFov,
+  isChasePracticeCamera,
   nextPracticeCamera,
   practiceCameraPresets,
   practiceLens,
@@ -25,11 +26,13 @@ export function mountPracticeCameraControls(
   cameras[1]!.replaceChildren(
     ...Array.from(cameras[0]!.options, (option) => option.cloneNode(true)),
   );
-  const chaseOptions = cameras
-    .map((input) =>
-      input.querySelector<HTMLOptionElement>('option[value="chase"]'),
-    )
-    .filter((option): option is HTMLOptionElement => option !== null);
+  const chaseOptions = cameras.flatMap((input) =>
+    Array.from(
+      input.querySelectorAll<HTMLOptionElement>(
+        'option[value="chase"], option[value="chaseHigh"]',
+      ),
+    ),
+  );
   let preset: PracticeCameraPreset = 'arcade';
   let fov = practiceLens.initial;
   let twoPlayers = false;
@@ -81,7 +84,7 @@ export function mountPracticeCameraControls(
       if (duo === twoPlayers) return;
       twoPlayers = duo;
       for (const option of chaseOptions) option.disabled = duo;
-      if (duo && preset === 'chase') select('arcade');
+      if (duo && isChasePracticeCamera(preset)) select('arcade');
     },
     next() {
       select(nextPracticeCamera(preset, twoPlayers));

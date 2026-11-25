@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { fitIntermediatePipeHoods } from './fitIntermediatePipeHoods';
 
-it('keeps all hood and lining faces while compacting the intact surface', () => {
+it('keeps all hood and lining faces while raising the upper hood roof for marble clearance', () => {
   const floor = ((16176 - 16384) * Math.sqrt(2 / 3)) / 8;
   const source = {
     positions: [14, floor + 1, 20.5, 14, floor + 1, 21.5, 17, floor + 1, 21.5],
@@ -13,7 +13,7 @@ it('keeps all hood and lining faces while compacting the intact surface', () => 
   expect(fitted.shell).toEqual(source.shell);
   expect(fitted.interior).toEqual(source.interior);
   expect(fitted.positions).toHaveLength(source.positions.length);
-  expect(fitted.positions[1]).toBeLessThan(source.positions[1]!);
+  expect(fitted.positions[1]).toBeGreaterThan(source.positions[1]!);
   expect(fitted.positions.filter((_, i) => i % 3 !== 1)).toEqual(
     source.positions.filter((_, i) => i % 3 !== 1),
   );

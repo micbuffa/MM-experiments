@@ -62,7 +62,7 @@ export function createLivePracticeView(
   const complete = extended || terrain.lastScroll === practiceFinishScroll;
   const scene = createTerrainStudy(engine, undefined, terrain, true, actors);
   const camera = createLivePracticeCamera(scene, terrain);
-  const occlusion = createCameraOcclusion(scene);
+  const occlusion = createCameraOcclusion(scene, terrain);
   let previousFrame: number | undefined;
   let previousPalette: PracticePose['terrainPalette'];
   let previousStartLift: PracticePose['startLift'];
@@ -319,9 +319,21 @@ export function createLivePracticeView(
       if (level3) setLevel3WaveProfile(scene, pose.waveProfile);
       if (level6) setLevel6MazePhase(scene, pose.level6MazePhase ?? 0);
       if (pose.terrainPalette !== previousPalette) {
-        if (level4) setLevel4Palette(scene, pose.terrainPalette);
-        else setArcadeTerrainPalette(scene, pose.terrainPalette);
-        previousPalette = pose.terrainPalette;
+        const blackOpening =
+          pose.opening !== undefined &&
+          pose.terrainPalette !== undefined &&
+          (pose.terrainPalette[8 * 3] ?? 0) +
+            (pose.terrainPalette[8 * 3 + 1] ?? 0) +
+            (pose.terrainPalette[8 * 3 + 2] ?? 0) +
+            (pose.terrainPalette[12 * 3] ?? 0) +
+            (pose.terrainPalette[12 * 3 + 1] ?? 0) +
+            (pose.terrainPalette[12 * 3 + 2] ?? 0) ===
+            0;
+        if (!blackOpening) {
+          if (level4) setLevel4Palette(scene, pose.terrainPalette);
+          else setArcadeTerrainPalette(scene, pose.terrainPalette);
+          previousPalette = pose.terrainPalette;
+        }
       }
       if (level4) {
         setLevel4VacuumExtensions(
@@ -351,7 +363,8 @@ export function createLivePracticeView(
       }
       occlusion(
         firstPosition ?? secondPosition ?? firstPoint ?? secondPoint,
-        camera.diagnostics.active === 'chase',
+        camera.diagnostics.active === 'chase' ||
+          camera.diagnostics.active === 'chaseHigh',
         seconds,
       );
       const animatedFirst = firstAnimation?.(pose, firstPoint);

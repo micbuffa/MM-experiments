@@ -1,5 +1,23 @@
 # Handoff
 
+## Pipe geometry polish, Chase High camera, raycast-gated occlusion, projection unfreeze & Level 1 pre-flyover curtain — November 25, 2026
+
+- **Level 2 blue Y-pipe upper hoods & Level 3 orange pipe geometry** ([fitIntermediatePipeHoods.ts](src/rendering/fitIntermediatePipeHoods.ts), [fitIntermediatePipeHoods.test.ts](src/rendering/fitIntermediatePipeHoods.test.ts), [widenLevel3Pipe.ts](src/rendering/widenLevel3Pipe.ts), [widenLevel3Pipe.test.ts](src/rendering/widenLevel3Pipe.test.ts)):
+  - Raised Level 2 blue Y-pipe upper hoods (`0.85 → 1.10` height multiplier) so the top of the marble no longer clips through the hood roof on entry.
+  - Widened the Level 3 orange pipe uniformly (`+42%` constant diameter from `y = -8.23` down to `y = -15.0`, tapering smoothly into the elbow) and shifted it `+0.20` toward the right pillar (`+Z`) so the marble remains fully concealed during the drop while staying aligned with both mouths.
+- **`Chase` + `Chase High` cameras & raycast-gated occlusion** ([practiceCameraSettings.ts](src/game/modern/practiceCameraSettings.ts), [practiceCameraSettings.test.ts](src/game/modern/practiceCameraSettings.test.ts), [occlusionFade.ts](src/game/modern/occlusionFade.ts), [occlusionFade.test.ts](src/game/modern/occlusionFade.test.ts), [createCameraOcclusion.ts](src/rendering/createCameraOcclusion.ts), [createLivePracticeCamera.ts](src/rendering/createLivePracticeCamera.ts), [createLivePracticeView.ts](src/rendering/createLivePracticeView.ts), [practiceCameraControls.ts](src/ui/practiceCameraControls.ts), [index.html](index.html), [src/beta.ts](src/beta.ts)):
+  - Kept the original low `chase` camera (`back = 7.2, lift = 2.6, clearance = 1.2`) and added `chaseHigh` (`back = 8.4, lift = 4.2, clearance = 1.8`), both using a `3×3` ground-clearance neighbourhood.
+  - Added pure CPU terrain raymarching (`isMarbleOccludedByTerrain`) plus zero-allocation landmark AABB ray checks (`Ray.intersectsBoxMinMax`) in `createCameraOcclusion.ts` so the dithered cutout shader (`mmFade`) activates only when the marble is genuinely occluded behind a wall/overhang/landmark, eliminating false floor/slope cutouts.
+- **BabylonJS 9.33.2 `unfreezeProjectionMatrix()` fix** ([createLivePracticeCamera.ts](src/rendering/createLivePracticeCamera.ts), [createLivePracticeView.test.ts](src/rendering/createLivePracticeView.test.ts)):
+  - `Camera.prototype.unfreezeProjectionMatrix()` clears `_doNotComputeProjectionMatrix` without invalidating `_cache`, leaving `perspective` stuck on the frozen orthographic `blendOpening()` matrix on `follow`/`overhead`/`chase`/`chaseHigh`. Added `unfreezePerspective()` calling `perspective.getProjectionMatrix(true)` on transition, with a regression test asserting `m[15] === 0`.
+- **Level 1 pre-flyover curtain & `0x15` wraparound anti-flash guard** ([practiceCameraSettings.ts](src/game/modern/practiceCameraSettings.ts), [practiceCameraSettings.test.ts](src/game/modern/practiceCameraSettings.test.ts), [createVideoView.ts](src/app/createVideoView.ts), [createLivePracticeView.ts](src/rendering/createLivePracticeView.ts), [beta.html](beta.html), [src/beta.css](src/beta.css), [src/beta.ts](src/beta.ts)):
+  - Added `stepOpeningCurtain(armed, opening)` so the wrapped 68010 countdown byte (`0x00..0x41` → `opening` in `0.75..1.0` before `0x42`) never flashes the final Level 1 arcade view before the real flyover starts; clears the canvas to black on `index.html` and shows `#modern-starting` (`Starting…`) on `beta.html`, plus guards against all-black opening palettes.
+- **Validation & deployment**:
+  - `npm run check` passed (Prettier, ESLint, TypeScript, Vitest + V8 coverage, Vite build).
+  - Michel validated locally on `http://127.0.0.1:5173/`.
+  - Committed and pushed to `main`, `npm run build:beta` built and deployed `dist-beta/` to `gh-pages`.
+  - Next action: verify the live GitHub Pages deployment (`https://micbuffa.github.io/MM-experiments/`).
+
 ## Level 6 end-maze materials, MAME palette RAM audit, CI stabilization, and English docs — November 24, 2026
 
 - **Level 6 end-maze cell-by-cell material & MAME palette audit** ([level6DisplayTerrain.ts](src/rendering/level6DisplayTerrain.ts), [level6DisplayTerrain.test.ts](src/rendering/level6DisplayTerrain.test.ts), [createLevel6Terrain.ts](src/rendering/createLevel6Terrain.ts), [createPracticeGoal.ts](src/rendering/createPracticeGoal.ts)):

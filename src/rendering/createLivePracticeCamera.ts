@@ -161,6 +161,17 @@ export function createLivePracticeCamera(
   let pendingOpening = false;
   let openingFrame: number | undefined;
   let nativeOpening = false;
+  let projectionFrozen = false;
+
+  function unfreezePerspective() {
+    if (!projectionFrozen) return;
+    projectionFrozen = false;
+    perspective.unfreezeProjectionMatrix();
+    // Force recomputation: BabylonJS unfreezeProjectionMatrix() clears the flag
+    // without invalidating _cache, so getProjectionMatrix(false) would otherwise
+    // keep returning the frozen orthographic blend matrix forever.
+    perspective.getProjectionMatrix(true);
+  }
 
   function blendOpening(progress: number) {
     const game = scene.activeCamera!;
@@ -174,6 +185,7 @@ export function createLivePracticeCamera(
       perspective.fov = (fov * Math.PI) / 180;
       perspective.setTarget(gameTarget);
       perspective.freezeProjectionMatrix(gameProjection);
+      projectionFrozen = true;
       scene.activeCamera = perspective;
       active = 'opening';
       return;
@@ -216,7 +228,7 @@ export function createLivePracticeCamera(
       keepClearOfTerrain(perspective.position, 1 - handoff);
       perspective.fov = (fov * Math.PI) / 180;
       perspective.setTarget(target);
-      perspective.unfreezeProjectionMatrix();
+      unfreezePerspective();
       sweepView.copyFrom(perspective.getViewMatrix(true));
       sweepView.multiplyToRef(
         perspective.getProjectionMatrix(true),
@@ -239,6 +251,7 @@ export function createLivePracticeCamera(
           blendedProjection,
         );
         perspective.freezeProjectionMatrix(blendedProjection);
+        projectionFrozen = true;
       }
       scene.activeCamera = perspective;
       active = 'opening';
@@ -257,7 +270,7 @@ export function createLivePracticeCamera(
     keepClearOfTerrain(perspective.position, 1 - t);
     perspective.fov = (fov * Math.PI) / 180;
     perspective.setTarget(target);
-    perspective.unfreezeProjectionMatrix();
+    unfreezePerspective();
     scene.activeCamera = perspective;
     active = 'opening';
   }
@@ -317,7 +330,7 @@ export function createLivePracticeCamera(
         skipOpening = false;
       opening = nextOpening;
       if (position) followed.set(position.x, position.y + 0.5, position.z);
-      perspective.unfreezeProjectionMatrix();
+      unfreezePerspective();
       updateGameplay(pose);
       if (opening !== undefined && !skipOpening) blendOpening(opening);
     },
@@ -329,24 +342,37 @@ export function createLivePracticeCamera(
   function updateGameplay(pose: PracticePose) {
     const effective = resolvePracticeCamera(preset, pose.player2 !== undefined);
     active = effective;
-    if (effective === 'chase') {
+    if (effective === 'chase' || effective === 'chaseHigh') {
+      const high = effective === 'chaseHigh';
       target.set(
         followed.x + downhill * 1.7,
         followed.y - 0.1,
         followed.z + downhill * 1.7,
       );
-      chaseOffset.set(-downhill * 7.2, 2.6, -downhill * 7.2);
+      const back = high ? 8.4 : 7.2;
+      const lift = high ? 4.2 : 2.6;
+      const clearance = high ? 1.8 : 1.2;
+      chaseOffset.set(-downhill * back, lift, -downhill * back);
       const column = Math.floor(target.x + chaseOffset.x + columns / 2);
       const row = Math.floor(target.z + chaseOffset.z + rows / 2);
-      const ground = terrain.cells[row]?.[column];
-      if (ground) {
-        const height = Math.max(
-          ground[0] ?? -Infinity,
-          ground[1] ?? -Infinity,
-          ground[2] ?? -Infinity,
-          ground[3] ?? -Infinity,
+      let maxGround = -Infinity;
+      for (let dr = -1; dr <= 1; dr++) {
+        const groundRow = terrain.cells[row + dr];
+        if (!groundRow) continue;
+        for (let dc = -1; dc <= 1; dc++) {
+          const ground = groundRow[column + dc];
+          if (!ground) continue;
+          for (let k = 0; k < 4; k++) {
+            const h = ground[k];
+            if (h !== null && h !== undefined && h > maxGround) maxGround = h;
+          }
+        }
+      }
+      if (maxGround !== -Infinity) {
+        chaseOffset.y = Math.max(
+          chaseOffset.y,
+          maxGround - target.y + clearance,
         );
-        chaseOffset.y = Math.max(chaseOffset.y, height - target.y + 1.1);
       }
       positionPerspective(target, chaseOffset);
       return;

@@ -1,12 +1,18 @@
 import type { MaterialDefines } from '@babylonjs/core/Materials/materialDefines';
 import { MaterialPluginBase } from '@babylonjs/core/Materials/materialPluginBase';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { Ray } from '@babylonjs/core/Culling/ray';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer';
 import type { SubMesh } from '@babylonjs/core/Meshes/subMesh';
 import type { AbstractEngine } from '@babylonjs/core/Engines/abstractEngine';
 import type { Scene } from '@babylonjs/core/scene';
-import { advanceOcclusionFade } from '../game/modern/occlusionFade';
+import {
+  advanceOcclusionFade,
+  isMarbleOccludedByTerrain,
+} from '../game/modern/occlusionFade';
+import type { PracticeTerrain } from '../game/modern/practiceTerrain';
 
 interface Corridor {
   eye: Vector3;
@@ -66,14 +72,25 @@ class OcclusionCorridor extends MaterialPluginBase {
   }
 }
 
-/** Per-fragment corridor: a merged wall mesh need not disappear across the level. */
-export function createCameraOcclusion(scene: Scene) {
+const LANDMARK_OCCLUDER_PARTS = [
+  'tower',
+  'fort',
+  'pyramid',
+  'arch',
+  'pipe',
+  'wedge',
+  'clock',
+] as const;
+
+/** Per-fragment corridor gated by real sightline raycasting so open floors stay spotless. */
+export function createCameraOcclusion(scene: Scene, terrain?: PracticeTerrain) {
   const corridor: Corridor = {
     eye: Vector3.Zero(),
     marble: Vector3.Zero(),
     fade: 0,
   };
   const painted = new Set<StandardMaterial>();
+  const landmarks: AbstractMesh[] = [];
   for (const mesh of scene.meshes) {
     if (
       mesh.infiniteDistance ||
@@ -86,15 +103,43 @@ export function createCameraOcclusion(scene: Scene) {
     painted.add(mesh.material);
     new OcclusionCorridor(mesh.material, corridor);
   }
+  if (terrain) {
+    for (const mesh of scene.meshes) {
+      if (
+        !mesh.infiniteDistance &&
+        LANDMARK_OCCLUDER_PARTS.some((part) => mesh.name.includes(part))
+      ) {
+        landmarks.push(mesh);
+      }
+    }
+  }
+  const rayDirection = Vector3.Zero();
+  const ray = new Ray(Vector3.Zero(), Vector3.Forward(), 1);
+
+  function isLandmarkOccluding() {
+    if (landmarks.length === 0) return false;
+    corridor.marble.subtractToRef(corridor.eye, rayDirection);
+    const dist = rayDirection.length();
+    if (dist < 1.2) return false;
+    rayDirection.scaleInPlace(1 / dist);
+    ray.origin.copyFrom(corridor.eye);
+    ray.direction.copyFrom(rayDirection);
+    ray.length = dist - 0.8;
+    for (const mesh of landmarks) {
+      if (!mesh.isEnabled() || !mesh.isVisible) continue;
+      const box = mesh.getBoundingInfo().boundingBox;
+      if (ray.intersectsBoxMinMax(box.minimumWorld, box.maximumWorld)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   return (
     position: { x: number; y: number; z: number } | null,
     enabled: boolean,
     seconds: number,
   ) => {
-    corridor.fade =
-      enabled && position
-        ? advanceOcclusionFade(corridor.fade, true, seconds)
-        : 0;
     if (position)
       corridor.marble.set(position.x, position.y + 0.675, position.z);
     const camera = scene.activeCamera;
@@ -102,5 +147,19 @@ export function createCameraOcclusion(scene: Scene) {
       camera.getViewMatrix();
       corridor.eye.copyFrom(camera.globalPosition);
     }
+    const occluded =
+      enabled && position
+        ? terrain
+          ? isMarbleOccludedByTerrain(
+              corridor.eye,
+              corridor.marble,
+              terrain.cells,
+            ) || isLandmarkOccluding()
+          : true
+        : false;
+    corridor.fade =
+      enabled && position
+        ? advanceOcclusionFade(corridor.fade, occluded, seconds)
+        : 0;
   };
 }

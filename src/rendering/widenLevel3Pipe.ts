@@ -9,10 +9,12 @@ export function widenLevel3Pipe(
   for (let i = 0; i < positions.length; i += 3) {
     const y = positions[i + 1]!;
     const upperBlend = Math.max(0, Math.min(1, (-6.9402 - y) / 1.2881));
-    const lowerBlend = Math.max(0, Math.min(1, (y + 15) / 2));
-    const scale = 1 + 0.22 * Math.min(upperBlend, lowerBlend);
+    const lowerBlend = Math.max(0, Math.min(1, (y + 17.2) / 2.2));
+    const blend = Math.min(upperBlend, lowerBlend);
+    const scale = 1 + 0.42 * blend;
     positions[i] = 18.5274 + (positions[i]! - 18.5274) * scale;
-    positions[i + 2] = 20.9958 + (positions[i + 2]! - 20.9958) * scale;
+    positions[i + 2] =
+      20.9958 + (positions[i + 2]! - 20.9958) * scale + 0.2 * blend;
     if (normals) {
       const x = normals[i]! / scale,
         ny = normals[i + 1]!,

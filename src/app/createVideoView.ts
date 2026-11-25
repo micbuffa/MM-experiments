@@ -1,10 +1,14 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { HtmlElementTexture } from '@babylonjs/core/Materials/Textures/htmlElementTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
+import { Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { createLivePracticeView } from '../rendering/createLivePracticeView';
 import type { PracticeTerrain } from '../game/modern/practiceTerrain';
-import { practiceLens } from '../game/modern/practiceCameraSettings';
+import {
+  practiceLens,
+  stepOpeningCurtain,
+} from '../game/modern/practiceCameraSettings';
 import type { PracticeCameraPreset } from '../game/modern/practiceCameraSettings';
 import { createVideoScene } from '../rendering/createVideoScene';
 import type { CameraPreset } from '../game/cameraPreset';
@@ -13,6 +17,8 @@ import { createBarExplorer } from '../input/barExplorer';
 import { BAR_EYE_HEIGHT } from '../game/barNavigation';
 import { renderResolution } from '../game/renderQuality';
 import type { RenderQuality } from '../game/renderQuality';
+
+const blackClear = new Color4(0, 0, 0, 1);
 import type { SpatialPose } from '../game/spatialMix';
 import type { CabinetAction } from '../game/cabinetAction';
 import type { VenueEffects } from '../emulation/venueEffects';
@@ -52,6 +58,7 @@ export function createVideoView(
   let actorLibrary: RollingActors | undefined;
   let modernSelected = false;
   let modernVisible: boolean | undefined;
+  let openingArmed = false;
   const inputForward = Vector3.Zero();
   const cameraForward = new Vector3(0, 0, 1);
   let practiceCamera: PracticeCameraPreset = 'arcade';
@@ -180,6 +187,7 @@ export function createVideoView(
       modern?.scene.dispose();
       modern = next;
       modernTerrain = terrain;
+      openingArmed = false;
     }
     const updated = modern?.update(pose) ?? false;
     // Keep the prepared 3D shot while the core is between drawable level states.
@@ -192,6 +200,7 @@ export function createVideoView(
     } else options.effects?.setInputCamera?.(0, 0);
     if (visible !== modernVisible) {
       modernVisible = visible;
+      if (!visible) openingArmed = false;
       options.modernVisibility?.(visible);
       if (visible) resizeLayout();
     }
@@ -200,9 +209,14 @@ export function createVideoView(
       visible && pose?.opening === undefined ? pose?.hud : undefined,
     );
     if (visible && modern) {
+      const curtain = updated
+        ? stepOpeningCurtain(openingArmed, pose?.opening)
+        : { armed: false, hidden: true };
+      openingArmed = curtain.armed;
       engine.beginFrame();
       try {
-        modern.scene.render();
+        if (curtain.hidden) engine.clear(blackClear, true, true, true);
+        else modern.scene.render();
       } finally {
         engine.endFrame();
       }
@@ -517,6 +531,7 @@ export function createVideoView(
       } else resize();
     },
     restartOpening() {
+      openingArmed = false;
       modern?.camera.restartOpening();
     },
     setModernTerrain(terrain: PracticeTerrain, preferred = false) {
@@ -551,6 +566,7 @@ export function createVideoView(
       transitioning = false;
       stagePresentation = value === 'stage';
       modernVisible = undefined;
+      openingArmed = false;
       modernSelected = value === 'modern';
       options.modernHud?.(undefined);
       if (!modernSelected) modern?.update(null);

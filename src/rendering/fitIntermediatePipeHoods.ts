@@ -49,9 +49,9 @@ export function fitIntermediatePipeHoods(input: IntermediatePipeGeometry) {
       z = original[2]!;
     let y = original[1]!;
     if (z > 18) {
-      // Compact the original rounded hoods, keeping their complete underside
-      // and their shared edges with the descending branches.
-      if (y > floor) y = floor + (y - floor) * 0.85;
+      // Raise the upper rounded hoods slightly above the floor so the top of the
+      // marble clears the roof cleanly while entering the Level 2 blue Y-pipe.
+      if (y > floor) y = floor + (y - floor) * 1.1;
       const t = Math.max(0, 1 - Math.abs(z - 23.6) / 3.6);
       y -= 1.45 * t * t * (3 - 2 * t);
     }

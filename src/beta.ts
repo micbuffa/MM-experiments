@@ -41,6 +41,7 @@ import {
   clampPracticeFov,
   nextPracticeCamera,
   practiceLens,
+  stepOpeningCurtain,
   type PracticeCameraPreset,
 } from './game/modern/practiceCameraSettings';
 import {
@@ -57,6 +58,7 @@ const CAMERA_LABELS: Readonly<Record<PracticeCameraPreset, string>> = {
   follow: 'Follow',
   overhead: 'Overhead',
   chase: 'Chase',
+  chaseHigh: 'Chase High',
 };
 
 // Fallback cap if pixel probe cannot read the WebGL canvas (e.g. preserveDrawingBuffer=false).
@@ -127,6 +129,7 @@ async function bootBeta() {
   const bannerTimer = document.getElementById('banner-timer')!;
   const bannerCapture = document.getElementById('banner-capture')!;
   const canvas = document.querySelector<HTMLCanvasElement>('#babylon-video')!;
+  const modernStarting = document.getElementById('modern-starting')!;
   const hudRoot = document.getElementById('practice-hud')!;
   const p1ControlSelect =
     document.querySelector<HTMLSelectElement>('#p1-control')!;
@@ -463,6 +466,7 @@ async function bootBeta() {
           { once: true },
         );
 
+        let openingArmed = false;
         unsubscribeVideo = session.video.subscribe(() => {
           const pose = session?.video.practicePose?.() ?? null;
           if (phase === 'loading') {
@@ -496,16 +500,25 @@ async function bootBeta() {
           }
           if (phase === 'attract' && pose !== null) {
             // Level 1 drives its own native pose.opening flyover; no extra reset needed.
+            openingArmed = false;
             enterPlaying(false);
-            return;
           }
           if (phase === 'playing') {
+            const curtain =
+              pose !== null
+                ? stepOpeningCurtain(openingArmed, pose.opening)
+                : { armed: false, hidden: false };
+            openingArmed = curtain.armed;
+            modernStarting.hidden = !curtain.hidden;
             if (pose === null) {
               nullPoseFrames++;
               if (nullPoseFrames > 240) enterAttract();
             } else {
               nullPoseFrames = 0;
             }
+          } else {
+            openingArmed = false;
+            modernStarting.hidden = true;
           }
         });
       },

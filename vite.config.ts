@@ -3,6 +3,9 @@ import { localRomsPlugin } from './src/dev/localRoms.ts';
 
 export default defineConfig({
   plugins: [localRomsPlugin()],
+  optimizeDeps: {
+    exclude: ['@babylonjs/havok'],
+  },
   server: {
     host: '127.0.0.1',
     port: 5173,
@@ -24,6 +27,7 @@ export default defineConfig({
         main: 'index.html',
         scene: 'scene.html',
         terrain: 'terrain.html',
+        remaster: 'remaster.html',
       },
     },
   },
@@ -35,6 +39,8 @@ export default defineConfig({
       reporter: ['text', 'html', 'lcov'],
       include: [
         'src/game/**/*.ts',
+        'src/remaster/engine/**/*.ts',
+        'src/remaster/levels/**/*.ts',
         'src/diagnostics/**/*.ts',
         'src/rendering/videoLayout.ts',
         'src/emulation/romArchive.ts',

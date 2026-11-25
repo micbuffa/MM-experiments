@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: ws://localhost:* ws://127.0.0.1:*; img-src 'self' blob: data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+    />
+    <title>Marble Madness Remaster — Havok + YM2151/POKEY</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <main id="remaster-stage">
+      <canvas
+        id="remaster-canvas"
+        aria-label="Marble Madness Remaster 3D"
+      ></canvas>
+
+      <header id="remaster-hud">
+        <div class="hud-block">
+          <span class="hud-label">SCORE P1</span>
+          <strong id="hud-score">0</strong>
+        </div>
+        <div class="hud-block" id="hud-p2-block" hidden>
+          <span class="hud-label">SCORE P2</span>
+          <strong id="hud-score-p2">0</strong>
+        </div>
+        <div class="hud-block hud-center">
+          <span class="hud-label">TIME</span>
+          <strong id="hud-timer">60</strong>
+        </div>
+        <div class="hud-block hud-right">
+          <span class="hud-label">LEVEL 1 · HAVOK</span>
+          <strong id="hud-status">OPENING</strong>
+        </div>
+      </header>
+
+      <section id="remaster-banner" aria-live="polite" hidden>
+        <h1 id="banner-title">PRACTICE RACE</h1>
+        <p id="banner-sub">Press Space or Click to play</p>
+      </section>
+
+      <footer id="remaster-toolbar">
+        <div class="toolbar-group">
+          <button id="btn-camera" type="button">Camera: Arcade (C)</button>
+          <button id="btn-players" type="button">Mode: 1P</button>
+          <label class="control-select">
+            P1
+            <select id="p1-control" aria-label="Contrôle Joueur 1">
+              <option value="trackpad" selected>Trackpad / Mouse</option>
+              <option value="keyboard">Keyboard (Arrows + WASD/ZQSD)</option>
+              <option value="arrows">Keyboard (Arrows)</option>
+              <option value="wasd">Keyboard (WASD / ZQSD)</option>
+              <option value="gamepad1">Gamepad 1</option>
+              <option value="gamepad2">Gamepad 2</option>
+            </select>
+          </label>
+          <label class="control-select" id="p2-control-wrap" hidden>
+            P2
+            <select id="p2-control" aria-label="Contrôle Joueur 2">
+              <option value="keyboard" selected>
+                Keyboard (Arrows + WASD/ZQSD)
+              </option>
+              <option value="wasd">Keyboard (WASD / ZQSD)</option>
+              <option value="arrows">Keyboard (Arrows)</option>
+              <option value="trackpad">Trackpad / Mouse</option>
+              <option value="gamepad1">Gamepad 1</option>
+              <option value="gamepad2">Gamepad 2</option>
+            </select>
+          </label>
+          <button id="btn-reset" type="button">Restart (R)</button>
+        </div>
+        <div class="toolbar-group">
+          <button id="btn-audio" type="button">
+            Audio: YM2151 + POKEY (M)
+          </button>
+          <label class="mix-slider">
+            Music
+            <input
+              id="mix-music"
+              type="range"
+              min="0"
+              max="100"
+              value="75"
+              aria-label="Volume musique"
+            />
+          </label>
+          <label class="mix-slider">
+            SFX
+            <input
+              id="mix-sfx"
+              type="range"
+              min="0"
+              max="100"
+              value="100"
+              aria-label="Volume sound design"
+            />
+          </label>
+          <label class="file-btn">
+            Load .VGM/.VGZ
+            <input id="vgm-file" type="file" accept=".vgm,.vgz" hidden />
+          </label>
+          <span id="telemetry" class="telemetry">0.0 c/s</span>
+        </div>
+      </footer>
+    </main>
+    <script type="module" src="/src/remaster/remaster.ts"></script>
+  </body>
+</html>

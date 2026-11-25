@@ -6,6 +6,7 @@ export default tseslint.config(
     ignores: [
       'dist/**',
       'dist-beta/**',
+      'dist-remaster/**',
       'coverage/**',
       'node_modules/**',
       'public/vendor/**',
@@ -13,6 +14,17 @@ export default tseslint.config(
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    files: ['public/assets/audio/*-worklet.js'],
+    languageOptions: {
+      globals: {
+        AudioWorkletProcessor: 'readonly',
+        registerProcessor: 'readonly',
+        sampleRate: 'readonly',
+        WebAssembly: 'readonly',
+      },
+    },
+  },
   {
     files: ['scripts/beta-sw.js'],
     languageOptions: {

@@ -31,7 +31,7 @@ export function createLivePracticeCamera(
     scene,
   );
   perspective.viewport = arcade.viewport;
-  perspective.minZ = 0.25;
+  perspective.minZ = 0.5;
   perspective.maxZ = 350;
   scene.activeCamera = arcade;
 

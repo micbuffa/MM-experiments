@@ -1,5 +1,22 @@
 # Handoff
 
+## Remaster Branch: Phase 1 Level 1 Vertical Slice (Havok + YM2151/POKEY WASM) — November 25, 2026
+
+- **Branch `Remaster` created** from `main` (`76bfdae`) for the standalone ROM-free / MAME-free Marble Madness remaster (see [REMASTER_OWN_ENGINE_SPEC.md](REMASTER_OWN_ENGINE_SPEC.md)).
+- **Hybrid Level Format (`RemasterLevelV1`)** ([remasterLevel.ts](src/remaster/levels/remasterLevel.ts), [remasterLevel.test.ts](src/remaster/levels/remasterLevel.test.ts)):
+  - Combines `heightLayers[]` (for the 6 original courses, exact Level 1 `GOAL` bounds `x = 72..80, z = 64..68`) and `volumes[]` (multi-tier 3D shapes ready for future _Hamsterball_-style levels and an editor).
+- **Fixed-Step `60 Hz` Pure-TS Engine & 1P/2P Controls** ([physicsConstants.ts](src/remaster/engine/physicsConstants.ts), [remasterSimulation.ts](src/remaster/engine/remasterSimulation.ts), [remasterSimulation.test.ts](src/remaster/engine/remasterSimulation.test.ts), [remasterControls.ts](src/remaster/engine/remasterControls.ts), [remasterControls.test.ts](src/remaster/engine/remasterControls.test.ts)):
+  - Opening flyover, `60 s` countdown, forward-progress & time-bonus scoring, lethal-fall shatter, `0.75 s` spiral respawn, `GOAL` arrival, and strict 2P input isolation with per-player device selectors (default: P1 = Trackpad, P2 = Keyboard AZERTY/QWERTY, plus Arrows, WASD/ZQSD, Gamepad 1/2).
+- **Havok Physics Backend (`@babylonjs/havok@1.3.14`)** ([buildCollisionMesh.ts](src/remaster/physics/buildCollisionMesh.ts), [buildCollisionMesh.test.ts](src/remaster/physics/buildCollisionMesh.test.ts), [createHavokBackend.ts](src/remaster/physics/createHavokBackend.ts)):
+  - Separate static `PhysicsAggregate` meshes for slope-smoothed floor (`restitution = 0`) and vertical cliffs / `practice-landmarks` (`restitution = 0.42`, including red guardrails, pyramids, and spikes).
+  - Uphill push force projected along the local ramp tangent + `Space` boost (`1.75×`, cap `26 c/s`) + low air damping (`0.08`) for side jumps.
+- **Autonomous Yamaha YM2151 (OPM) + Atari POKEY WASM AudioWorklet** ([opm_pokey.cpp](native/audio/opm_pokey.cpp), [build-audio-wasm.mjs](scripts/build-audio-wasm.mjs), [opm-pokey-worklet.js](public/assets/audio/opm-pokey-worklet.js), [vgmParser.ts](src/remaster/audio/vgmParser.ts), [vgmParser.test.ts](src/remaster/audio/vgmParser.test.ts), [createRemasterAudio.ts](src/remaster/audio/createRemasterAudio.ts)):
+  - Compiled to `public/assets/audio/opm-pokey.wasm` (`12.7 KiB`) via `emcc`; independent Music / SFX mix sliders, 2-pole low-passed POKEY rolling rumble, FM SFX, and live `.vgm`/`.vgz` player.
+  - Added contributor audio guide [PETER_MUSIC_SFX_INFO.md](PETER_MUSIC_SFX_INFO.md) for Peter Salomonsen.
+- **Playable Entry Point & Deployment** ([remaster.html](remaster.html), [remaster.ts](src/remaster/remaster.ts), [createRemasterScene.ts](src/remaster/rendering/createRemasterScene.ts), [vite.remaster.config.ts](vite.remaster.config.ts), [build-remaster.mjs](scripts/build-remaster.mjs), [tests/browser/remaster.spec.ts](tests/browser/remaster.spec.ts)):
+  - `beginFrame()`/`endFrame()` render framing for animated `GOAL` flags, `createPracticeRespawn` spiral fragments, `8×` anisotropic pit walls + `minZ = 0.5`.
+  - Validated with `npm run check`, `npx playwright test tests/browser/remaster.spec.ts`, and `npm run build:remaster`; deployed to `https://micbuffa.github.io/MM-experiments/remaster/` without touching `main`'s root deployment.
+
 ## Pipe geometry polish, Chase High camera, raycast-gated occlusion, projection unfreeze & Level 1 pre-flyover curtain — November 25, 2026
 
 - **Level 2 blue Y-pipe upper hoods & Level 3 orange pipe geometry** ([fitIntermediatePipeHoods.ts](src/rendering/fitIntermediatePipeHoods.ts), [fitIntermediatePipeHoods.test.ts](src/rendering/fitIntermediatePipeHoods.test.ts), [widenLevel3Pipe.ts](src/rendering/widenLevel3Pipe.ts), [widenLevel3Pipe.test.ts](src/rendering/widenLevel3Pipe.test.ts)):

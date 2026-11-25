@@ -151,6 +151,7 @@ export function createPracticeSurfaceMaterial(
   texture.wrapU = texture.wrapV =
     surface === 'point' ? Texture.CLAMP_ADDRESSMODE : Texture.WRAP_ADDRESSMODE;
   if (surface === 'wall') {
+    texture.anisotropicFilteringLevel = 8;
     material.emissiveColor.set(0.36, 0.1, 0.0);
     material.backFaceCulling = false;
     texture.hasAlpha = true;

@@ -5,6 +5,8 @@ import {
   type Vec3,
 } from '../levels/remasterLevel';
 import { REMASTER_PHYSICS, REMASTER_RULES } from './physicsConstants';
+import { isIceAtWorld } from './romSurfaceZones';
+import { resolveSurfaceRules } from './surfaceRules';
 
 export type RemasterPhase = 'opening' | 'playing' | 'finished' | 'gameOver';
 
@@ -280,7 +282,17 @@ export function createRemasterSimulation(
           const nz = input.z / mag;
           const boost = input.boost ? REMASTER_PHYSICS.boostMultiplier : 1;
           const accel = REMASTER_PHYSICS.inputAcceleration * clamp * boost;
-          physics.applyPlayerForce(i as 0 | 1, nx * accel, nz * accel);
+          // Arcade ice zones ignore input (decoded in romSurfaceZones.ts).
+          const rules = resolveSurfaceRules({
+            surface: isIceAtWorld(level, p.position.x, p.position.z)
+              ? 'ice'
+              : 'normal',
+            force: { x: nx * accel, z: nz * accel },
+            grounded: p.grounded,
+          });
+          if (rules.steering) {
+            physics.applyPlayerForce(i as 0 | 1, rules.force.x, rules.force.z);
+          }
         }
       }
 

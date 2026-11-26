@@ -479,7 +479,8 @@ describe('poses for the renderer', () => {
 });
 
 describe('stepWorms', () => {
-  it('runs fixed 1/60 s ticks, clears events and drops backlog', () => {
+  it('runs fixed 1/30 s ticks (2 video frames), clears events and drops backlog', () => {
+    expect(WORM_TICK_SECONDS).toBe(1 / 30);
     const world = createWormWorld({ spawns: firstSpawn });
     const env = flat;
     const events = stepWorms(

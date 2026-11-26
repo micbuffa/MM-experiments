@@ -9,8 +9,8 @@ for the ROM analysis.
 
 The module works in **arcade units**: 1 cell = 8 units, the height is the raw
 arcade height (the Level 2 plateau is 16264), and velocities are units per
-tick (1/60 s). Convert to and from the remaster world as follows:
-`units = cells × 8`, velocity `units/tick = (cells/s) × 8 / 60`, and use the
+tick (1/30 s: the arcade logic runs at 30 Hz). Convert to and from the remaster world as follows:
+`units = cells × 8`, velocity `units/tick = (cells/s) × 8 / 30`, and use the
 same height mapping the Level 2 terrain conversion already uses.
 
 ## Calls
@@ -42,9 +42,10 @@ const players: WormPlayer[] = [
   },
 ];
 
-// In the fixed 60 Hz simulation step, after the marble physics step:
+// In the fixed simulation step, after the marble physics step
+// (stepWorms accumulates dt and runs 30 Hz worm ticks):
 const row = scrollRow(arcadeScrollForPoint(leader.x, leader.z, leader.height));
-const events = stepWorms(worms, players, row, 1 / 60, {
+const events = stepWorms(worms, players, row, dt, {
   groundHeight: (x, z, layer) => sampleArcadeHeight(x, z), // Arcade units.
 });
 // Then apply what the module wrote to `players` and handle `events`.
@@ -59,7 +60,7 @@ const pose = readWormPose(worms.slots[i], env);
   its velocity, `swallow` moves it into the worm). Teleport or set the
   velocity of the Havok body to match.
 - `arcadeState`:
-  - **5** = dizzy for 50 ticks (`WORM_CONTACT_STUN_TICKS`). Ignore input and
+  - **5** = dizzy for 50 ticks = 1.67 s (`WORM_CONTACT_STUN_TICKS`). Ignore input and
     show the dizzy stars. The caller must count the timer down and set
     `arcadeState` back to 0.
   - **7** = swallowed. Hide the marble and make it kinematic.

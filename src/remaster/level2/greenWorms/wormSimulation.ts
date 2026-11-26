@@ -30,8 +30,14 @@ import {
   type WormSpawnDefinition,
 } from './wormRomData';
 
-/** One game tick. The worm update 0x1493c runs once per main-loop frame (0x10fe6). */
-export const WORM_TICK_SECONDS = 1 / 60;
+/**
+ * One game tick = 2 video frames (30 Hz). The main loop at 0x11804 calls the
+ * mode dispatcher 0x1101e -> 0x10fce -> 0x1493c once per pass, then waits for
+ * two VBLANKs (0x118ba and 0x118c8 call 0x28dea, which spins until the IRQ
+ * handler 0x10116 increments 0x400016; the first wait is skipped if a VBLANK
+ * already happened during the pass).
+ */
+export const WORM_TICK_SECONDS = 1 / 30;
 /** Upper bound of ticks simulated by one `stepWorms` call (avoids a spiral after a stall). */
 export const WORM_MAX_TICKS_PER_STEP = 8;
 
@@ -264,7 +270,7 @@ export function arcadeScrollForPoint(
 }
 
 /**
- * Advances the worms by `dt` seconds of fixed 1/60 s ticks. `viewRow` is the
+ * Advances the worms by `dt` seconds of fixed 1/30 s ticks. `viewRow` is the
  * current scroll row (see `scrollRow`). Player objects may be modified (see
  * WormPlayer). Returns the events of this call (array owned by the world).
  */

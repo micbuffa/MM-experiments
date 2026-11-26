@@ -64,7 +64,7 @@ Integration note: [level2-green-worms-integration.md](level2-green-worms-integra
 
 | Address   | Role                                                                                                            |
 | --------- | --------------------------------------------------------------------------------------------------------------- |
-| `0x10fe6` | The main loop calls `0x1493c` once per frame.                                                                   |
+| `0x11804` | Main loop: `0x1101e` → `0x10fce` → `0x1493c` (at `0x10fe6`) once per pass, then two VBLANK waits (30 Hz).       |
 | `0x1493c` | Loops over the 4 slots and calls `0x14966`.                                                                     |
 | `0x14966` | Per-tick update: animation clock, step on cycle end, lunge arc and homing.                                      |
 | `0x144e4` | Turns scroll into a row, `(scroll − level[+0x10]) >> 4` as a signed byte, then calls `0x14c46(oldRow, newRow)`. |
@@ -108,7 +108,7 @@ format serve Level 3 (`0x225ba`, 2 mini worms) and Level 6 (`0x225e2`,
 - On spawn: state 0 (patrol), idle script, ticks per pose = 2, velocity 0,
   height = ground height, waypoint = entry 0.
 
-## 5. States and timing [DECODED, 1 tick = 1 main-loop frame]
+## 5. States and timing [DECODED, 1 tick = 1 main-loop pass = 2 video frames = 1/30 s]
 
 | State | Name           | Script (poses × ticks)                  | Exit                                                                                                                         |
 | ----- | -------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -126,7 +126,9 @@ This gives the staircase path. Walk scripts: +X `0x20c48`, +Z `0x20c6c`,
 −Z `0x20c90`, −X `0x20cb4`, none = idle. The velocity is ±8 units, and it is
 added **once, at the end of the 8-pose cycle**. The sprite does the
 inchworm motion and the position jumps by one cell when the cycle ends.
-Patrol speed is 8 units per 16 ticks (30 units/s, or 3.75 cells/s at 60 Hz).
+Patrol speed is 8 units per 16 ticks (15 units/s, or 1.875 cells/s at 30 Hz).
+Durations at 30 Hz: idle 22 ticks = 0.73 s, walk step 0.53 s (0.27 s when
+returning), brake 0.27 s, lunge 1.13 s, eat 1.0 s, recover 0.87 s.
 When the worm returns to its spawn cell while walking, it plays the idle
 script once (22 ticks).
 
@@ -143,7 +145,7 @@ The detection runs only in state 0, and only at the end of an animation cycle
 (every 16 or 22 ticks). A marble is a candidate when all of these hold:
 
 - It is active and on the same layer.
-- It is **fast**: `|vx| + |vz| > 0xc000` (0.75 units/tick).
+- It is **fast**: `|vx| + |vz| > 0xc000` (0.75 units/tick = 22.5 units/s = 2.8 cells/s).
 - It is not falling (`$36 ≠ 2`).
 - Its player state is 0, 1 or 5.
 - No other worm is already in state 1 targeting it.
@@ -175,7 +177,7 @@ result is overwritten at `0x15804`, so it has no effect.
   - L > 2 cells on either axis → state 6 (miss).
   - L < 7 units → **swallow**. The marble moves to the worm, player state
     = 7 (hidden), worm state = 5.
-  - 7 ≤ L < 12 units → **knockback**. The marble velocity becomes 4 units/tick
+  - 7 ≤ L < 12 units → **knockback**. The marble velocity becomes 4 units/tick (120 units/s)
     directed away from the worm. Worm state = 6.
   - Otherwise → 6.
 - **End of eat (`0x153ea`).** The marble record gets `$57 = 0x65`, then
@@ -199,7 +201,7 @@ result is overwritten at `0x15804`, so it has no effect.
        velocity becomes 0 (the worm is solid).
      - If neither the marble (state 5) nor the worm (state 5) is busy, the
        worm targets this marble.
-     - The marble becomes **dizzy**: player state 5, `$56 = 0x32` = 50 ticks,
+     - The marble becomes **dizzy**: player state 5, `$56 = 0x32` = 50 ticks (1.67 s),
        animation `0x20faa`. A marble already in player state 1 gets
        animation `0x20fb6` with no sound.
 
@@ -222,9 +224,13 @@ destroyed by the player.
 
 ## 11. Inferred or adapted
 
-- **Tick rate.** I assume one worm tick per video frame at 60 Hz. The main
-  loop at `0x10fe6` calls the update once per iteration, but I did not verify
-  the frame pacing.
+- **Tick rate (now DECODED, corrected 2026-11-26).** The worm update runs once
+  per pass of the main loop `0x11804`, and each pass waits for two VBLANKs
+  (`0x28dea` at `0x118ba` and `0x118c8`; `0x400016` is incremented by the
+  video interrupt handler `0x10116`, which acknowledges `0x8a0000`). So the
+  logic runs at **30 Hz**, the same rate as the black-marble analysis. My first
+  version assumed 60 Hz and was wrong. It can drop below 30 Hz only if a pass
+  overruns two frames.
 - **Player state names.** 1 = "dazed" (set by `0x25c74`), 4 = rebuilding,
   5 = dizzy, 7 = swallowed. Only 5 and 7 are set by worm code. The others
   come from `practicePose.ts` and need confirmation. `$36 = 2` is set when a
@@ -256,7 +262,7 @@ calls `0x23c`.
 | Call site | Command | Trigger                                                                           | Timing                                                                                    |
 | --------- | ------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `0x15076` | `0x39`  | The marble touches a worm and was not already dazed (state 1) or dizzy (state 5). | Same tick as the contact.                                                                 |
-| `0x153a2` | `0x33`  | The lunge ends with the marble swallowed.                                         | 34 ticks after the lunge starts.                                                          |
-| `0x15884` | `0x3a`  | The eat script ends.                                                              | 30 ticks after `0x33`.                                                                    |
+| `0x153a2` | `0x33`  | The lunge ends with the marble swallowed.                                         | 34 ticks (1.13 s) after the lunge starts.                                                 |
+| `0x15884` | `0x3a`  | The eat script ends.                                                              | 30 ticks (1.0 s) after `0x33`.                                                            |
 | `0x1589c` | `0x3b`  | Same moment as `0x3a`, skipped on level index 2 (Level 3).                        | Same tick as `0x3a`.                                                                      |
 | `0x25c44` | `0x3c`  | Marble respawn after being eaten (`0x25bae` mode 4 with `$57 = 0x65`).            | Same tick as `0x3a`. The normal respawn sends `0x3d` instead (`0x25c54`, not a worm cue). |

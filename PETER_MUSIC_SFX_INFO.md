@@ -36,16 +36,17 @@ npm run build:audio-wasm
 
 All audio code for the remaster is cleanly isolated from the simulation, physics, and BabylonJS rendering:
 
-| File                                                                                     | Responsibility                                                                                                                                                   |
-| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`native/audio/opm_pokey.cpp`](native/audio/opm_pokey.cpp)                               | Clean-room C++17 DSP core emulating **Yamaha YM2151 (OPM)** + **Atari POKEY**, compiled via Emscripten (`-O3 -sSTANDALONE_WASM=1`).                              |
-| [`scripts/build-audio-wasm.mjs`](scripts/build-audio-wasm.mjs)                           | Reproducible build script compiling `opm_pokey.cpp` → `public/assets/audio/opm-pokey.wasm` (`~12.7 KiB`).                                                        |
-| [`public/assets/audio/opm-pokey-worklet.js`](public/assets/audio/opm-pokey-worklet.js)   | `AudioWorkletProcessor` instantiating the WASM binary, rendering 128-sample stereo blocks in the audio thread, and running an integrated 44.1 kHz VGM scheduler. |
-| [`src/remaster/audio/vgmParser.ts`](src/remaster/audio/vgmParser.ts)                     | Parses `.vgm` and gzipped `.vgz` (via `fflate`) into timed YM2151 (`0x54`) and POKEY (`0xBB`) register writes with loop support.                                 |
-| [`public/assets/audio/level1-practice.vgm`](public/assets/audio/level1-practice.vgm)     | Preloaded original Practice-Race-inspired YM2151 + POKEY loop (standard VGM 1.50, editable in Furnace Tracker / regenerated via `npm run build:music`).          |
-| [`public/assets/audio/goal-fanfare.vgm`](public/assets/audio/goal-fanfare.vgm)           | Preloaded one-shot celebratory YM2151 `GOAL` fanfare triggered automatically on finish.                                                                          |
-| [`public/assets/audio/sfx-bank.json`](public/assets/audio/sfx-bank.json)                 | Human-editable JSON sound-design bank defining all FM SFX operator patches, note macros, and POKEY rolling/shatter curves (loaded at runtime — edit & reload!).  |
-| [`src/remaster/audio/createRemasterAudio.ts`](src/remaster/audio/createRemasterAudio.ts) | TypeScript `RemasterAudioController` owning the `AudioContext`, `AudioWorkletNode`, preloaded VGM tracks, and `sfx-bank.json` SFX triggers.                      |
+| File                                                                                     | Responsibility                                                                                                                                                                     |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`native/audio/ymfm/`](native/audio/ymfm/)                                               | Pinned **Aaron Giles `ymfm` (`ymfm::ym2151`, BSD-3-Clause)** cycle-accurate Yamaha YM2151 (OPM) core — the exact FM engine used inside modern MAME.                                |
+| [`native/audio/opm_pokey.cpp`](native/audio/opm_pokey.cpp)                               | C++17 DSP wrapper hosting **Dual `ymfm::ym2151` (`musicOpm` + `sfxOpm`)** + **Dual Atari POKEY (`musicPokey` + `sfxPokey`)**, compiled via Emscripten (`-O3 -sSTANDALONE_WASM=1`). |
+| [`scripts/build-audio-wasm.mjs`](scripts/build-audio-wasm.mjs)                           | Reproducible build script compiling `opm_pokey.cpp` + `ymfm_opm.cpp` → `public/assets/audio/opm-pokey.wasm` (`~36.1 KiB`).                                                         |
+| [`public/assets/audio/opm-pokey-worklet.js`](public/assets/audio/opm-pokey-worklet.js)   | `AudioWorkletProcessor` instantiating the WASM binary, stepping music & SFX VGM streams in **16-sample (`~0.33 ms`) sub-blocks**, and cleanly silencing SFX channels on clip end.  |
+| [`src/remaster/audio/vgmParser.ts`](src/remaster/audio/vgmParser.ts)                     | Parses `.vgm` and gzipped `.vgz` (via `fflate`) into timed YM2151 (`0x54`) and POKEY (`0xBB`) register writes with loop support.                                                   |
+| [`public/assets/audio/level1-practice.vgm`](public/assets/audio/level1-practice.vgm)     | Preloaded Practice-Race YM2151 + POKEY loop (standard VGM 1.50; in dev mode, local `.vgz` themes for Levels 1–2, Goal fanfares, and Game Over are also auto-loaded when present).  |
+| [`public/assets/audio/goal-fanfare.vgm`](public/assets/audio/goal-fanfare.vgm)           | Preloaded one-shot celebratory YM2151 `GOAL` fanfare triggered automatically on finish.                                                                                            |
+| [`public/assets/audio/sfx-bank.json`](public/assets/audio/sfx-bank.json)                 | Human-editable JSON sound-design bank mapping all **15 ROM-verified SFX `.vgm` triggers** (`romSfx`), fallback FM operator patches, and POKEY rolling curves (edit & reload!).     |
+| [`src/remaster/audio/createRemasterAudio.ts`](src/remaster/audio/createRemasterAudio.ts) | TypeScript `RemasterAudioController` owning the `AudioContext`, `AudioWorkletNode`, preloaded VGM tracks, ROM SFX clips, and `sfx-bank.json` event routing.                        |
 
 ### Signal flow
 
@@ -54,56 +55,43 @@ Game Loop (60 Hz Havok + Simulation)
    │
    ├── discrete events: handleEvents(RemasterEvent[])
    ├── continuous telemetry: updateRolling(speed, grounded)
-   └── UI controls: setMix(music, sfx), setMuted(), loadVgm()
+   └── UI controls: setMix(music, sfx), setMuted(), loadVgm(), playLevelTheme()
            │
            ▼
 createRemasterAudio.ts (main thread)
-   │  postMessage({ type: 'opm' | 'pokey' | 'batch' | 'vgm' | 'mix' | 'mute' })
+   │  postMessage({ type: 'opm' | 'pokey' | 'batch' | 'vgm' | 'sfxVgm' | 'mix' | 'mute' })
    ▼
 AudioWorkletProcessor (opm-pokey-worklet.js, audio thread)
-   │  calls WASM exports per 128-sample quantum
+   │  steps music VGM + SFX VGM & calls audio_render(16) in 16-sample sub-blocks
    ▼
-opm-pokey.wasm (C++17)
-   ├── YM2151 ch 0..3  ──► × musicGain ──┐
-   ├── YM2151 ch 4..7  ──► × sfxGain   ──┼──► tanh() soft-clip ──► Stereo Out
-   └── POKEY  ch 0..3  ──► × sfxGain   ──┘
+opm-pokey.wasm (C++17 + ymfm::ym2151)
+   ├── Music ymfm::ym2151 (all 8 ch) + Music POKEY ──► × musicGain ──┐
+   └── SFX   ymfm::ym2151 (all 8 ch) + SFX   POKEY ──► × sfxGain   ──┴──► tanh() soft-clip ──► Stereo Out
 ```
 
 ---
 
 ## 3. What the Current WASM Synth Can Do
 
-The original 1984 _Marble Madness_ (Atari System 1) hardware used a **Yamaha YM2151 (OPM)** for FM music/SFX and an **Atari POKEY** for polynomial-counter noise and granular effects. Our standalone WASM core emulates both chips with zero external dependencies:
+The original 1984 _Marble Madness_ (Atari System 1) hardware used a **Yamaha YM2151 (OPM)** clocked at **3,579,545 Hz** for FM music/SFX and an **Atari POKEY** for polynomial-counter noise and granular effects. Our standalone WASM core runs **two independent instances of each chip** (dedicated Music bus + dedicated SFX bus), so 8-channel music tracks and multi-channel SFX never steal voices from each other:
 
-### Yamaha YM2151 (OPM) — 8 channels × 4 operators
+### Dual Cycle-Accurate Yamaha YM2151 (`ymfm::ym2151`) — 2 × (8 channels × 4 operators)
 
-- **Full register write interface** (`opm_write(reg, val)`):
-  - `$08`: Key On / Key Off per channel and per operator slot (`M1, M2, C1, C2`).
-  - `$20–$27`: Stereo panning (`L/R`), Op-0 self-feedback (`0..7`), and **all 8 OPM FM connection algorithms (`0..7`)**.
-  - `$28–$2F`: Key Code (`KC`, octave + semitone).
-  - `$30–$37`: Key Fraction (`KF`, 6-bit fine pitch).
-  - `$40–$5F`: Detune (`DT1`) and frequency multiplier (`MUL`, `0.5×` to `15×`).
-  - `$60–$7F`: Total Level (`TL`, `0.75 dB` per step).
-  - `$80–$9F`: Attack Rate (`AR`).
-  - `$A0–$BF`: Decay 1 Rate (`D1R`).
-  - `$C0–$DF`: Decay 2 Rate (`D2R`).
-  - `$E0–$FF`: Sustain Level (`D1L`) and Release Rate (`RR`).
-- **Bus routing**:
-  - Channels `0..3` are routed to the **Music bus** (`musicGain`).
-  - Channels `4..7` are routed to the **SFX bus** (`sfxGain`).
+- **100% hardware-accurate OPM emulation** (Aaron Giles's `ymfm`, BSD-3-Clause, pinned in `native/audio/ymfm/`):
+  - Exact Atari System 1 clock (`3,579,545 Hz`, native `55,930.39 Hz` sample rate linearly resampled to WebAudio `sampleRate`).
+  - Full register set (`opm_music_write` for Music, `opm_write` for SFX): all 8 algorithms, exact 2-sample Op-0 self-feedback, `DT1` & `DT2` coarse detune, Key Scale (`KS`), exponential hardware envelopes (`AR / D1R / D2R / D1L / RR`), hardware LFO (PM/AM), and channel-7 hardware noise mode.
+  - Because Music and SFX each own a full 8-channel `ymfm::ym2151`, **any 8-channel `.vgm` / `.vgz` song plays at full polyphony** with zero channel collisions with live SFX.
 
-### Atari POKEY — 4 polynomial-counter channels
+### Dual Atari POKEY — 2 × 4 polynomial-counter channels
 
-- **Register interface** (`pokey_write(reg, val)` for `AUDF0..3` / `AUDC0..3`):
+- **Register interface** (`pokey_music_write` for Music, `pokey_write` for SFX, `AUDF0..3` / `AUDC0..3`):
   - Authentic 4-bit, 5-bit, and 17-bit LFSR polynomial noise generators, pure square wave mode, and volume-only DAC mode.
-  - **Channel 0** includes a 2-pole low-pass filter (`rollLp1`, `rollLp2`) whose cutoff tracks `AUDF0`, producing a warm muffled ceramic-on-stone rolling marble sound instead of harsh static.
-  - **Channel 1** is unfiltered 17-bit noise used for shatter/explosion bursts.
+  - **SFX Channel 0** is dedicated to marble rolling rumble with a smooth 2-pole low-pass filter (`~340 Hz`) whose cutoff tracks `AUDF0`, producing a warm ceramic-on-stone roll (automatically muted while sliding on ice).
+  - **SFX Channels 1–3** play POKEY SFX streams (`impact`, `broomSweep`, etc.) without ever clobbering channel 0 rolling.
 
-### Current limitations (and easy upgrades if you want them)
+### Note on future flexibility
 
-- The clean-room YM2151 does not yet implement the OPM hardware LFO (PM/AM), `DT2` coarse detune, or channel-7 hardware noise mode.
-- If you want 100% cycle-accurate OPM emulation, **Aaron Giles's `ymfm`** (BSD-3-Clause, the exact FM core used inside modern MAME) compiles cleanly with the same `emcc` pipeline and drops right behind the same `opm_write` / `audio_render` interface.
-- Conversely, you are **not locked to YM2151/POKEY** at all — see Section 5 below!
+- You are **not locked to YM2151/POKEY** at all — `opm-pokey.wasm` is simply the default retro synth backend behind `RemasterAudioController`. See Section 4 & Section 6 below to layer or swap in WebAssembly Music or WAM 2.0 plugins!
 
 ---
 
@@ -115,8 +103,8 @@ You can test tracks immediately by clicking **Load .VGM/.VGZ** in `remaster.html
 
 - **[Furnace Tracker](https://github.com/tildearrow/furnace)** (free, open-source, macOS/Windows/Linux): has native **Yamaha YM2151 (OPM)** and **Atari POKEY** chip presets (and dual-chip configurations!), real-time FM patch editing, and direct `.vgm` / `.vgz` export with loop points.
 - **DefleMask** or any tracker targeting YM2151 (`0x54`) / POKEY (`0xBB`) VGM streams.
-
-_(Note: when playing a `.vgm` that uses all 8 YM2151 channels, remember that channels `0..3` are currently on `musicGain` and `4..7` on `sfxGain` — we can easily give VGM its own dedicated YM2151 instance so music gets all 8 FM channels without ever colliding with SFX!)_
+- All 8 YM2151 channels and all 4 POKEY channels are available to your music `.vgm`/`.vgz` on the dedicated Music chip pair without ever colliding with SFX.
+- You can also swap any of the **15 SFX triggers** (`wallBounce`, `marbleClack`, `pvpClack`, `impact`, `fall`, `voidFall`, `shatter`, `broomSweep`, `dizzy`, `respawn`, `wormEat`, `pipeEnter`, `iceEnter`, `iceLeave`, `countdownTick`) by editing [`public/assets/audio/sfx-bank.json`](public/assets/audio/sfx-bank.json) and reloading.
 
 ### Option B — Live Coding & WebAssembly Music (`wasm-music`)
 
@@ -151,10 +139,35 @@ export type RemasterEvent =
       readonly type: 'impact';
       readonly player: 1 | 2;
       readonly intensity: number;
-    } // 0..1
-  | { readonly type: 'shatter'; readonly player: 1 | 2 }
-  | { readonly type: 'fall'; readonly player: 1 | 2 }
+    } // floor landing thud (0..1)
+  | {
+      readonly type: 'wallBounce';
+      readonly player: 1 | 2;
+      readonly intensity: number;
+    } // wall / cliff / well-rim bounce (0..1)
+  | {
+      readonly type: 'marbleClack';
+      readonly player: 1 | 2;
+      readonly intensity: number;
+    } // player <-> Black Marble / worm bump
+  | {
+      readonly type: 'pvpClack';
+      readonly player: 1 | 2;
+      readonly intensity: number;
+    } // player 1 <-> player 2 billiard clack
+  | { readonly type: 'shatter'; readonly player: 1 | 2 } // > 3-cell drop (followed by broom sweep at 680 ms)
+  | { readonly type: 'dizzy'; readonly player: 1 | 2 } // < 3-cell drop / hard hit (1.67 s)
+  | { readonly type: 'fall'; readonly player: 1 | 2 } // airborne fall whistle
   | { readonly type: 'respawn'; readonly player: 1 | 2 }
+  | { readonly type: 'wormEat'; readonly player: 1 | 2 } // Level 2 green worm swallow
+  | { readonly type: 'pipeEnter'; readonly player: 1 | 2 } // Level 2 drop-pipe / Y-pipe traversal
+  | { readonly type: 'iceEnter'; readonly player: 1 | 2 } // Level 2 ice zone entry
+  | { readonly type: 'iceLeave'; readonly player: 1 | 2 } // Level 2 ice zone exit
+  | {
+      readonly type: 'catchUp';
+      readonly player: 1 | 2;
+      readonly penaltySeconds: number;
+    }
   | {
       readonly type: 'goal';
       readonly player: 1 | 2;

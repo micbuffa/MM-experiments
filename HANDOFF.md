@@ -10,6 +10,28 @@
 - **Validation**: `npm run check` passed (Prettier, ESLint, tsc, Vitest 714 tests with V8 coverage, `src/remaster/level2` at 98% statements / 94.7% branches, Vite build). Not done: MAME verification of the inferred scroll ↔ world mapping, and of slot `0x4009a4` for the second Level 2 enemy. Not tested with Havok.
 - **Next action**: the Level 2 scene owner wires `stepEnemyMarble` following the integration note, then checks the corridor climb in Chrome.
 
+## Remaster: Level 2 green worms, ROM decode and pure state machine (issue #3) — November 26, 2026
+
+- **Branch `remaster-l2-green-worms`** (from `origin/Remaster`). It contains no scene code: the Level 2 scene is being built separately and has not been pushed yet.
+- **Findings** in [docs/remaster/level2-green-worms.md](docs/remaster/level2-green-worms.md), decoded statically from the 68010 program:
+  - Slots at `0x401302` (stride `0x60`). Per-tick update `0x14966`, state machine `0x15148`/`0x15460`, detection `0x15670`, contact `0x14e92`, spawn/despawn on scroll rows `0x14c46`.
+  - Level 2 spawn table `0x2259a` holds 3 worms. Waypoint paths `0x2260a`/`0x22642`/`0x2267a` all lie on the 16264 plateau.
+  - Timings: lunge 34 ticks with a 32-tick arc (`0x2255a`, peak 32 units), eat 30 ticks, recover 26 ticks, 50-tick dizzy on contact. One tick = 1/30 s: the main loop `0x11804` waits two VBLANKs per pass (`0x28dea`), corrected from an initial 60 Hz assumption.
+  - The swallow / knockback / miss radii are decoded.
+  - The doc separates DECODED and INFERRED items and has a sound-cue table for Peter.
+  - The doc also explains how `main` draws the worms: procedural `createWorm.ts` + `wormPose.ts`, no model files.
+- **Module** `src/remaster/level2/greenWorms/`:
+  - `wormRomData.ts`: tables for Levels 2, 3 and 6.
+  - `wormSimulation.ts`: `createWormWorld`, `stepWorms`, `tickWorms`, `readWormPose`, `scrollRow`, `arcadeScrollForPoint`. Fixed 30 Hz ticks, 16.16 arithmetic as in the ROM.
+  - `wormSimulation.test.ts`: 28 tests.
+  - Integration note: [docs/remaster/level2-green-worms-integration.md](docs/remaster/level2-green-worms-integration.md).
+- `vite.config.ts`: added `src/remaster/level2/**` to the coverage includes (module at 98% lines).
+- Validation: `npm run check` passed. Not compared against live MAME. No browser test, because the module has no rendering.
+- Next actions:
+  - Confirm in MAME the speed condition of the detection (`> 0.75 units/tick`).
+  - Calibrate the scroll line used by `arcadeScrollForPoint`.
+  - Wire the module into the Level 2 scene following the integration note.
+
 ## Remaster Branch: Phase 1 Level 1 Vertical Slice (Havok + YM2151/POKEY WASM) — November 25, 2026
 
 - **Branch `Remaster` created** from `main` (`76bfdae`) for the standalone ROM-free / MAME-free Marble Madness remaster (see [REMASTER_OWN_ENGINE_SPEC.md](REMASTER_OWN_ENGINE_SPEC.md)).

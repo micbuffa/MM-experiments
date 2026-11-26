@@ -357,4 +357,42 @@ describe('createRemasterSimulation', () => {
     expect(state.events.some((e) => e.type === 'wallBounce')).toBe(true);
     expect(state.players[0]!.dizzyTimer).toBeGreaterThan(0);
   });
+
+  it('uses the Level 2 ROM controller to steer the Black Marble toward its first patrol node', () => {
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 2,
+      enemies: [
+        {
+          id: 'level2-black-marble',
+          kind: 'blackMarble',
+          position: { x: 30.5, y: 0, z: 25.5 },
+          patrolRadius: 3.5,
+        },
+      ],
+    };
+    const base = makeStubPhysics();
+    let enemyForce = { x: 0, z: 0 };
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      applyEnemyForce(_index, fx, fz) {
+        enemyForce = { x: fx, z: fz };
+      },
+      readEnemy() {
+        return {
+          position: { x: 30.5, y: 0, z: 25.5 },
+          velocity: { x: 0, y: 0, z: 0 },
+          grounded: true,
+          impactSpeed: 0,
+        };
+      },
+    };
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    sim.step(1 / 30, []);
+
+    expect(enemyForce.x).toBeLessThan(0);
+    expect(enemyForce.z).toBe(0);
+  });
 });

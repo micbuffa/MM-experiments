@@ -6,6 +6,13 @@ import {
   type RemasterSurfaceKind,
   type Vec3,
 } from '../levels/remasterLevel';
+import {
+  createEnemyMarbleState,
+  stepEnemyMarble,
+  type EnemyPlayerView,
+  type EnemyMarbleState,
+} from '../level2/blackMarbleController';
+import { LEVEL2_BLACK_MARBLE } from '../level2/blackMarbleRom';
 import { REMASTER_PHYSICS, REMASTER_RULES } from './physicsConstants';
 
 export type RemasterPhase = 'opening' | 'playing' | 'finished' | 'gameOver';
@@ -149,6 +156,7 @@ interface MutableEnemy {
   patrolRadius: number;
   patrolAngle: number;
   hitCooldown: number;
+  controllerState: EnemyMarbleState | undefined;
 }
 
 export function createRemasterSimulation(
@@ -220,6 +228,7 @@ export function createRemasterSimulation(
         patrolRadius: e.patrolRadius,
         patrolAngle: 0,
         hitCooldown: 0,
+        controllerState: isLevel2Ramp ? createEnemyMarbleState() : undefined,
       };
     });
   }
@@ -666,7 +675,45 @@ export function createRemasterSimulation(
           }
         }
 
-        if (enemy.climbing) {
+        let controllerForce: { x: number; z: number } | undefined;
+        if (enemy.controllerState) {
+          const columns = mainLayer?.columns ?? 0;
+          const rows = mainLayer?.rows ?? 0;
+          const origin = mainLayer?.origin ?? { x: 0, z: 0 };
+          const worldToCell = (position: Vec3) => ({
+            x: position.x + origin.x + columns / 2,
+            z: position.z + origin.z + rows / 2,
+          });
+          const selfCell = worldToCell(enemy.position);
+          const playerViews: EnemyPlayerView[] = players.map((player) => {
+            const cell = worldToCell(player.position);
+            return {
+              x: cell.x,
+              z: cell.z,
+              active: player.life === 'active',
+              zone: 1,
+              airborne: !player.grounded,
+              targetable: player.life === 'active',
+            };
+          });
+          const controller = stepEnemyMarble(
+            LEVEL2_BLACK_MARBLE,
+            enemy.controllerState,
+            {
+              x: selfCell.x,
+              z: selfCell.z,
+              vx: enemy.velocity.x,
+              vz: enemy.velocity.z,
+              airborne: false,
+            },
+            playerViews,
+            dt,
+          );
+          enemy.controllerState = controller.state;
+          controllerForce = controller.desiredForce;
+          targetX = controller.steeringTarget.x - origin.x - columns / 2;
+          targetZ = controller.steeringTarget.z - origin.z - rows / 2;
+        } else if (enemy.climbing) {
           // Climb straight up the ramp along -X (staying centered on ramp Z = home.z)
           // until reaching the upper plateau.
           targetX = enemy.patrolCenter.x;
@@ -701,12 +748,16 @@ export function createRemasterSimulation(
 
         if (physics.applyEnemyForce && physics.readEnemy) {
           if (dist > 0.25) {
-            const accel = enemy.climbing ? 30 : nearestPlayer ? 15 : 10;
-            physics.applyEnemyForce(
-              ei,
-              (dx / dist) * accel,
-              (dz / dist) * accel,
-            );
+            if (controllerForce) {
+              physics.applyEnemyForce(ei, controllerForce.x, controllerForce.z);
+            } else {
+              const accel = enemy.climbing ? 30 : nearestPlayer ? 15 : 10;
+              physics.applyEnemyForce(
+                ei,
+                (dx / dist) * accel,
+                (dz / dist) * accel,
+              );
+            }
           }
           const snap = physics.readEnemy(ei);
           enemy.position = { ...snap.position };
@@ -722,6 +773,9 @@ export function createRemasterSimulation(
             enemy.velocity = { x: 0, z: 0 };
             enemy.climbing =
               level.courseIndex === 2 && enemy.id === 'level2-black-marble';
+            enemy.controllerState = enemy.controllerState
+              ? createEnemyMarbleState()
+              : undefined;
             physics.teleportEnemy?.(ei, enemy.home);
             continue;
           }

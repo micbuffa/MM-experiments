@@ -406,7 +406,7 @@ export async function createHavokBackend(
 
     readMarble(playerIndex: 0 | 1): PhysicsMarbleSnapshot {
       const m = marbles[playerIndex];
-      if (!m) {
+      if (!m || disposed) {
         return {
           position: { x: 0, y: 0, z: 0 },
           velocity: { x: 0, y: 0, z: 0 },
@@ -558,7 +558,7 @@ export async function createHavokBackend(
 
     readEnemy(enemyIndex: number): PhysicsMarbleSnapshot {
       const e = enemyBodies[enemyIndex];
-      if (!e) {
+      if (!e || disposed) {
         return {
           position: { x: 0, y: 0, z: 0 },
           velocity: { x: 0, y: 0, z: 0 },

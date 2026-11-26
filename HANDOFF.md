@@ -1,5 +1,15 @@
 # Handoff
 
+## Remaster Level 2 black marble AI: ROM reverse-engineering + pure controller (issue #1) — November 26, 2026
+
+- **Branch `remaster-l2-black-marble-ai`** (from `origin/Remaster`). Only new files plus one coverage line in `vite.config.ts`. Nothing touches the unpushed Level 2 scene.
+- **Findings** in [docs/remaster/level2-black-marble.md](docs/remaster/level2-black-marble.md). Each item is marked decoded (with address) or inferred. Game logic runs at 30 Hz (main loop `0x11804`, two VBLANKs per iteration). Enemy slots `0x4009a4/0x400a20`. AI modes `0x20` patrol / `0x21` attack / `0x22` chase / `0x23` return (`0x15e24`, `0x1605c`, `0x160d4`). Steering `0x182ba`: velocity tracking 1/32 per tick, desired speeds 7/12/8/7 u/tick, clamp 5 u/tick (`0x26196`). 150-tick give-up timer armed by the first marble contact (`0x1bf4c`). Spawn/despawn by scroll row (`0x15a12`, table `0x22706`). Zone tracker `0x1365c` with Level 2 boundaries `0x239fa`. The "lower descent boundary" is the zone 1 → 2 line at column x = 30 (z 34..37): the black marble only targets zone-1 players. Its node graph `0x2276e` climbs the corridor on z = 35.5.
+- **Module** `src/remaster/level2/` (`blackMarbleRom.ts`, `enemyZones.ts`, `blackMarbleController.ts` + tests, 44 Vitest cases). Integration guide in [docs/remaster/level2-black-marble-integration.md](docs/remaster/level2-black-marble-integration.md).
+- **Left-wall stall** (not reproduced, no Level 2 scene here). Recommendation in section 9 of the findings: follow the ROM nodes instead of aiming at the patrol zone, wall-slide projection, frictionless enemy material, stall watchdog, optional slope compensation.
+- **Sound cues** for Peter are listed in section 10 of the findings; no playback implemented.
+- **Validation**: `npm run check` passed (Prettier, ESLint, tsc, Vitest 714 tests with V8 coverage, `src/remaster/level2` at 98% statements / 94.7% branches, Vite build). Not done: MAME verification of the inferred scroll ↔ world mapping, and of slot `0x4009a4` for the second Level 2 enemy. Not tested with Havok.
+- **Next action**: the Level 2 scene owner wires `stepEnemyMarble` following the integration note, then checks the corridor climb in Chrome.
+
 ## Remaster Branch: Phase 1 Level 1 Vertical Slice (Havok + YM2151/POKEY WASM) — November 25, 2026
 
 - **Branch `Remaster` created** from `main` (`76bfdae`) for the standalone ROM-free / MAME-free Marble Madness remaster (see [REMASTER_OWN_ENGINE_SPEC.md](REMASTER_OWN_ENGINE_SPEC.md)).

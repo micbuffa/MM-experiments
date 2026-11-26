@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createRemasterSimulation,
+  horizontalBumpSpeed,
   type PhysicsMarbleSnapshot,
   type RemasterPhysicsBackend,
 } from './remasterSimulation';
@@ -240,5 +241,171 @@ describe('createRemasterSimulation', () => {
       12 - 1 / 60 - REMASTER_RULES.catchUpPenaltySeconds,
       2,
     );
+  });
+
+  it('reports a wall bump when the marble rebounds, scaled by the lost speed', () => {
+    const level = makeFlatLevel();
+    const physics = makeStubPhysics();
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    physics.marbles[0] = {
+      position: { x: 0, y: 0, z: 0 },
+      velocity: { x: 12, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    let state = sim.step(1 / 60, []);
+    expect(state.events.some((e) => e.type === 'bump')).toBe(false);
+
+    // Head-on wall: velocity reflected with restitution.
+    physics.marbles[0] = {
+      ...physics.marbles[0],
+      velocity: { x: -5, y: 0, z: 0 },
+    };
+    state = sim.step(1 / 60, []);
+    const bump = state.events.find((e) => e.type === 'bump');
+    expect(bump).toEqual({
+      type: 'bump',
+      player: 1,
+      target: 'wall',
+      intensity:
+        17 / REMASTER_RULES.bumpFullSpeed > 1
+          ? 1
+          : 17 / REMASTER_RULES.bumpFullSpeed,
+    });
+  });
+
+  it('does not report along-track slowdowns (ramp entry, braking) as bumps', () => {
+    expect(
+      horizontalBumpSpeed({ x: 18, y: 0, z: 0 }, { x: 14, y: 11, z: 0 }),
+    ).toBe(0);
+    expect(
+      horizontalBumpSpeed({ x: 0, y: 0, z: 0 }, { x: 5, y: 0, z: 0 }),
+    ).toBe(0);
+    // Grazing wall hit: the normal component is reflected.
+    expect(
+      horizontalBumpSpeed({ x: 10, y: 0, z: 4 }, { x: 10, y: 0, z: -1.68 }),
+    ).toBeCloseTo((4 + 1.68) * (10 / Math.hypot(10, 4)), 5);
+    // Reversal reports the full horizontal change.
+    expect(
+      horizontalBumpSpeed({ x: 6, y: 0, z: 0 }, { x: -2, y: 0, z: 0 }),
+    ).toBe(8);
+  });
+
+  it('reports one marble-to-marble bump on contact instead of wall bumps', () => {
+    const level = makeFlatLevel();
+    const physics = makeStubPhysics();
+    const sim = createRemasterSimulation(level, physics, true);
+    sim.skipOpening();
+
+    physics.marbles[0] = {
+      position: { x: 0, y: 0, z: 0 },
+      velocity: { x: 8, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    physics.marbles[1] = {
+      position: { x: 3, y: 0, z: 0 },
+      velocity: { x: -8, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    sim.step(1 / 60, []);
+    // Collision resolved by physics: marbles touch and both rebound.
+    physics.marbles[0] = {
+      ...physics.marbles[0],
+      position: { x: 1.0, y: 0, z: 0 },
+      velocity: { x: -4, y: 0, z: 0 },
+    };
+    physics.marbles[1] = {
+      ...physics.marbles[1],
+      position: { x: 2.0, y: 0, z: 0 },
+      velocity: { x: 4, y: 0, z: 0 },
+    };
+    let state = sim.step(1 / 60, []);
+    const bumps = state.events.filter((e) => e.type === 'bump');
+    expect(bumps).toEqual([
+      { type: 'bump', player: 1, target: 'marble', intensity: 1 },
+    ]);
+
+    // Staying in contact does not retrigger.
+    state = sim.step(1 / 60, []);
+    expect(state.events.some((e) => e.type === 'bump')).toBe(false);
+  });
+
+  it('emits airborne once when dropping off a ledge and land when touching down', () => {
+    const level = makeFlatLevel();
+    const physics = makeStubPhysics();
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    // Slightly above ground while descending: not yet airborne.
+    physics.marbles[0] = {
+      position: { x: 0, y: 0.5, z: 0 },
+      velocity: { x: 2, y: -1, z: 0 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    let state = sim.step(1 / 60, []);
+    expect(state.events.some((e) => e.type === 'airborne')).toBe(false);
+
+    physics.marbles[0] = {
+      ...physics.marbles[0],
+      position: { x: 0, y: 2, z: 0 },
+    };
+    state = sim.step(1 / 60, []);
+    expect(state.events).toContainEqual({ type: 'airborne', player: 1 });
+    state = sim.step(1 / 60, []);
+    expect(state.events.some((e) => e.type === 'airborne')).toBe(false);
+
+    physics.marbles[0] = {
+      position: { x: 0, y: 0, z: 0 },
+      velocity: { x: 2, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: REMASTER_PHYSICS.shatterImpactSpeed / 2,
+    };
+    state = sim.step(1 / 60, []);
+    expect(state.events).toContainEqual({
+      type: 'land',
+      player: 1,
+      intensity: 0.5,
+    });
+  });
+
+  it('treats a marble over the void as airborne and clears the latch on respawn', () => {
+    const level = makeFlatLevel();
+    const physics = makeStubPhysics();
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    // Outside the height grid (no ground below).
+    physics.marbles[0] = {
+      position: { x: 40, y: -1, z: 40 },
+      velocity: { x: 0, y: -3, z: 0 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    let state = sim.step(1 / 60, []);
+    expect(state.events).toContainEqual({ type: 'airborne', player: 1 });
+    physics.marbles[0] = {
+      ...physics.marbles[0],
+      position: { x: 40, y: -10, z: 40 },
+    };
+    state = sim.step(1 / 60, []);
+    expect(state.events).toContainEqual({ type: 'fall', player: 1 });
+    state = sim.step(REMASTER_RULES.fallDurationSeconds + 0.05, []);
+    expect(state.events).toContainEqual({ type: 'respawn', player: 1 });
+    state = sim.step(REMASTER_RULES.respawnInvulnSeconds + 0.05, []);
+    expect(state.players[0]!.life).toBe('active');
+    // Back on the ground after respawn: no stale 'land' event.
+    physics.marbles[0] = {
+      position: { x: 0, y: 0, z: 0 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    state = sim.step(1 / 60, []);
+    expect(state.events.some((e) => e.type === 'land')).toBe(false);
   });
 });

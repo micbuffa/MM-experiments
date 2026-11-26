@@ -40,5 +40,14 @@ test('remaster.html boots Level 1 with Havok physics and responds to controls wi
   await page.keyboard.press('KeyC');
   await expect(page.locator('#btn-camera')).toContainText('Follow');
 
+  // Unlock audio (YM2151/POKEY worklet + rom-sfx.json) and switch the
+  // gameplay SFX backend ROM <-> synth without console errors.
+  await expect(page.locator('#btn-sfx')).toContainText('Arcade ROM');
+  await page.locator('#btn-sfx').click();
+  await expect(page.locator('#btn-sfx')).toContainText('Remaster synth');
+  await page.keyboard.press('KeyB');
+  await expect(page.locator('#btn-sfx')).toContainText('Arcade ROM');
+  await page.waitForTimeout(500);
+
   expect(errors).toEqual([]);
 });

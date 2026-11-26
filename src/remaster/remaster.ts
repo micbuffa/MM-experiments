@@ -76,6 +76,7 @@ async function bootRemaster() {
     document.querySelector<HTMLSelectElement>('#p2-control')!;
   const btnReset = document.querySelector<HTMLButtonElement>('#btn-reset')!;
   const btnAudio = document.querySelector<HTMLButtonElement>('#btn-audio')!;
+  const btnSfx = document.querySelector<HTMLButtonElement>('#btn-sfx')!;
   const mixMusic = document.querySelector<HTMLInputElement>('#mix-music')!;
   const mixSfx = document.querySelector<HTMLInputElement>('#mix-sfx')!;
   const vgmFile = document.querySelector<HTMLInputElement>('#vgm-file')!;
@@ -137,6 +138,10 @@ async function bootRemaster() {
     btnAudio.textContent = audioMuted
       ? 'Audio: Muted (M)'
       : 'Audio: YM2151 + POKEY (M)';
+    btnSfx.textContent =
+      audio.sfxBackend === 'rom'
+        ? 'SFX: Arcade ROM (B)'
+        : 'SFX: Remaster synth (B)';
   }
 
   async function rebuildSession() {
@@ -372,6 +377,8 @@ async function bootRemaster() {
       } else if (event.code === 'KeyR') {
         sim.reset();
         audio.playLevelTheme();
+      } else if (event.code === 'KeyB') {
+        toggleSfxBackend();
       } else if (event.code === 'KeyM') {
         audioMuted = !audioMuted;
         audio.setMuted(audioMuted);
@@ -445,6 +452,13 @@ async function bootRemaster() {
     },
     { signal },
   );
+
+  function toggleSfxBackend() {
+    unlockAudio();
+    audio.setSfxBackend(audio.sfxBackend === 'rom' ? 'synth' : 'rom');
+    updateToolbarLabels();
+  }
+  btnSfx.addEventListener('click', toggleSfxBackend, { signal });
 
   btnAudio.addEventListener(
     'click',

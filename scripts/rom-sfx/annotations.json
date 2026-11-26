@@ -1,0 +1,280 @@
+{
+  "description": "Marble Madness (Atari System 1, set 'marble') gameplay sound effects, captured from the 6502 sound program as YM2151/POKEY register streams. Cue bindings map backend-agnostic remaster sound cues (src/remaster/audio/soundCues.ts) to the ROM command the 68010 sends for the same gameplay event. See docs/ROM_SFX.md for addresses and evidence.",
+  "source": {
+    "soundRoms": ["136033.421 @ 0x8000", "136033.422 @ 0xC000"],
+    "mainRoms": "136033.623-.630, .229, .107/.108 (68010 call sites of sound(cmd) at 0x158AC)",
+    "method": "6502 harness (py65) + YM2151 timer-A IRQ every 7168 CPU cycles; writes deduplicated per register, tick-quantized. Regenerate with scripts/rom-sfx/extract_rom_sfx.py.",
+    "driverChannels": "0..3 = POKEY AUDF/AUDC pair 1..4, 4..11 = YM2151 channel 0..7"
+  },
+  "cues": {
+    "marble.wallBump": {
+      "commands": [52],
+      "note": "0x34 from wall resolver 0x1B5C2 (site 0x1B8F4) whenever a velocity component flips sign; no speed scaling in the ROM."
+    },
+    "marble.marbleBump": {
+      "commands": [55],
+      "note": "0x37 from marble-marble collision 0x1BC88 (site 0x1BFAC) when both marbles are players."
+    },
+    "marble.enemyMarbleBump": {
+      "commands": [50],
+      "note": "0x32 from 0x1BC88 (site 0x1BF9C) when either marble is a black marble (0x4009A4 / 0x400A20)."
+    },
+    "marble.airborne": {
+      "commands": [69],
+      "stopCommands": [70],
+      "note": "0x45 falling sound when the marble leaves the ground (0x121B8 site 0x12482, ledges 0x1642C/0x16642, piston 0x18920, catapult pipe exit 0x255A4); stopped by 0x46."
+    },
+    "marble.landing": {
+      "commands": [93],
+      "note": "0x5D POKEY thud after any fall (0x121B8 site 0x124DA, right after 0x46)."
+    },
+    "marble.shatter": {
+      "commands": [56],
+      "note": "0x38 from hard-landing routine 0x25BAE kind 2 (site 0x25BDC)."
+    },
+    "marble.broomSweep": {
+      "commands": [95],
+      "note": "0x5F at shatter animation frame 9 (0x25FC2 site 0x26062, animation 0x215F6)."
+    },
+    "marble.dazed": {
+      "commands": [57],
+      "stopCommands": [58, 59],
+      "note": "0x39 dazed loop: medium landing (0x25C74 site 0x25DAA), marble bumps a worm/enemy (0x14E92 site 0x15076); stopped by helper 0x15884 (0x3A then 0x3B, 0x3B skipped on level index 2). Also sent when the black marble lands on a player (0x1BFE4)."
+    },
+    "marble.lostOffEdge": {
+      "commands": [61],
+      "note": "0x3D from 0x25BAE kind 4 (site 0x25C54): lethal landing off-screen or fall into the abyss (> 0x800000 below take-off, 0x1269E)."
+    },
+    "marble.lost": {
+      "commands": [60],
+      "note": "0x3C from 0x25BAE kind 4 with $57 == 0x65 (site 0x25C44) and 0x25230 (site 0x25346): marble removed from play."
+    },
+    "marble.vacuumCapture": {
+      "commands": [60],
+      "note": "Level 4 vacuum capture ends with 0x3C (site 0x256AC) after stopping the hum."
+    },
+    "marble.eaten": {
+      "commands": [51],
+      "note": "0x33 worm swallows the marble (enemy behaviour 0x15460, site 0x153A2); afterwards the marble is removed with 0x3C (site 0x25C44)."
+    },
+    "marble.birdGrab": {
+      "commands": [62],
+      "note": "0x3E (site 0x19E20): Level 5 creature catches the marble; medium confidence it is the bird."
+    },
+    "marble.acidMelt": {
+      "commands": [94],
+      "note": "0x5E POKEY noise swell (site 0x17698) when the marble overlaps one of the 7 acid objects at 0x401482 (melt sprite table 0x21062)."
+    },
+    "pipe.enter": {
+      "commands": [53, 54],
+      "note": "0x35 pipe entry (actor collision 0x29CD2, types 0x12/0x13/0x14/0x20/0x25, sites 0x2A46A/0x2A538/0x2A6E2/0x2A956); 0x36 for type 0x22 (site 0x2A82E). Intensity < 0.5 selects 0x35."
+    },
+    "goal.arrive": {
+      "commands": [47],
+      "playerCommands": {
+        "1": [47],
+        "2": [48]
+      },
+      "note": "0x2F (P1) / 0x30 (P2) 'Goal In' from 0x13966 when the section becomes 0xFF (site 0x13874, table 0x1EF72)."
+    },
+    "race.catchUp": {
+      "commands": [60],
+      "note": "2P off-screen catch-up (-5 SEC) removes the trailing marble with 0x3C."
+    },
+    "race.gameOver": {
+      "commands": [63],
+      "note": "0x3F out-of-time jingle (0x16A20 site 0x16AEC)."
+    },
+    "bonus.extraTime": {
+      "commands": [83],
+      "note": "0x53 magic wand / secret +10 s bonus (0x253EC site 0x2571A; checked once per level at 0x1BBAA)."
+    },
+    "bonus.squashMiniature": {
+      "commands": [90, 91, 92],
+      "note": "0x5A/0x5B/0x5C when squashing a Level 5 miniature (+3 s, 0x19250); ROM picks by actor $25 (7 -> 0x5B, 9 -> 0x5C, else 0x5A). Intensity ladder used as a stand-in."
+    },
+    "level.pistonNear": {
+      "commands": [31, 32, 33, 34, 35, 36],
+      "roundRobin": true,
+      "note": "Level 4 piston pop-up on screen (0x1844A, table 0x1EFB6)."
+    },
+    "level.pistonFar": {
+      "commands": [39, 40, 41, 42, 43, 44],
+      "roundRobin": true,
+      "note": "Level 4 piston pop-up off screen (table 0x1EFD6)."
+    },
+    "level.vacuumHum": {
+      "commands": [71, 73, 75, 77, 79, 81],
+      "roundRobin": true,
+      "stopCommands": [72, 74, 76, 78, 80, 82],
+      "note": "Level 4 vacuum hum loops (start table 0x1EF42, stop table 0x1EF5A, indexed by section - 0x1E)."
+    },
+    "level.actorBounce": {
+      "commands": [66],
+      "note": "0x42 bounce off a solid actor (types 0x05, 0x1A-0x1F) in 0x29CD2."
+    },
+    "marble.onIce": {
+      "commands": [67],
+      "stopCommands": [68],
+      "note": "0x43 loop when the marble enters ice tiles 0x35-0x37 (site 0x2B19C, called via jsr (a4) = sound 0x158AC); 0x44 stops it on leaving (site 0x2B1EE). Also sent at Aerial level start (0x10F8A). Cross-checked with the parallel Level 2 ice-zone analysis."
+    }
+  },
+  "commands": {
+    "1f": {
+      "name": "piston near A1"
+    },
+    "20": {
+      "name": "piston near B1"
+    },
+    "21": {
+      "name": "piston near C1"
+    },
+    "22": {
+      "name": "piston near A2"
+    },
+    "23": {
+      "name": "piston near B2"
+    },
+    "24": {
+      "name": "piston near C2"
+    },
+    "27": {
+      "name": "piston far A1"
+    },
+    "28": {
+      "name": "piston far B1"
+    },
+    "29": {
+      "name": "piston far C1"
+    },
+    "2a": {
+      "name": "piston far A2"
+    },
+    "2b": {
+      "name": "piston far B2"
+    },
+    "2c": {
+      "name": "piston far C2"
+    },
+    "2f": {
+      "name": "goal in P1"
+    },
+    "30": {
+      "name": "goal in P2"
+    },
+    "31": {
+      "name": "actor proximity (unknown)"
+    },
+    "32": {
+      "name": "black marble bump"
+    },
+    "33": {
+      "name": "eaten by enemy"
+    },
+    "34": {
+      "name": "wall bump"
+    },
+    "35": {
+      "name": "pipe entry"
+    },
+    "36": {
+      "name": "pipe entry (type 0x22)"
+    },
+    "37": {
+      "name": "marble bump"
+    },
+    "38": {
+      "name": "shatter"
+    },
+    "39": {
+      "name": "dazed loop"
+    },
+    "3b": {
+      "name": "daze cleanup (LFO reset)"
+    },
+    "3c": {
+      "name": "marble lost"
+    },
+    "3d": {
+      "name": "marble lost off edge"
+    },
+    "3e": {
+      "name": "bird grab"
+    },
+    "3f": {
+      "name": "out of time"
+    },
+    "41": {
+      "name": "coin"
+    },
+    "42": {
+      "name": "actor bounce"
+    },
+    "43": {
+      "name": "ice zone loop"
+    },
+    "45": {
+      "name": "falling"
+    },
+    "47": {
+      "name": "vacuum hum 1"
+    },
+    "49": {
+      "name": "vacuum hum 2"
+    },
+    "4b": {
+      "name": "vacuum hum 3"
+    },
+    "4d": {
+      "name": "vacuum hum 4"
+    },
+    "4f": {
+      "name": "vacuum hum 5"
+    },
+    "51": {
+      "name": "vacuum hum 6"
+    },
+    "53": {
+      "name": "magic wand time bonus"
+    },
+    "54": {
+      "name": "level 5 actor spawn 1"
+    },
+    "55": {
+      "name": "level 5 actor spawn 2"
+    },
+    "56": {
+      "name": "level 5 actor spawn 3"
+    },
+    "57": {
+      "name": "level 5 actor spawn 4"
+    },
+    "58": {
+      "name": "level 5 actor spawn 5"
+    },
+    "59": {
+      "name": "level 5 actor hits ground"
+    },
+    "5a": {
+      "name": "squash miniature A"
+    },
+    "5b": {
+      "name": "squash miniature B"
+    },
+    "5c": {
+      "name": "squash miniature C"
+    },
+    "5d": {
+      "name": "landing thud"
+    },
+    "5e": {
+      "name": "acid melt"
+    },
+    "5f": {
+      "name": "broom sweep"
+    },
+    "60": {
+      "name": "catapult (unknown)"
+    }
+  }
+}

@@ -42,6 +42,26 @@ export type RemasterEvent =
       readonly player: 1 | 2;
       readonly intensity: number;
     }
+  | {
+      /** Horizontal collision: `wall` (cliff, guardrail, landmark) or `marble` (marble-to-marble). */
+      readonly type: 'bump';
+      readonly player: 1 | 2;
+      readonly target: 'wall' | 'marble';
+      /** Normalized collision strength 0..1 (lost/closing speed over `bumpFullSpeed`). */
+      readonly intensity: number;
+    }
+  | {
+      /** Marble left the ground and is dropping (ramp jump or ledge). */
+      readonly type: 'airborne';
+      readonly player: 1 | 2;
+    }
+  | {
+      /** Marble touched ground again after an `airborne` event and survived. */
+      readonly type: 'land';
+      readonly player: 1 | 2;
+      /** Landing speed over the shatter threshold (0..1). */
+      readonly intensity: number;
+    }
   | { readonly type: 'shatter'; readonly player: 1 | 2 }
   | { readonly type: 'fall'; readonly player: 1 | 2 }
   | { readonly type: 'respawn'; readonly player: 1 | 2 }
@@ -94,6 +114,33 @@ interface MutablePlayer {
   catchUpTimer: number;
   lastSafe: { x: number; y: number; z: number };
   maxProgress: number;
+  airborne: boolean;
+}
+
+/** Extra center distance (cells) still counted as marble-to-marble contact. */
+const MARBLE_CONTACT_SLACK = 0.08;
+
+/**
+ * Horizontal collision speed between two consecutive velocities: the full
+ * horizontal velocity change when the marble reverses against its previous
+ * direction of travel, otherwise only the change perpendicular to it. Pure
+ * along-track slowdowns (ramp entries, damping, braking) therefore never count
+ * as a bump, while wall hits (normal component reflected) do.
+ */
+export function horizontalBumpSpeed(prev: Vec3, next: Vec3): number {
+  const prevSpeed = Math.hypot(prev.x, prev.z);
+  if (prevSpeed < 1e-6) return 0;
+  const dirX = prev.x / prevSpeed;
+  const dirZ = prev.z / prevSpeed;
+  const dvx = next.x - prev.x;
+  const dvz = next.z - prev.z;
+  const alongNext = next.x * dirX + next.z * dirZ;
+  if (alongNext < 0) return Math.hypot(dvx, dvz);
+  return Math.abs(dvx * dirZ - dvz * dirX);
+}
+
+function bumpIntensity(speed: number): number {
+  return Math.min(1, speed / REMASTER_RULES.bumpFullSpeed);
 }
 
 export function createRemasterSimulation(
@@ -129,8 +176,13 @@ export function createRemasterSimulation(
       catchUpTimer: 0,
       lastSafe: { ...pos },
       maxProgress: progressAlong(pos),
+      airborne: false,
     };
   }
+
+  let marblesTouching = false;
+  const prevVelocities: Vec3[] = [];
+  const wallBumps: number[] = [];
 
   const players: MutablePlayer[] = twoPlayers
     ? [makePlayer(1, level.spawns.player1), makePlayer(2, level.spawns.player2)]
@@ -190,6 +242,7 @@ export function createRemasterSimulation(
       remainingTime = level.timerSeconds;
       lastWholeSecond = Math.ceil(level.timerSeconds);
       goalOwner = undefined;
+      marblesTouching = false;
       players[0] = makePlayer(1, level.spawns.player1);
       if (twoPlayers) players[1] = makePlayer(2, level.spawns.player2);
       placePlayersAtSpawn();
@@ -285,6 +338,10 @@ export function createRemasterSimulation(
       }
 
       // Step physics engine.
+      for (let i = 0; i < players.length; i++) {
+        prevVelocities[i] = players[i]!.velocity;
+        wallBumps[i] = 0;
+      }
       physics.step(dt);
 
       // Update each player from physics snapshot.
@@ -298,6 +355,7 @@ export function createRemasterSimulation(
           p.stateTimer -= dt;
           if (p.stateTimer <= 0) {
             p.life = 'respawning';
+            p.airborne = false;
             p.stateTimer = REMASTER_RULES.respawnInvulnSeconds;
             p.position = { ...p.lastSafe };
             p.velocity = { x: 0, y: 0, z: 0 };
@@ -327,6 +385,7 @@ export function createRemasterSimulation(
         }
 
         const body = physics.readMarble(idx);
+        const bump = horizontalBumpSpeed(p.velocity, body.velocity);
         p.position = { ...body.position };
         p.velocity = { ...body.velocity };
         p.grounded = body.grounded;
@@ -355,6 +414,23 @@ export function createRemasterSimulation(
           }
         }
 
+        // Airborne / landing tracking (arcade 0x121b8: a marble more than
+        // 0x60000 = 0.75 cell above the ground starts the falling sound).
+        if (!p.airborne && !body.grounded && body.velocity.y < 0) {
+          const groundH = mainLayer
+            ? sampleLayerHeight(mainLayer, body.position.x, body.position.z)
+            : null;
+          if (
+            groundH === null ||
+            body.position.y - groundH > REMASTER_RULES.airborneMinHeight
+          ) {
+            p.airborne = true;
+            events.push({ type: 'airborne', player: p.id });
+          }
+        }
+        const landedFromAir = p.airborne && body.grounded;
+        if (landedFromAir) p.airborne = false;
+
         // Shatter on excessive vertical impact.
         if (
           p.life === 'active' &&
@@ -366,12 +442,26 @@ export function createRemasterSimulation(
           events.push({ type: 'shatter', player: p.id });
           allAtGoal = false;
           continue;
-        } else if (body.impactSpeed >= 3.0) {
+        } else if (landedFromAir) {
+          events.push({
+            type: 'land',
+            player: p.id,
+            intensity: Math.min(
+              1,
+              body.impactSpeed / REMASTER_PHYSICS.shatterImpactSpeed,
+            ),
+          });
+        }
+        if (body.impactSpeed >= 3.0) {
           events.push({
             type: 'impact',
             player: p.id,
             intensity: Math.min(1, body.impactSpeed / 15),
           });
+        }
+
+        if (bump >= REMASTER_RULES.bumpMinSpeed) {
+          wallBumps[i] = bump;
         }
 
         // Fall into abyss.
@@ -403,6 +493,53 @@ export function createRemasterSimulation(
         allAtGoal = false;
       }
 
+      // Marble-to-marble contact (2P; future black marbles / steelies reuse the
+      // same 'marble' bump target). Reported once per contact, on touch-down.
+      let marbleContact = false;
+      if (players.length === 2) {
+        const a = players[0]!;
+        const b = players[1]!;
+        if (a.life === 'active' && b.life === 'active') {
+          const dx = b.position.x - a.position.x;
+          const dy = b.position.y - a.position.y;
+          const dz = b.position.z - a.position.z;
+          const dist = Math.hypot(dx, dy, dz);
+          const touching =
+            dist < REMASTER_PHYSICS.marbleRadius * 2 + MARBLE_CONTACT_SLACK;
+          if (touching && !marblesTouching && dist > 1e-6) {
+            const closing =
+              ((prevVelocities[0]!.x - prevVelocities[1]!.x) * dx +
+                (prevVelocities[0]!.y - prevVelocities[1]!.y) * dy +
+                (prevVelocities[0]!.z - prevVelocities[1]!.z) * dz) /
+              dist;
+            if (closing >= REMASTER_RULES.bumpMinSpeed) {
+              marbleContact = true;
+              events.push({
+                type: 'bump',
+                player: a.id,
+                target: 'marble',
+                intensity: bumpIntensity(closing),
+              });
+            }
+          }
+          marblesTouching = touching;
+        } else {
+          marblesTouching = false;
+        }
+      }
+      for (let i = 0; i < players.length; i++) {
+        const speed = wallBumps[i] ?? 0;
+        const p = players[i]!;
+        if (speed > 0 && !marbleContact && p.life === 'active') {
+          events.push({
+            type: 'bump',
+            player: p.id,
+            target: 'wall',
+            intensity: bumpIntensity(speed),
+          });
+        }
+      }
+
       // Two-player off-screen catch-up: if the trailing marble falls too far
       // behind the leader, deduct 5 seconds and respawn it near the leader with
       // the arcade "-5 SEC" floating notice.
@@ -424,6 +561,7 @@ export function createRemasterSimulation(
             trailer.remainingTime - REMASTER_RULES.catchUpPenaltySeconds,
           );
           trailer.life = 'respawning';
+          trailer.airborne = false;
           trailer.stateTimer = REMASTER_RULES.respawnInvulnSeconds;
           trailer.catchUpTimer = REMASTER_RULES.catchUpNoticeSeconds;
           trailer.lastSafe = { ...leader.lastSafe };

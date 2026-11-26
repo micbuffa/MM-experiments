@@ -52,6 +52,19 @@ export const REMASTER_RULES = {
   progressPointsPerCell: 10,
   timeBonusPointsPerSecond: 100,
   lowTimeThresholdSeconds: 10,
+  /**
+   * Minimum horizontal speed (cells/s) lost against the previous direction of
+   * travel in one fixed step to report a wall `bump`. Input thrust and rolling
+   * damping change speed by < 1.5 c/s per step, so only collisions exceed it.
+   */
+  bumpMinSpeed: 3.0,
+  /** Lost / closing speed (cells/s) mapped to bump intensity 1. */
+  bumpFullSpeed: 16.0,
+  /**
+   * Height above the ground (cells) at which a descending marble counts as
+   * airborne (arcade 0x121b8 threshold 0x60000 = 6 units = 0.75 cell).
+   */
+  airborneMinHeight: 0.75,
   /** Distance (cells along course) behind the leader that triggers 2P off-screen catch-up. */
   catchUpLagCells: 17,
   /** Time penalty deducted from the trailing player in 2P catch-up (matches arcade -5 SEC). */

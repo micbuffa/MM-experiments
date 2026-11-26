@@ -36,16 +36,19 @@ npm run build:audio-wasm
 
 All audio code for the remaster is cleanly isolated from the simulation, physics, and BabylonJS rendering:
 
-| File                                                                                     | Responsibility                                                                                                                                                   |
-| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`native/audio/opm_pokey.cpp`](native/audio/opm_pokey.cpp)                               | Clean-room C++17 DSP core emulating **Yamaha YM2151 (OPM)** + **Atari POKEY**, compiled via Emscripten (`-O3 -sSTANDALONE_WASM=1`).                              |
-| [`scripts/build-audio-wasm.mjs`](scripts/build-audio-wasm.mjs)                           | Reproducible build script compiling `opm_pokey.cpp` → `public/assets/audio/opm-pokey.wasm` (`~12.7 KiB`).                                                        |
-| [`public/assets/audio/opm-pokey-worklet.js`](public/assets/audio/opm-pokey-worklet.js)   | `AudioWorkletProcessor` instantiating the WASM binary, rendering 128-sample stereo blocks in the audio thread, and running an integrated 44.1 kHz VGM scheduler. |
-| [`src/remaster/audio/vgmParser.ts`](src/remaster/audio/vgmParser.ts)                     | Parses `.vgm` and gzipped `.vgz` (via `fflate`) into timed YM2151 (`0x54`) and POKEY (`0xBB`) register writes with loop support.                                 |
-| [`public/assets/audio/level1-practice.vgm`](public/assets/audio/level1-practice.vgm)     | Preloaded original Practice-Race-inspired YM2151 + POKEY loop (standard VGM 1.50, editable in Furnace Tracker / regenerated via `npm run build:music`).          |
-| [`public/assets/audio/goal-fanfare.vgm`](public/assets/audio/goal-fanfare.vgm)           | Preloaded one-shot celebratory YM2151 `GOAL` fanfare triggered automatically on finish.                                                                          |
-| [`public/assets/audio/sfx-bank.json`](public/assets/audio/sfx-bank.json)                 | Human-editable JSON sound-design bank defining all FM SFX operator patches, note macros, and POKEY rolling/shatter curves (loaded at runtime — edit & reload!).  |
-| [`src/remaster/audio/createRemasterAudio.ts`](src/remaster/audio/createRemasterAudio.ts) | TypeScript `RemasterAudioController` owning the `AudioContext`, `AudioWorkletNode`, preloaded VGM tracks, and `sfx-bank.json` SFX triggers.                      |
+| File                                                                                                                                                  | Responsibility                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`native/audio/opm_pokey.cpp`](native/audio/opm_pokey.cpp)                                                                                            | Clean-room C++17 DSP core emulating **Yamaha YM2151 (OPM)** + **Atari POKEY**, compiled via Emscripten (`-O3 -sSTANDALONE_WASM=1`).                                                                                                                    |
+| [`scripts/build-audio-wasm.mjs`](scripts/build-audio-wasm.mjs)                                                                                        | Reproducible build script compiling `opm_pokey.cpp` → `public/assets/audio/opm-pokey.wasm` (`~12.7 KiB`).                                                                                                                                              |
+| [`public/assets/audio/opm-pokey-worklet.js`](public/assets/audio/opm-pokey-worklet.js)                                                                | `AudioWorkletProcessor` instantiating the WASM binary, rendering 128-sample stereo blocks in the audio thread, and running an integrated 44.1 kHz VGM scheduler.                                                                                       |
+| [`src/remaster/audio/vgmParser.ts`](src/remaster/audio/vgmParser.ts)                                                                                  | Parses `.vgm` and gzipped `.vgz` (via `fflate`) into timed YM2151 (`0x54`) and POKEY (`0xBB`) register writes with loop support.                                                                                                                       |
+| [`public/assets/audio/level1-practice.vgm`](public/assets/audio/level1-practice.vgm)                                                                  | Preloaded original Practice-Race-inspired YM2151 + POKEY loop (standard VGM 1.50, editable in Furnace Tracker / regenerated via `npm run build:music`).                                                                                                |
+| [`public/assets/audio/goal-fanfare.vgm`](public/assets/audio/goal-fanfare.vgm)                                                                        | Preloaded one-shot celebratory YM2151 `GOAL` fanfare triggered automatically on finish.                                                                                                                                                                |
+| [`public/assets/audio/sfx-bank.json`](public/assets/audio/sfx-bank.json)                                                                              | Human-editable JSON sound-design bank defining all FM SFX operator patches, note macros, and POKEY rolling/shatter curves (loaded at runtime — edit & reload!).                                                                                        |
+| [`src/remaster/audio/soundCues.ts`](src/remaster/audio/soundCues.ts)                                                                                  | **Layer (a), backend-agnostic.** Maps `RemasterEvent`s to named sound cues (`marble.wallBump`, `marble.airborne`, `goal.arrive`, …) with priority, cooldown, intensity and stop rules. Defines the `SoundCueBackend` interface your engine implements. |
+| [`src/remaster/audio/romSfxBackend.ts`](src/remaster/audio/romSfxBackend.ts) + [`public/assets/audio/rom-sfx.json`](public/assets/audio/rom-sfx.json) | **Layer (b), ROM-faithful backend.** Replays the YM2151/POKEY register streams captured from the original 6502 sound program, using the arcade driver's channel priorities. See [docs/ROM_SFX.md](docs/ROM_SFX.md).                                    |
+| [`src/remaster/audio/synthCueBackend.ts`](src/remaster/audio/synthCueBackend.ts)                                                                      | Alternative layer (b): the earlier hand-designed FM bank (`sfx-bank.json`). It is the fallback, and the `B` key toggles it for A/B listening.                                                                                                          |
+| [`src/remaster/audio/createRemasterAudio.ts`](src/remaster/audio/createRemasterAudio.ts)                                                              | TypeScript `RemasterAudioController` owning the `AudioContext`, `AudioWorkletNode`, preloaded VGM tracks, and `sfx-bank.json` SFX triggers.                                                                                                            |
 
 ### Signal flow
 
@@ -98,6 +101,16 @@ The original 1984 _Marble Madness_ (Atari System 1) hardware used a **Yamaha YM2
   - Authentic 4-bit, 5-bit, and 17-bit LFSR polynomial noise generators, pure square wave mode, and volume-only DAC mode.
   - **Channel 0** includes a 2-pole low-pass filter (`rollLp1`, `rollLp2`) whose cutoff tracks `AUDF0`, producing a warm muffled ceramic-on-stone rolling marble sound instead of harsh static.
   - **Channel 1** is unfiltered 17-bit noise used for shatter/explosion bursts.
+
+### Update (November 26, 2026)
+
+- The YM2151 is now **ymfm**, pinned to commit 81aec25 and vendored in
+  `native/audio/third_party/ymfm`. That gives accurate envelopes, DT1/DT2, LFO
+  and noise.
+- POKEY implements AUDCTL and all distortions.
+- A third POKEY carries the remaster-only rolling rumble (`[2, reg, val]`
+  batch ops). The SFX POKEY stays raw for ROM streams.
+- The older notes below about the clean-room OPM are historical.
 
 ### Current limitations (and easy upgrades if you want them)
 
@@ -196,6 +209,29 @@ As we bring in Levels 2 through 6 and custom _Hamsterball_-style levels, we plan
 _(Note: the repo already has a Web Audio spatializer pattern in `src/audio/spatialOutput.ts` using `PannerNode` / `AudioListener`, which we can reuse if you want 3D positional SFX relative to the active camera.)_
 
 ---
+
+### 4. Sound cues: the seam for a new SFX engine
+
+Game code never talks to chips. The audio layers are split like this:
+
+- `handleEvents()` passes each event to `cuesForEvent()` in `soundCues.ts`.
+- The dispatcher applies the cue rules: cooldown, intensity floor, `stops`,
+  and priority order.
+- It then calls the active `SoundCueBackend`:
+  `playCue(trigger, rule)`, `stopCue(cue, player)` and `stopAll()`.
+
+To plug in a richer SFX engine:
+
+1. Implement `SoundCueBackend`. Each trigger carries `cue`, `player` and an
+   `intensity` from 0 to 1, for example impact speed for `marble.wallBump`
+   and `marble.landing`.
+2. Select your backend in `createRemasterAudio.ts`, next to `rom` and
+   `synth`.
+
+Cues whose game event does not exist yet are listed with a `TODO:` trigger in
+`DEFAULT_SOUND_CUE_RULES`, so the full vocabulary is known in advance:
+
+- pipes, acid, ice, worms, black marble, vacuums, pistons and magic wand.
 
 ## 6. How to Plug In Your Own Audio Engine Cleanly
 

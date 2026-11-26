@@ -13,3 +13,4 @@ playwright-report/
 # Converted SketchUp mesh data and surveyed terrain JSONs
 src/rendering/assets/atariSystem1.json
 local-roms/
+public/assets/audio/rom-sfx.json

@@ -184,3 +184,17 @@ The library contains poses for `stick_idle`, `stick_bend`,
 `player_broken`, and `player_melt`. The broom and shards are two
 groups of the same `player_broken` model. Complementary stars and tongue
 are geometries created in the project.
+
+## Remaster Audio (`public/assets/audio/`)
+
+- `opm-pokey.wasm` is built from `native/audio/opm_pokey.cpp`. That file holds
+  a clean-room POKEY and links Aaron Giles's **ymfm** for the YM2151.
+  - ymfm is BSD-3-Clause, pinned to commit
+    `81aec25ccbb98f4873a255f7551ac4dadac59b4a` and vendored under
+    `native/audio/third_party/ymfm/` together with its `LICENSE`.
+- `rom-sfx.json` holds YM2151/POKEY register-write streams. They were captured
+  by running the original Marble Madness 6502 sound program (136033.421/.422)
+  from the user's local ROMs with `scripts/rom-sfx/extract_rom_sfx.py`.
+  - The file contains no ROM bytes or code, only the chip register values the
+    program outputs plus driver scheduling metadata.
+  - See `docs/ROM_SFX.md`.

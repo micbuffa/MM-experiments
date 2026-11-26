@@ -1,5 +1,67 @@
 # Handoff
 
+## Remaster: ROM-derived sound effects, cue layer, ymfm core (issue #2) — November 26, 2026
+
+- **Branch.** `remaster-sfx-rom-extraction`, from `origin/Remaster`; not merged.
+  The full findings with addresses are in [docs/ROM_SFX.md](docs/ROM_SFX.md).
+- **ROM findings.**
+  - The 68010 sends one command byte through `sound(cmd)` at `0x158AC`
+    (BIOS `0x23C` → `0x4C6E`, latch `0xFE0000`).
+  - The 6502 driver: NMI `0x9566`, queue `0x0200`, dispatch `0x8359`, type
+    table `0x9B3D`, parameter table `0x9BA5`, track tables
+    `0x9C23/0x9C6A/0x9CB1/0x9E03/0x9EAC/0x9F55`, timer-A IRQ every 4.005 ms.
+  - Event → command:
+    - wall `0x34`; marble `0x37`; black marble `0x32`;
+    - falling `0x45` (stop `0x46`); landing `0x5D`; shatter `0x38`; broom `0x5F`;
+    - dazed `0x39`; lost `0x3D`/`0x3C`; worm `0x33`; acid `0x5E`;
+    - ice `0x43`/`0x44`; pipe `0x35`/`0x36`;
+    - goal `0x2F`/`0x30`; time-out `0x3F`; wand `0x53`;
+    - squash `0x5A`–`0x5C`; pistons `0x1F`–`0x2C`; vacuum hums `0x47`–`0x51`.
+  - The ROM has no rolling sound, no low-time tick and no respawn sound.
+- **Data.**
+  - `public/assets/audio/rom-sfx.json` holds 52 commands captured by
+    [extract_rom_sfx.py](scripts/rom-sfx/extract_rom_sfx.py) (py65 harness)
+    from [annotations.json](scripts/rom-sfx/annotations.json). It contains no
+    ROM bytes and is ignored by Prettier.
+- **Code.**
+  - Layer (a): [soundCues.ts](src/remaster/audio/soundCues.ts), where
+    `TODO:` triggers mark Level 2+ events.
+  - Layer (b): [romSfxBank.ts](src/remaster/audio/romSfxBank.ts),
+    [romSfxBackend.ts](src/remaster/audio/romSfxBackend.ts) and
+    [synthCueBackend.ts](src/remaster/audio/synthCueBackend.ts).
+  - [createRemasterAudio.ts](src/remaster/audio/createRemasterAudio.ts)
+    selects the backend (`B` key and the `#btn-sfx` button).
+  - The worklet `sfxStreams`/`sfxStop` messages schedule streams at sample
+    accuracy.
+  - Simulation adds `bump` (wall/marble, intensity), `airborne` and `land`
+    events (`horizontalBumpSpeed`, `REMASTER_RULES.bump*` and
+    `airborneMinHeight`).
+- **WASM core.**
+  - The YM2151 is now ymfm (BSD-3, pinned `81aec25`, in
+    `native/audio/third_party/ymfm`). The worklet must call `_initialize()`.
+  - POKEY gained AUDCTL and correct distortions.
+  - A new `pokey_roll_write` export feeds the rolling-only POKEY.
+  - Rebuilt with `npm run build:audio-wasm` (29 KiB).
+- **Validation.**
+  - `npm run check` passed: 704 tests; `src/remaster/audio` coverage 99.6 %
+    lines.
+  - `npx playwright test tests/browser/remaster.spec.ts tests/browser/remasterAudio.spec.ts`
+    passed, including an OfflineAudioContext render of the 0x34 stream through
+    the worklet.
+- **Not verified, needs human listening.**
+  - Whether ymfm + streams match the cabinet.
+  - The new ymfm levels for the level-1 VGM music, and the `kOpmLevel` /
+    `kPokeyLevel` balance.
+  - Whether the remaster bump detector's thresholds (`bumpMinSpeed` 3 c/s)
+    feel right; the ROM bumps on any sign flip.
+  - The airborne/landing pairing on Level 1 ramps.
+  - The 2P catch-up mapping to `0x3C` (medium confidence).
+- **Next action.**
+  - Michel/Peter A/B listen with `B` on `remaster.html`.
+  - Emit the `TODO:` events once Level 2 lands (pipe enter, acid, ice
+    enter/leave, worm, black-marble bump, wand) and wire them to the existing
+    cues.
+
 ## Remaster Branch: Phase 1 Level 1 Vertical Slice (Havok + YM2151/POKEY WASM) — November 25, 2026
 
 - **Branch `Remaster` created** from `main` (`76bfdae`) for the standalone ROM-free / MAME-free Marble Madness remaster (see [REMASTER_OWN_ENGINE_SPEC.md](REMASTER_OWN_ENGINE_SPEC.md)).

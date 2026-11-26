@@ -1,5 +1,41 @@
 # Decisions and Evidence
 
+## Remaster SFX from the Sound ROM, ymfm OPM — November 26, 2026
+
+### SFX source
+
+Issue #2 asks for the original Marble Madness effects. The issue text
+mentions "POKEY sound effects", but the ROM tells a different story.
+
+- **Chip usage.** Most gameplay effects are YM2151 FM programs; only four are
+  POKEY (0x5D landing, 0x5E acid, 0x5F broom, 0x60 catapult).
+- **No useful parameters on the 68010.** The 68010 program only sends a
+  command byte, so it holds no sound parameters to extract.
+- **Decision.** Capture each effect by running the 6502 sound program, and
+  store tick-quantized register streams (`rom-sfx.json`). The alternative,
+  reimplementing the sound driver's bytecode interpreter, was not chosen.
+
+Evidence and addresses are in `docs/ROM_SFX.md`.
+
+### FM core
+
+The clean-room FM core had linear-amplitude envelopes and no DT1/DT2 or LFO,
+all of which the ROM programs use. It is replaced by ymfm (pinned commit
+`81aec25`, BSD-3), the FM core used by MAME. POKEY stays clean-room and now
+implements AUDCTL (clock select, 16-bit joins, high-pass) and the eight AUDC
+distortions.
+
+### Rolling rumble
+
+The arcade has no rolling sound. The remaster rumble therefore moves to a
+third, low-passed POKEY so it never alters the ROM-faithful SFX POKEY.
+
+### Two layers
+
+Cue mapping (`soundCues.ts`) is kept separate from rendering
+(`SoundCueBackend`), so that Peter Salomonsen's WebAssembly-music backend can
+replace the ROM backend later.
+
 ## Level 5: Bird Death and Squashes — November 22, 2026
 
 The official [MAME Atari System I driver](https://github.com/mamedev/mame/blob/master/src/mame/atari/atarisy1.cpp)

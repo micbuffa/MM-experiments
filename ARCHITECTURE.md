@@ -1,5 +1,28 @@
 # Marble Madness Web — Architecture
 
+## Remaster Audio Layers (`Remaster` branch)
+
+`src/remaster/audio/` separates two layers.
+
+**(a) Cue layer: `soundCues.ts`.**
+
+- Pure TypeScript, with no WebAudio or chip knowledge.
+- Maps `RemasterEvent`s from `remasterSimulation.ts`, including `bump`,
+  `airborne` and `land`, to sound cues.
+- Applies cooldown, intensity and stop rules, then calls a `SoundCueBackend`.
+
+**(b) Backends.**
+
+- `romSfxBackend.ts` replays `public/assets/audio/rom-sfx.json`, the register
+  streams captured from the arcade 6502 sound program, with driver priorities.
+  The streams go to the worklet as `sfxStreams` messages and run on the ymfm
+  YM2151 + POKEY WASM core.
+- `synthCueBackend.ts` is the hand-made FM fallback.
+
+**Controller.** `createRemasterAudio.ts` owns the AudioContext and worklet,
+the music VGM player, the remaster-only rolling POKEY, and backend
+selection. Details are in [docs/ROM_SFX.md](docs/ROM_SFX.md).
+
 ## Shared Native Palette for the First Four Races
 
 `emulation/terrainPalette` (formerly `level4Palette`) checks the memory map

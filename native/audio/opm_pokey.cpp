@@ -1,222 +1,59 @@
-// Autonomous Yamaha YM2151 (OPM) 8-channel 4-operator FM + Atari POKEY 4-channel
-// polynomial-counter audio engine compiled to standalone WASM for AudioWorklet.
-// 100% original clean-room implementation, register-compatible with YM2151 VGM streams.
+// Yamaha YM2151 (OPM, via ymfm) + Atari POKEY (clean-room) audio engine compiled
+// to standalone WASM for the remaster AudioWorklet. Register-compatible with the
+// Atari System 1 sound board, so YM2151/POKEY VGM streams and the ROM-derived
+// SFX register streams (public/assets/audio/rom-sfx.json) play unchanged.
 
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 
+#include "third_party/ymfm/ymfm_opm.h"
+
 namespace {
 
-constexpr float kTwoPi = 6.28318530717958647692f;
 constexpr float kDefaultSampleRate = 48000.0f;
 
-// Standard YM2151 KC note-code to semitone offset table (skipping unused 3,7,11,15).
-constexpr int8_t kNoteTable[16] = {
-    0, 1, 2, 2, 3, 4, 5, 5, 6, 7, 8, 8, 9, 10, 11, 11};
+// Atari POKEY 4-channel polynomial-counter sound generator, stepped at the
+// System 1 POKEY clock (1.789772 MHz) and box-filtered down to the output rate.
+// Implements AUDCTL (64 kHz / 15 kHz / 1.79 MHz clocks, 16-bit channel joins,
+// high-pass flip-flops, 9/17-bit poly select) and the 8 AUDC distortion modes,
+// as used by the Marble Madness 6502 sound program (AUDCTL 0x28 / 0x50 / 0x78).
+constexpr double kPokeyClock = 1789772.5;
 
-struct FmOperator {
-  float phase = 0.0f;
-  float phaseInc = 0.0f;
-  float env = 0.0f;
-  uint8_t envState = 0; // 0=off, 1=attack, 2=decay, 3=sustain, 4=release
-  uint8_t mul = 1;
-  uint8_t dt1 = 0;
-  uint8_t tl = 127;     // Total Level (0=loudest, 127=silent)
-  uint8_t ar = 31;      // Attack Rate (0..31)
-  uint8_t d1r = 0;      // Decay 1 Rate
-  uint8_t d1l = 0;      // Sustain Level (0..15)
-  uint8_t d2r = 0;      // Decay 2 Rate
-  uint8_t rr = 15;      // Release Rate (0..15)
-  float prevOut = 0.0f; // For operator 0 self-feedback
-
-  float totalLevelGain() const {
-    if (tl >= 127) return 0.0f;
-    // YM2151 attenuation is 0.75 dB per TL step.
-    return std::pow(10.0f, -0.75f * static_cast<float>(tl) / 20.0f);
-  }
-
-  float sustainLevel() const {
-    if (d1l >= 15) return 0.0f;
-    return std::pow(10.0f, -3.0f * static_cast<float>(d1l) / 20.0f);
-  }
-
-  void keyOn() {
-    phase = 0.0f;
-    envState = 1;
-    if (ar >= 31) {
-      env = 1.0f;
-      envState = 2;
-    }
-  }
-
-  void keyOff() {
-    if (envState != 0) envState = 4;
-  }
-
-  void stepEnv(float sampleRate) {
-    if (envState == 0) return;
-    if (envState == 1) {
-      const float rate =
-          (ar == 0) ? 0.0f : (0.5f * std::pow(2.0f, ar * 0.35f) / sampleRate);
-      env += rate;
-      if (env >= 1.0f) {
-        env = 1.0f;
-        envState = 2;
-      }
-    } else if (envState == 2) {
-      const float sl = sustainLevel();
-      if (d1r == 0) {
-        if (env <= sl) envState = 3;
-        return;
-      }
-      const float rate = 0.12f * std::pow(2.0f, d1r * 0.28f) / sampleRate;
-      env -= rate;
-      if (env <= sl) {
-        env = sl;
-        envState = 3;
-      }
-    } else if (envState == 3) {
-      if (d2r > 0) {
-        const float rate = 0.08f * std::pow(2.0f, d2r * 0.26f) / sampleRate;
-        env -= rate;
-        if (env <= 0.0001f) {
-          env = 0.0f;
-          envState = 0;
-        }
-      }
-    } else if (envState == 4) {
-      const float rate =
-          0.35f * std::pow(2.0f, (rr * 2 + 1) * 0.28f) / sampleRate;
-      env -= rate;
-      if (env <= 0.0001f) {
-        env = 0.0f;
-        envState = 0;
-      }
-    }
-  }
-
-  float sample(float modRadians, float sampleRate) {
-    stepEnv(sampleRate);
-    if (envState == 0 || env <= 0.0001f) return 0.0f;
-    const float out = std::sin(phase + modRadians) * env * totalLevelGain();
-    phase += phaseInc;
-    if (phase >= kTwoPi) phase -= kTwoPi;
-    return out;
-  }
-};
-
-struct FmChannel {
-  FmOperator ops[4]; // OPM slot order: 0=M1, 1=C1, 2=M2, 3=C2
-  uint8_t alg = 0;   // Connection algorithm 0..7
-  uint8_t fb = 0;    // Operator 0 feedback 0..7
-  uint8_t pan = 3;   // Bit 0=Left, Bit 1=Right
-  uint8_t kc = 0x40; // Key Code (octave + note)
-  uint8_t kf = 0;    // Key Fraction (upper 6 bits)
-  float baseFreq = 440.0f;
-
-  void updateFreq(float sampleRate) {
-    const int oct = (kc >> 4) & 0x07;
-    const int note = kNoteTable[kc & 0x0f];
-    const float frac = static_cast<float>(kf >> 2) / 64.0f;
-    // YM2151 octave 4, note 9 (A) ~= 440 Hz (at 3.579545 MHz clock).
-    const float semis = (oct - 4) * 12.0f + (note - 9) + frac;
-    baseFreq = 440.0f * std::pow(2.0f, semis / 12.0f);
-    for (int i = 0; i < 4; ++i) {
-      const float mulFactor =
-          (ops[i].mul == 0) ? 0.5f : static_cast<float>(ops[i].mul);
-      ops[i].phaseInc = (kTwoPi * baseFreq * mulFactor) / sampleRate;
-    }
-  }
-
-  void render(float sampleRate, float& outL, float& outR) {
-    const float fbScale =
-        (fb == 0) ? 0.0f : (0.125f * static_cast<float>(1 << (fb - 1)));
-    const float m1 = ops[0].sample(ops[0].prevOut * fbScale, sampleRate);
-    ops[0].prevOut = m1;
-
-    constexpr float kModIndex = 4.0f;
-    float s = 0.0f;
-    switch (alg & 7) {
-      case 0: {
-        const float c1 = ops[1].sample(m1 * kModIndex, sampleRate);
-        const float m2 = ops[2].sample(c1 * kModIndex, sampleRate);
-        s = ops[3].sample(m2 * kModIndex, sampleRate);
-        break;
-      }
-      case 1: {
-        const float m2 = ops[2].sample(0.0f, sampleRate);
-        const float c1 = ops[1].sample((m1 + m2) * kModIndex, sampleRate);
-        s = ops[3].sample(c1 * kModIndex, sampleRate);
-        break;
-      }
-      case 2: {
-        const float c1 = ops[1].sample(0.0f, sampleRate);
-        const float m2 = ops[2].sample(c1 * kModIndex, sampleRate);
-        s = ops[3].sample((m1 + m2) * kModIndex, sampleRate);
-        break;
-      }
-      case 3: {
-        const float c1 = ops[1].sample(m1 * kModIndex, sampleRate);
-        const float m2 = ops[2].sample(0.0f, sampleRate);
-        s = ops[3].sample((c1 + m2) * kModIndex, sampleRate);
-        break;
-      }
-      case 4: {
-        const float c1 = ops[1].sample(m1 * kModIndex, sampleRate);
-        const float m2 = ops[2].sample(0.0f, sampleRate);
-        const float c2 = ops[3].sample(m2 * kModIndex, sampleRate);
-        s = (c1 + c2) * 0.5f;
-        break;
-      }
-      case 5: {
-        const float c1 = ops[1].sample(m1 * kModIndex, sampleRate);
-        const float m2 = ops[2].sample(m1 * kModIndex, sampleRate);
-        const float c2 = ops[3].sample(m1 * kModIndex, sampleRate);
-        s = (c1 + m2 + c2) * 0.35f;
-        break;
-      }
-      case 6: {
-        const float c1 = ops[1].sample(m1 * kModIndex, sampleRate);
-        const float m2 = ops[2].sample(0.0f, sampleRate);
-        const float c2 = ops[3].sample(0.0f, sampleRate);
-        s = (c1 + m2 + c2) * 0.35f;
-        break;
-      }
-      default: {
-        const float c1 = ops[1].sample(0.0f, sampleRate);
-        const float m2 = ops[2].sample(0.0f, sampleRate);
-        const float c2 = ops[3].sample(0.0f, sampleRate);
-        s = (m1 + c1 + m2 + c2) * 0.28f;
-        break;
-      }
-    }
-    if (pan & 1) outL += s;
-    if (pan & 2) outR += s;
-  }
-};
-
-// Atari POKEY 4-channel polynomial noise / square-wave generator.
 struct PokeyChannel {
   uint8_t audf = 0; // Frequency divider (0..255)
   uint8_t audc = 0; // Bits 7..5 = distortion, Bit 4 = volume-only, Bits 3..0 = volume
-  float counter = 0.0f;
-  float outBit = 1.0f;
+  int32_t counter = 1;
+  uint8_t out = 0;
 };
 
 struct PokeyChip {
   PokeyChannel ch[4];
-  uint32_t lfsr17 = 0x1ffffu;
-  uint32_t lfsr5 = 0x1fu;
-  uint32_t lfsr4 = 0xfu;
+  uint8_t audctl = 0;
+  uint8_t hpff[2] = {0, 0};
+  uint32_t poly4 = 0xfu;
+  uint32_t poly5 = 0x1fu;
+  uint32_t poly9 = 0x1ffu;
+  uint32_t poly17 = 0x1ffffu;
+  int32_t div64 = 28;
+  int32_t div15 = 114;
+  double cycleAcc = 0.0;
+  float dcState = 0.0f;
   float rollLp1 = 0.0f;
   float rollLp2 = 0.0f;
 
   void reset() {
     for (int i = 0; i < 4; ++i) ch[i] = PokeyChannel{};
-    lfsr17 = 0x1ffffu;
-    lfsr5 = 0x1fu;
-    lfsr4 = 0xfu;
+    audctl = 0;
+    hpff[0] = hpff[1] = 0;
+    poly4 = 0xfu;
+    poly5 = 0x1fu;
+    poly9 = 0x1ffu;
+    poly17 = 0x1ffffu;
+    div64 = 28;
+    div15 = 114;
+    cycleAcc = 0.0;
+    dcState = 0.0f;
     rollLp1 = 0.0f;
     rollLp2 = 0.0f;
   }
@@ -227,125 +64,210 @@ struct PokeyChip {
       const uint8_t c = r >> 1;
       if ((r & 1) == 0) ch[c].audf = val;
       else ch[c].audc = val;
+    } else if (r == 8) {
+      audctl = val;
     }
+  }
+
+  bool fastClock(int c) const {
+    return (c == 0 && (audctl & 0x40)) || (c == 2 && (audctl & 0x20));
+  }
+
+  int32_t reloadValue(int c) const {
+    const bool join12 = (audctl & 0x10) != 0;
+    const bool join34 = (audctl & 0x08) != 0;
+    if ((c == 1 && join12) || (c == 3 && join34)) {
+      const int lo = c - 1;
+      const int32_t period = (static_cast<int32_t>(ch[c].audf) << 8) | ch[lo].audf;
+      return period + (fastClock(lo) ? 7 : 1);
+    }
+    return static_cast<int32_t>(ch[c].audf) + (fastClock(c) ? 4 : 1);
+  }
+
+  void underflow(int c) {
+    const uint8_t a = ch[c].audc;
+    // Bit 7 clear: the 5-bit poly gates the output update.
+    if (!(a & 0x80) && !(poly5 & 1u)) return;
+    if (a & 0x20) {
+      ch[c].out ^= 1u;
+    } else if (a & 0x40) {
+      ch[c].out = static_cast<uint8_t>(poly4 & 1u);
+    } else {
+      ch[c].out = static_cast<uint8_t>(((audctl & 0x80) ? poly9 : poly17) & 1u);
+    }
+  }
+
+  // Decrement a channel counter by one clock; returns true on underflow.
+  bool clockChannel(int c) {
+    if (--ch[c].counter > 0) return false;
+    ch[c].counter = reloadValue(c);
+    return true;
+  }
+
+  // Advance POKEY by one 1.79 MHz machine cycle.
+  void cycle() {
+    poly4 = ((poly4 << 1) | (((poly4 >> 3) ^ (poly4 >> 2)) & 1u)) & 0xfu;
+    poly5 = ((poly5 << 1) | (((poly5 >> 4) ^ (poly5 >> 2)) & 1u)) & 0x1fu;
+    poly9 = ((poly9 << 1) | (((poly9 >> 8) ^ (poly9 >> 4)) & 1u)) & 0x1ffu;
+    poly17 = ((poly17 << 1) | (((poly17 >> 16) ^ (poly17 >> 11)) & 1u)) & 0x1ffffu;
+
+    bool baseTick = false;
+    if (audctl & 0x01) {
+      if (--div15 <= 0) {
+        div15 = 114;
+        baseTick = true;
+      }
+    } else if (--div64 <= 0) {
+      div64 = 28;
+      baseTick = true;
+    }
+
+    const bool join12 = (audctl & 0x10) != 0;
+    const bool join34 = (audctl & 0x08) != 0;
+
+    // Channels 1+2 (indices 0, 1).
+    bool u0 = false;
+    if (fastClock(0) || baseTick) u0 = join12 ? false : clockChannel(0);
+    if (join12) {
+      if (fastClock(0) || baseTick) {
+        if (clockChannel(1)) underflow(1);
+      }
+    } else {
+      if (u0) underflow(0);
+      if (baseTick && clockChannel(1)) underflow(1);
+    }
+
+    // Channels 3+4 (indices 2, 3).
+    bool u2 = false;
+    if (fastClock(2) || baseTick) u2 = join34 ? false : clockChannel(2);
+    if (join34) {
+      if (fastClock(2) || baseTick) {
+        if (clockChannel(3)) {
+          underflow(3);
+          u2 = true;
+        }
+      }
+    } else {
+      if (u2) underflow(2);
+      if (baseTick && clockChannel(3)) {
+        underflow(3);
+        if (audctl & 0x02) hpff[1] = ch[1].out;
+      }
+    }
+    if (u2 && (audctl & 0x04)) hpff[0] = ch[0].out;
+  }
+
+  // Instantaneous channel level 0..15.
+  int level(int c) const {
+    const uint8_t a = ch[c].audc;
+    const int vol = a & 0x0f;
+    if (vol == 0) return 0;
+    if (a & 0x10) return vol;
+    const bool join12 = (audctl & 0x10) != 0;
+    const bool join34 = (audctl & 0x08) != 0;
+    if ((c == 0 && join12) || (c == 2 && join34)) return 0;
+    uint8_t bit = ch[c].out;
+    if (c == 0 && (audctl & 0x04)) bit ^= hpff[0];
+    if (c == 1 && (audctl & 0x02)) bit ^= hpff[1];
+    return bit ? vol : 0;
   }
 
   float step(float sampleRate, bool lowPassCh0) {
-    const uint32_t b17 = ((lfsr17 >> 16) ^ (lfsr17 >> 11)) & 1u;
-    lfsr17 = ((lfsr17 << 1) | b17) & 0x1ffffu;
-    const uint32_t b5 = ((lfsr5 >> 4) ^ (lfsr5 >> 2)) & 1u;
-    lfsr5 = ((lfsr5 << 1) | b5) & 0x1fu;
-    const uint32_t b4 = ((lfsr4 >> 3) ^ (lfsr4 >> 2)) & 1u;
-    lfsr4 = ((lfsr4 << 1) | b4) & 0xfu;
-
+    cycleAcc += kPokeyClock / static_cast<double>(sampleRate);
+    int n = static_cast<int>(cycleAcc);
+    cycleAcc -= n;
+    if (n < 1) n = 1;
+    float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    for (int k = 0; k < n; ++k) {
+      cycle();
+      for (int c = 0; c < 4; ++c) acc[c] += static_cast<float>(level(c));
+    }
+    const float inv = 1.0f / (15.0f * static_cast<float>(n));
     float mix = 0.0f;
-    const float baseInc = 64000.0f / sampleRate;
-    for (int i = 0; i < 4; ++i) {
-      PokeyChannel& p = ch[i];
-      const uint8_t vol = p.audc & 0x0f;
-      if (vol == 0) continue;
-      const float gain = static_cast<float>(vol) / 15.0f;
-      if (p.audc & 0x10) {
-        mix += gain * 0.25f;
-        continue;
-      }
-      p.counter += baseInc / static_cast<float>(p.audf + 1);
-      if (p.counter >= 1.0f) {
-        p.counter -= std::floor(p.counter);
-        const uint8_t dist = (p.audc >> 5) & 0x07;
-        if (dist >= 5) p.outBit = -p.outBit;
-        else if (dist == 4) p.outBit = (lfsr17 & 1u) ? 1.0f : -1.0f;
-        else if (dist == 0) {
-          if (lfsr5 & 1u) p.outBit = (lfsr17 & 1u) ? 1.0f : -1.0f;
-        } else {
-          p.outBit = (lfsr4 & 1u) ? 1.0f : -1.0f;
-        }
-      }
-      if (lowPassCh0 && i == 0) {
-        // Warm low-passed marble rolling rumble with post-filter makeup gain.
-        const float raw = p.outBit * gain * 0.85f;
+    for (int c = 0; c < 4; ++c) {
+      const float v = acc[c] * inv; // 0..1 unipolar, like the real DAC
+      if (lowPassCh0 && c == 0) {
+        // Warm low-passed marble rolling rumble used by the legacy rolling layer.
         const float alpha =
-            0.09f + (1.0f - static_cast<float>(p.audf) / 255.0f) * 0.12f;
-        rollLp1 += alpha * (raw - rollLp1);
+            0.09f + (1.0f - static_cast<float>(ch[0].audf) / 255.0f) * 0.12f;
+        const float gain = static_cast<float>(ch[0].audc & 0x0f) / 15.0f;
+        rollLp1 += alpha * ((v * 2.0f - gain) * 0.85f - rollLp1);
         rollLp2 += alpha * (rollLp1 - rollLp2);
         mix += rollLp2;
       } else {
-        mix += p.outBit * gain * 0.28f;
+        mix += v * 0.56f;
       }
     }
-    return mix;
+    // DC blocker: POKEY output is unipolar.
+    dcState += 0.0015f * (mix - dcState);
+    return mix - dcState;
   }
 };
+
+// Yamaha YM2151 (OPM) emulated by Aaron Giles's ymfm (BSD-3-Clause, vendored in
+// third_party/ymfm, pinned commit 81aec25). The chip renders at clock / 64
+// (55.93 kHz for the 3.579545 MHz System 1 clock) and is linearly resampled to
+// the AudioContext rate.
+constexpr double kOpmClock = 3579545.0;
+
+class OpmInterface : public ymfm::ymfm_interface {};
 
 struct OpmChip {
-  FmChannel fm[8];
+  OpmInterface intf;
+  ymfm::ym2151 chip{intf};
+  double pos = 0.0;
+  double step = 1.0;
+  float prevL = 0.0f, prevR = 0.0f, curL = 0.0f, curR = 0.0f;
 
   void reset(float sampleRate) {
-    for (int c = 0; c < 8; ++c) {
-      fm[c] = FmChannel{};
-      fm[c].updateFreq(sampleRate);
-    }
+    chip.reset();
+    step = (kOpmClock / 64.0) / static_cast<double>(sampleRate);
+    pos = 0.0;
+    prevL = prevR = curL = curR = 0.0f;
   }
 
-  void write(uint8_t reg, uint8_t val, float sampleRate) {
-    if (reg == 0x08) {
-      const uint8_t ch = val & 0x07;
-      constexpr int kSlotMap[4] = {0, 2, 1, 3};
-      for (int b = 0; b < 4; ++b) {
-        if (val & (1u << (b + 3))) fm[ch].ops[kSlotMap[b]].keyOn();
-        else fm[ch].ops[kSlotMap[b]].keyOff();
-      }
-      return;
-    }
-    const uint8_t ch = reg & 0x07;
-    if (reg >= 0x20 && reg <= 0x27) {
-      fm[ch].pan = (val >> 6) & 0x03;
-      fm[ch].fb = (val >> 3) & 0x07;
-      fm[ch].alg = val & 0x07;
-    } else if (reg >= 0x28 && reg <= 0x2f) {
-      fm[ch].kc = val & 0x7f;
-      fm[ch].updateFreq(sampleRate);
-    } else if (reg >= 0x30 && reg <= 0x37) {
-      fm[ch].kf = val & 0xfc;
-      fm[ch].updateFreq(sampleRate);
-    } else if (reg >= 0x40) {
-      constexpr int kSlotMap[4] = {0, 2, 1, 3};
-      const int slot = kSlotMap[(reg >> 3) & 0x03];
-      FmOperator& op = fm[ch].ops[slot];
-      const uint8_t bank = reg & 0xe0;
-      if (bank == 0x40) {
-        op.dt1 = (val >> 4) & 0x07;
-        op.mul = val & 0x0f;
-        fm[ch].updateFreq(sampleRate);
-      } else if (bank == 0x60) {
-        op.tl = val & 0x7f;
-      } else if (bank == 0x80) {
-        op.ar = val & 0x1f;
-      } else if (bank == 0xa0) {
-        op.d1r = val & 0x1f;
-      } else if (bank == 0xc0) {
-        op.d2r = val & 0x1f;
-      } else if (bank == 0xe0) {
-        op.d1l = (val >> 4) & 0x0f;
-        op.rr = val & 0x0f;
-      }
-    }
+  void write(uint8_t reg, uint8_t val, float /*sampleRate*/) {
+    // Timer and IRQ registers are owned by the original sound CPU, not by us.
+    if (reg >= 0x10 && reg <= 0x14) return;
+    chip.write_address(reg);
+    chip.write_data(val);
   }
 
-  void render(float sampleRate, float& outL, float& outR) {
-    for (int c = 0; c < 8; ++c) fm[c].render(sampleRate, outL, outR);
+  void render(float /*sampleRate*/, float& outL, float& outR) {
+    pos += step;
+    while (pos >= 1.0) {
+      pos -= 1.0;
+      prevL = curL;
+      prevR = curR;
+      ymfm::ym2151::output_data out;
+      chip.generate(&out);
+      curL = static_cast<float>(out.data[0]) / 32768.0f;
+      curR = static_cast<float>(out.data[1]) / 32768.0f;
+    }
+    const float t = static_cast<float>(pos);
+    outL += prevL + (curL - prevL) * t;
+    outR += prevR + (curR - prevR) * t;
   }
 };
+
+// Output scaling of the chips before the bus gains (ymfm OPM output is the
+// signed 16-bit DAC value / 32768; POKEY is 0..1 per channel after DC removal).
+constexpr float kOpmLevel = 1.6f;
+constexpr float kPokeyLevel = 0.65f;
 
 // Dual YM2151 + Dual POKEY engine:
 // - Music bus (dedicated 8-ch YM2151 + 4-ch POKEY) for full 8-channel VGM playback
-// - SFX bus   (dedicated 8-ch YM2151 + 4-ch POKEY) for zero-collision real-time SFX
+// - SFX bus   (dedicated 8-ch YM2151 + 4-ch POKEY) for zero-collision real-time SFX,
+//   driven by the ROM-derived register streams (raw POKEY, no extra filtering)
+// - Rolling POKEY (1 low-passed channel) for the remaster-only rolling rumble,
+//   kept apart so it never alters the ROM-faithful SFX POKEY.
 struct OpmPokeyEngine {
   float sampleRate = kDefaultSampleRate;
   OpmChip musicOpm;
   PokeyChip musicPokey;
   OpmChip sfxOpm;
   PokeyChip sfxPokey;
+  PokeyChip rollPokey;
   float musicGain = 0.75f;
   float sfxGain = 1.0f;
 
@@ -355,6 +277,7 @@ struct OpmPokeyEngine {
     musicPokey.reset();
     sfxOpm.reset(sampleRate);
     sfxPokey.reset();
+    rollPokey.reset();
   }
 
   void resetMusic() {
@@ -371,12 +294,15 @@ struct OpmPokeyEngine {
       musicOpm.render(sampleRate, musL, musR);
       const float musP = musicPokey.step(sampleRate, false);
       sfxOpm.render(sampleRate, sfxL, sfxR);
-      const float sfxP = sfxPokey.step(sampleRate, true);
+      const float sfxP = sfxPokey.step(sampleRate, false);
+      const float rollP = rollPokey.step(sampleRate, true);
 
-      left[i] = std::tanh((musL * 0.18f + musP * 0.30f) * musicGain +
-                          (sfxL * 0.30f + sfxP * 0.65f) * sfxGain);
-      right[i] = std::tanh((musR * 0.18f + musP * 0.30f) * musicGain +
-                           (sfxR * 0.30f + sfxP * 0.65f) * sfxGain);
+      const float music = kPokeyLevel * musP;
+      const float sfx = kPokeyLevel * sfxP + 0.65f * rollP;
+      left[i] = std::tanh((musL * kOpmLevel + music) * musicGain +
+                          (sfxL * kOpmLevel + sfx) * sfxGain);
+      right[i] = std::tanh((musR * kOpmLevel + music) * musicGain +
+                           (sfxR * kOpmLevel + sfx) * sfxGain);
     }
   }
 };
@@ -406,6 +332,11 @@ void opm_write(uint32_t reg, uint32_t val) {
 void pokey_write(uint32_t reg, uint32_t val) {
   gEngine.sfxPokey.write(static_cast<uint8_t>(reg & 0x0fu),
                          static_cast<uint8_t>(val & 0xffu));
+}
+
+void pokey_roll_write(uint32_t reg, uint32_t val) {
+  gEngine.rollPokey.write(static_cast<uint8_t>(reg & 0x0fu),
+                          static_cast<uint8_t>(val & 0xffu));
 }
 
 void opm_music_write(uint32_t reg, uint32_t val) {

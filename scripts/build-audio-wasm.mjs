@@ -10,14 +10,17 @@ mkdirSync(dirname(output), { recursive: true });
 
 const emcc = process.env.EMCC || 'emcc';
 const exportsList =
-  "['_audio_init','_audio_reset_music','_audio_set_mix','_opm_write','_pokey_write','_opm_music_write','_pokey_music_write','_audio_render','_audio_left_ptr','_audio_right_ptr']";
+  "['_audio_init','_audio_reset_music','_audio_set_mix','_opm_write','_pokey_write','_pokey_roll_write','_opm_music_write','_pokey_music_write','_audio_render','_audio_left_ptr','_audio_right_ptr']";
 
 execFileSync(
   emcc,
   [
     source,
+    resolve(root, 'native/audio/third_party/ymfm/ymfm_opm.cpp'),
     '-O3',
     '-std=c++17',
+    '-DNDEBUG',
+    '-fno-exceptions',
     '--no-entry',
     '-sSTANDALONE_WASM=1',
     `-sEXPORTED_FUNCTIONS=${exportsList}`,

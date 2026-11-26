@@ -81,6 +81,14 @@ Legend: `[x]` Done · `[~]` In Progress · `[ ]` Planned
 
 ### Phase 3 — Music & Sound Design Integration (with Peter Salomonsen)
 
+- [x] ROM-derived SFX: event → ROM command map and YM2151/POKEY register
+      streams (`rom-sfx.json`, [docs/ROM_SFX.md](docs/ROM_SFX.md)).
+  - Backend-agnostic cue layer (`soundCues.ts`) and ROM backend.
+  - ymfm OPM core.
+  - Wall, marble, airborne and landing events (issue #2).
+- [ ] Emit the Level 2+ cue events marked `TODO:` in `DEFAULT_SOUND_CUE_RULES`:
+      pipes, acid, ice, worms, black marble, wand, vacuums, pistons, daze, broom.
+
 - [ ] Dedicated 8-channel music bus (or Peter's WebAssembly Music / WAM 2.0 graph) separate from SFX bus.
 - [ ] Expand audio telemetry contract (surface material, impact material, 3D positional panning, enemies/mechanisms, adaptive low-timer music).
 - [ ] Original soundtrack for Levels 1–6 + menus/fanfares (`.vgm` or WebAssembly Music).

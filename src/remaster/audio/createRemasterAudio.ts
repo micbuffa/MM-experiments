@@ -1,50 +1,22 @@
 import type { RemasterEvent } from '../engine/remasterSimulation';
-import {
-  DEFAULT_SFX_BANK,
-  parseSfxBank,
-  type FmChannelPatch,
-  type SfxBankV1,
-} from './sfxBank';
+import { parseRomSfxBank, type RomSfxBankV1 } from './romSfxBank';
+import { createRomSfxBackend, type RomSfxBackend } from './romSfxBackend';
+import { DEFAULT_SFX_BANK, parseSfxBank, type SfxBankV1 } from './sfxBank';
+import { createSoundCueDispatcher, type SoundCueBackend } from './soundCues';
+import { createSynthCueBackend, type SynthCueBackend } from './synthCueBackend';
 import { parseVgm, type ParsedVgm } from './vgmParser';
 
-// YM2151 Key Code helper: MIDI note (e.g. 60 = C4) -> OPM KC byte.
-const MIDI_TO_OPM_NOTE = [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14] as const;
-
-function midiToKc(midi: number): number {
-  const clamped = Math.max(12, Math.min(107, Math.round(midi)));
-  const octave = Math.max(0, Math.min(7, Math.floor((clamped - 12) / 12)));
-  const note = MIDI_TO_OPM_NOTE[(clamped - 12) % 12]!;
-  return (octave << 4) | note;
-}
-
-type ChipOp = readonly [0 | 1, number, number]; // 0=OPM, 1=POKEY
-
-function loadFmPatch(patch: FmChannelPatch): ChipOp[] {
-  const ch = patch.channel & 7;
-  const batch: ChipOp[] = [
-    [0, 0x20 + ch, (0b11 << 6) | ((patch.fb & 7) << 3) | (patch.alg & 7)],
-  ];
-  const slotOffsets = [0x00, 0x10, 0x08, 0x18] as const; // M1, C1, M2, C2
-  for (let i = 0; i < 4; i++) {
-    const o = patch.ops[i]!;
-    const s = slotOffsets[i]! + ch;
-    batch.push(
-      [0, 0x40 + s, o.mul & 0x0f],
-      [0, 0x60 + s, o.tl & 0x7f],
-      [0, 0x80 + s, o.ar & 0x1f],
-      [0, 0xa0 + s, o.d1r & 0x1f],
-      [0, 0xc0 + s, 0],
-      [0, 0xe0 + s, ((o.d1l & 0x0f) << 4) | (o.rr & 0x0f)],
-    );
-  }
-  return batch;
-}
+/** Which layer-(b) backend renders gameplay cues. */
+export type SfxBackendKind = 'rom' | 'synth';
 
 export interface RemasterAudioController {
   unlock(): Promise<void>;
   setMuted(muted: boolean): void;
   setMix(music: number, sfx: number): void;
   setMusicEnabled(enabled: boolean): void;
+  /** Switches the cue backend: ROM-faithful streams or the remaster FM synth. */
+  setSfxBackend(kind: SfxBackendKind): void;
+  readonly sfxBackend: SfxBackendKind;
   playLevelTheme(): void;
   loadVgm(bytes: Uint8Array): ParsedVgm;
   clearVgm(): void;
@@ -54,10 +26,17 @@ export interface RemasterAudioController {
 }
 
 /**
- * Autonomous WebAudio controller for the Yamaha YM2151 (OPM) + Atari POKEY WASM worklet.
- * Preloads editable `sfx-bank.json`, `level1-practice.vgm`, and `goal-fanfare.vgm`.
- * Channels 0..3 (+ POKEY ch 2): Music bus (preloaded or user-dropped .vgm/.vgz).
- * Channels 4..7 (+ POKEY ch 0..1): Real-time SFX bus driven by `sfx-bank.json`.
+ * WebAudio controller for the YM2151 (ymfm) + POKEY WASM worklet.
+ *
+ * Gameplay audio is split in two layers:
+ *  (a) `soundCues.ts` maps `RemasterEvent`s to backend-agnostic cues with
+ *      priority / cooldown / intensity (no chip knowledge);
+ *  (b) a `SoundCueBackend` renders cues. `rom` replays the register streams of
+ *      the original 6502 sound program (`rom-sfx.json`); `synth` is the earlier
+ *      hand-designed FM bank (`sfx-bank.json`). A future WebAssembly-music
+ *      backend plugs in here without touching (a) or game code.
+ * Music (level theme VGM) and the rolling rumble (remaster-only, no arcade
+ * equivalent) are continuous layers handled directly by this controller.
  */
 export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
   let ctx: AudioContext | undefined;
@@ -73,21 +52,68 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
   let goalFanfareP2Vgm: ParsedVgm | null = null;
   let gameOverVgm: ParsedVgm | null = null;
   let sfxBank: SfxBankV1 = DEFAULT_SFX_BANK;
+  let romBank: RomSfxBankV1 | null = null;
+  let romBackend: RomSfxBackend | null = null;
+  let synthBackend: SynthCueBackend | null = null;
+  let backendKind: SfxBackendKind = 'rom';
   let disposed = false;
   let lastRollReg = -1;
-  let shatterTimeout: number | undefined;
+  const timers = new Set<number>();
 
   function post(msg: unknown) {
     if (ready && node && !disposed) node.port.postMessage(msg);
   }
 
-  function applySfxPatches() {
-    const ops: ChipOp[] = [
-      ...loadFmPatch(sfxBank.patches.impact),
-      ...loadFmPatch(sfxBank.patches.chime),
-      ...loadFmPatch(sfxBank.patches.fall),
-    ];
-    post({ type: 'batch', ops });
+  function audioNow(): number {
+    return ctx?.currentTime ?? 0;
+  }
+
+  function activeBackend(): SoundCueBackend | null {
+    if (backendKind === 'rom' && romBackend) return romBackend;
+    return synthBackend;
+  }
+
+  // Indirection so switching backends never re-creates the dispatcher state.
+  const dispatcher = createSoundCueDispatcher({
+    playCue: (trigger, rule) => activeBackend()?.playCue(trigger, rule),
+    stopCue: (cue, player) => activeBackend()?.stopCue(cue, player),
+    stopAll: () => activeBackend()?.stopAll(),
+  });
+
+  function createBackends() {
+    synthBackend = createSynthCueBackend(sfxBank, {
+      write: (ops) => post({ type: 'batch', ops }),
+      schedule: (fn, ms) => {
+        const id = window.setTimeout(() => {
+          timers.delete(id);
+          fn();
+        }, ms);
+        timers.add(id);
+        return () => {
+          window.clearTimeout(id);
+          timers.delete(id);
+        };
+      },
+    });
+    romBackend = romBank
+      ? createRomSfxBackend(
+          romBank,
+          {
+            playStreams: (streams, tickSeconds) =>
+              post({
+                type: 'sfxStreams',
+                tickSeconds,
+                streams: streams.map((s) => ({
+                  slot: s.slot,
+                  writes: s.writes,
+                })),
+              }),
+            stopSlots: (slots) => post({ type: 'sfxStop', slots }),
+          },
+          audioNow,
+        )
+      : null;
+    if (backendKind === 'synth' || !romBackend) synthBackend.activate();
   }
 
   function silenceMusicChannels() {
@@ -110,20 +136,6 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     } else {
       post({ type: 'vgm', vgm: null });
     }
-  }
-
-  function triggerNote(ch: number, midi: number, durationMs = 140) {
-    post({
-      type: 'batch',
-      ops: [
-        [0, 0x08, ch],
-        [0, 0x28 + ch, midiToKc(midi)],
-        [0, 0x08, 0x78 | ch],
-      ],
-    });
-    window.setTimeout(() => {
-      post({ type: 'opm', reg: 0x08, val: ch });
-    }, durationMs);
   }
 
   async function listLocalVgms(): Promise<Set<string>> {
@@ -155,6 +167,15 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     return null;
   }
 
+  async function fetchText(url: string): Promise<string | null> {
+    try {
+      const res = await fetch(url);
+      return res.ok ? await res.text() : null;
+    } catch {
+      return null;
+    }
+  }
+
   async function preloadAudioAssets(prefix: string) {
     const localVgms = await listLocalVgms();
     const resolveTrackUrls = (stem: string) => {
@@ -166,33 +187,61 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       return urls;
     };
 
-    const [bankRes, levelTrack, goalTrack, goalP2Track, gameOverTrack] =
-      await Promise.all([
-        fetch(`${prefix}assets/audio/sfx-bank.json`).catch(() => null),
-        fetchFirstVgm(resolveTrackUrls('level1-practice')),
-        fetchFirstVgm(resolveTrackUrls('goal-fanfare')),
-        localVgms.has('goal-fanfare-p2.vgz')
-          ? fetchFirstVgm(['/__local-roms/goal-fanfare-p2.vgz'])
-          : !import.meta.env.DEV
-            ? fetchFirstVgm([`${prefix}assets/audio/goal-fanfare-p2.vgz`])
-            : Promise.resolve(null),
-        localVgms.has('game-over.vgz')
-          ? fetchFirstVgm(['/__local-roms/game-over.vgz'])
-          : !import.meta.env.DEV
-            ? fetchFirstVgm([`${prefix}assets/audio/game-over.vgz`])
-            : Promise.resolve(null),
-      ]);
-    if (bankRes?.ok) {
+    const [
+      bankText,
+      romText,
+      levelTrack,
+      goalTrack,
+      goalP2Track,
+      gameOverTrack,
+    ] = await Promise.all([
+      fetchText(`${prefix}assets/audio/sfx-bank.json`),
+      fetchText(`${prefix}assets/audio/rom-sfx.json`),
+      fetchFirstVgm(resolveTrackUrls('level1-practice')),
+      fetchFirstVgm(resolveTrackUrls('goal-fanfare')),
+      localVgms.has('goal-fanfare-p2.vgz')
+        ? fetchFirstVgm(['/__local-roms/goal-fanfare-p2.vgz'])
+        : !import.meta.env.DEV
+          ? fetchFirstVgm([`${prefix}assets/audio/goal-fanfare-p2.vgz`])
+          : Promise.resolve(null),
+      localVgms.has('game-over.vgz')
+        ? fetchFirstVgm(['/__local-roms/game-over.vgz'])
+        : !import.meta.env.DEV
+          ? fetchFirstVgm([`${prefix}assets/audio/game-over.vgz`])
+          : Promise.resolve(null),
+    ]);
+    if (bankText) {
       try {
-        sfxBank = parseSfxBank(await bankRes.text());
+        sfxBank = parseSfxBank(bankText);
       } catch {
         sfxBank = DEFAULT_SFX_BANK;
+      }
+    }
+    if (romText) {
+      try {
+        romBank = parseRomSfxBank(romText);
+      } catch (err) {
+        console.warn('rom-sfx.json rejected, using synth SFX:', err);
+        romBank = null;
       }
     }
     levelThemeVgm = levelTrack;
     goalFanfareVgm = goalTrack;
     goalFanfareP2Vgm = goalP2Track;
     gameOverVgm = gameOverTrack;
+  }
+
+  /** Music-side reactions; jingles come from the ROM backend when it is active. */
+  function handleMusicEvent(ev: RemasterEvent) {
+    const romJingles = backendKind === 'rom' && romBackend !== null;
+    if (ev.type === 'goal') {
+      const fanfare =
+        ev.player === 2 && goalFanfareP2Vgm ? goalFanfareP2Vgm : goalFanfareVgm;
+      // Arcade: level music stops and the "Goal In" jingle (0x2F/0x30) plays.
+      playTrack(romJingles ? null : fanfare);
+    } else if (ev.type === 'gameOver') {
+      playTrack(romJingles ? null : gameOverVgm);
+    }
   }
 
   return {
@@ -220,7 +269,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       });
       node.connect(ctx.destination);
       await new Promise<void>((resolve, reject) => {
-        if (!node) return reject(new Error('AudioWorkletNode indisponible'));
+        if (!node) return reject(new Error('AudioWorkletNode unavailable'));
         node.port.onmessage = (event) => {
           if (event.data?.type === 'ready') {
             ready = true;
@@ -231,7 +280,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
         };
         node.port.postMessage({ type: 'init', wasmBytes }, [wasmBytes]);
       });
-      applySfxPatches();
+      createBackends();
       post({ type: 'mute', muted });
       post({ type: 'mix', music: musicGain, sfx: sfxGain });
       playTrack(customVgm ?? levelThemeVgm);
@@ -253,6 +302,18 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       playTrack(enabled ? (customVgm ?? levelThemeVgm) : null);
     },
 
+    setSfxBackend(kind: SfxBackendKind) {
+      if (kind === backendKind) return;
+      activeBackend()?.stopAll();
+      backendKind = kind;
+      dispatcher.reset();
+      if (kind === 'synth' || !romBackend) synthBackend?.activate();
+    },
+
+    get sfxBackend() {
+      return backendKind;
+    },
+
     playLevelTheme() {
       playTrack(customVgm ?? levelThemeVgm);
     },
@@ -266,7 +327,6 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
 
     clearVgm() {
       customVgm = null;
-      applySfxPatches();
       playTrack(levelThemeVgm);
     },
 
@@ -283,86 +343,27 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       const packed = (audf << 8) | vol;
       if (packed === lastRollReg) return;
       lastRollReg = packed;
+      // Chip 2 = dedicated low-passed rolling POKEY (no arcade equivalent).
       post({
         type: 'batch',
         ops: [
-          [1, 0x00, audf],
-          [1, 0x01, vol > 0 ? 0x80 | vol : 0x00],
+          [2, 0x00, audf],
+          [2, 0x01, vol > 0 ? 0x80 | vol : 0x00],
         ],
       });
     },
 
     handleEvents(events: readonly RemasterEvent[]) {
       if (!ready || muted) return;
-      const cfg = sfxBank.events;
-      for (const ev of events) {
-        if (ev.type === 'impact') {
-          const midi =
-            cfg.impact.baseMidi +
-            Math.round(ev.intensity * cfg.impact.intensitySpan);
-          triggerNote(cfg.impact.channel, midi, cfg.impact.durationMs);
-        } else if (ev.type === 'shatter') {
-          post({
-            type: 'batch',
-            ops: [
-              [1, 0x02, cfg.shatter.pokeyAudf],
-              [1, 0x03, cfg.shatter.pokeyAudc],
-            ],
-          });
-          triggerNote(
-            cfg.shatter.fmChannel,
-            cfg.shatter.fmMidi,
-            cfg.shatter.fmDurationMs,
-          );
-          window.clearTimeout(shatterTimeout);
-          shatterTimeout = window.setTimeout(() => {
-            post({ type: 'pokey', reg: 0x03, val: 0x00 });
-          }, cfg.shatter.pokeyDurationMs);
-        } else if (ev.type === 'fall') {
-          cfg.fall.notes.forEach((n, idx) => {
-            window.setTimeout(
-              () => triggerNote(cfg.fall.channel, n, cfg.fall.durationMs),
-              idx * cfg.fall.stepMs,
-            );
-          });
-        } else if (ev.type === 'respawn') {
-          cfg.respawn.notes.forEach((n, idx) => {
-            window.setTimeout(
-              () => triggerNote(cfg.respawn.channel, n, cfg.respawn.durationMs),
-              idx * cfg.respawn.stepMs,
-            );
-          });
-        } else if (ev.type === 'catchUp') {
-          // Crisp descending warning chirp for "-5 SEC" 2P catch-up penalty.
-          [72, 66, 60].forEach((n, idx) => {
-            window.setTimeout(() => triggerNote(5, n, 95), idx * 80);
-          });
-        } else if (ev.type === 'countdownTick') {
-          triggerNote(
-            cfg.countdownTick.channel,
-            cfg.countdownTick.midi,
-            cfg.countdownTick.durationMs,
-          );
-        } else if (ev.type === 'goal') {
-          const fanfare =
-            ev.player === 2 && goalFanfareP2Vgm
-              ? goalFanfareP2Vgm
-              : goalFanfareVgm;
-          if (fanfare) {
-            playTrack(fanfare);
-          }
-        } else if (ev.type === 'gameOver') {
-          if (gameOverVgm) {
-            playTrack(gameOverVgm);
-          }
-        }
-      }
+      for (const ev of events) handleMusicEvent(ev);
+      dispatcher.handleEvents(events, audioNow());
     },
 
     dispose() {
       if (disposed) return;
       disposed = true;
-      window.clearTimeout(shatterTimeout);
+      for (const id of timers) window.clearTimeout(id);
+      timers.clear();
       node?.disconnect();
       void ctx?.close();
     },

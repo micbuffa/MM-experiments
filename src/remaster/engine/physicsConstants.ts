@@ -9,23 +9,25 @@ export const REMASTER_PHYSICS = {
   fixedStepSeconds: 1 / 60,
   marbleRadius: 0.675,
   marbleMass: 1.0,
-  gravityY: -32.0,
+  gravityY: -30.0,
+  /** Terminal downward fall speed (cells / s) matching 68010 cap (-5 units/tick) so falls stay calm while jumps stay crisp. */
+  maxFallSpeed: 15.5,
   /** Maximum horizontal acceleration applied by player input (cells / s²). */
-  inputAcceleration: 38.0,
-  /** Space boost multiplier for extra burst on ramps and side jumps. */
-  boostMultiplier: 1.75,
+  inputAcceleration: 34.0,
+  /** Space boost multiplier for extra burst on ramps, side jumps, and shoving Black Marble. */
+  boostMultiplier: 1.9,
   /** Soft speed cap on flat ground (cells / s) during normal rolling. */
-  flatSpeedLimit: 18.0,
-  /** Raised speed cap while holding Space boost to clear side gaps. */
-  boostSpeedLimit: 26.0,
+  flatSpeedLimit: 15.5,
+  /** Raised speed cap while holding Space boost to clear side gaps and climb ramps. */
+  boostSpeedLimit: 24.5,
   /** Low air damping so ramp jumps keep horizontal momentum across side gaps. */
   airLinearDamping: 0.08,
   /** Downward landing speed that shatters the marble (corresponds to ~3.75-cell drop). */
-  shatterImpactSpeed: 15.5,
-  /** Vertical restitution against walls, raised well rims, and guardrails. */
-  wallRestitution: 0.72,
-  /** Marble-to-marble restitution in 2-player mode. */
-  marbleRestitution: 0.65,
+  shatterImpactSpeed: 13.5,
+  /** Vertical restitution against walls, raised well rims, and guardrails (matches 68010 0x1b5a6 sign-flip rebound). */
+  wallRestitution: 0.96,
+  /** Marble-to-marble billiard restitution (player vs player / Black Marble). */
+  marbleRestitution: 0.9,
   /** Surface-specific Havok friction and linear damping. */
   surfaces: {
     stone: { friction: 0.22, linearDamping: 1.15, restitution: 0.25 },
@@ -47,8 +49,16 @@ export const REMASTER_PHYSICS = {
 export const REMASTER_RULES = {
   openingDurationSeconds: 3.5,
   shatterDurationSeconds: 1.65,
-  fallDurationSeconds: 0.9,
+  fallDurationSeconds: 1.25,
   respawnInvulnSeconds: 0.75,
+  /** 68010 ROM player state 5 ($56 = 0x32 = 50 ticks at 30 Hz = 1.67 s). */
+  dizzyDurationSeconds: 50 / 30,
+  /** Reduced steering acceleration multiplier while dizzy. */
+  dizzySpeedFactor: 0.4,
+  /** Drop height in world Y units (> 3 arcade cells = 3 * 0.8165 = 2.45) that shatters the marble. */
+  shatterDropWorldY: 2.45,
+  /** Drop height in world Y units (~1.4..3 arcade cells) that makes the marble dizzy on landing. */
+  dizzyDropWorldY: 1.15,
   progressPointsPerCell: 10,
   timeBonusPointsPerSecond: 100,
   lowTimeThresholdSeconds: 10,

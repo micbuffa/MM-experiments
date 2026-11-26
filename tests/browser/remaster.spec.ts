@@ -42,3 +42,26 @@ test('remaster.html boots Level 1 with Havok physics and responds to controls wi
 
   expect(errors).toEqual([]);
 });
+
+test('remaster.html loads Level 2 with the green-worm presentation', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (err) => errors.push(String(err)));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(msg.text());
+  });
+
+  await page.goto('/remaster.html');
+  await page.locator('#level-select').selectOption('2');
+  await expect(page.locator('#remaster-canvas')).toBeVisible();
+  await expect
+    .poll(() => page.locator('#hud-status').textContent(), { timeout: 15_000 })
+    .toBe('FLYOVER');
+
+  await page.keyboard.press('Space');
+  await expect(page.locator('#hud-status')).toHaveText('PLAYING');
+  await page.waitForTimeout(250);
+
+  expect(errors).toEqual([]);
+});

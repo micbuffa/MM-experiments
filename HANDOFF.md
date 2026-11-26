@@ -1,5 +1,230 @@
 # Handoff
 
+## Remaster constant-velocity ice glide, uncut shatter→broom SFX & merge to `Remaster` — November 26, 2026
+
+- **Eliminated Level 2 ice-basin oscillation (`src/remaster/engine/remasterSimulation.ts`, `remasterSimulation.test.ts`)**:
+  - Replaced scalar `iceGlideSpeed` with a locked horizontal glide vector `iceGlideVel` on `enterIce` (enforcing a gentle `5.5` minimum only for slow `< 3.5` entries while preserving exact entry speed for `>= 3.5`, keeping PR #10's `iceSurface.integration.test.ts` 100% intact).
+  - Maintained `(vx, vz) = iceGlideVel` while grounded on ice (ignoring concave bowl slope gravity so the marble glides straight across without oscillating), while allowing wall bounces (`wallImpactSpeed > 0.5`) to redirect `iceGlideVel`. Cleared `iceGlideVel` on `leaveIce` and respawn.
+- **Full uncut shatter impact before broom sweep (`src/remaster/audio/createRemasterAudio.ts`)**:
+  - Measured `sfx-shatter.vgm` (`0x38`) through `ymfm` (`693 ms`, peak `0.506`) vs `sfx-broom.vgm` (`0x5f`, `526 ms` leading silence + `565 ms` sweep). Delayed `broomSweep` from `220 ms` to `680 ms` (tracked via `shatterTimeout`) so the full shatter crash plays cleanly before the broom sweeps.
+- **Validation**: `npm run format && npm run check` (122 test files / 802 Vitest tests, ≥ 90% V8 coverage, lint, typecheck, Vite build) and `npx playwright test tests/browser/remaster.spec.ts` (2/2) passed.
+- **Git**: committed & pushed `test-pr-7-on-remaster` and merged into `Remaster`.
+
+## Remaster ice-basin momentum preservation — November 26, 2026
+
+- **Fixed marble getting trapped in the concave Level 2 ice basin (`src/remaster/engine/remasterSimulation.ts`)**:
+  - Recorded `iceGlideSpeed = Math.max(9.0, entrySpeed)` on `enterIce` and preserved horizontal speed along the marble's current travel vector while grounded on ice, compensating for Havok's 0-restitution concave floor crease energy loss so the marble glides cleanly through the bowl and up the exit ramp.
+  - Raised the low-speed stall recovery nudge (`v < 4.5`) to `0.85×` so even after a dead-stop wall hit inside the basin the player can never be soft-locked.
+
+## Remaster ice-bowl escape nudge, immediate ROM take-off fall whistle, protected 1.58 s dizzy SFX & full Space boost — November 26, 2026
+
+- **Four fixes applied**:
+  1. **Ice-basin bottom soft-lock (`src/remaster/engine/remasterSimulation.ts`)**: preserved uncontrollable zero-friction glide on Level 2 ice at sliding speed (`>= 2.5` cells/s), while adding a subtle `0.22×` low-speed rocking nudge when stalled (`< 2.5` cells/s) at the bottom of the concave bowl.
+  2. **Audible fall whistle (`0x45`) before shatter/dizzy & full `1.58 s` dizzy SFX (`0x39`) (`remasterSimulation.ts`, `extract-rom-sfx.mjs`, `createRemasterAudio.ts`, `opm_pokey.cpp`)**:
+     - Triggered `fall` (`0x45`) immediately on the take-off frame whenever ground drops `> 0.75` world units below the marble (matching ROM `0x12482` so `0x45`'s measured `233 ms` YM2151 attack ramps up before landing).
+     - Extended `sfx-dizzy.vgm` to `380` ticks (`~1.58 s`), `sfx-fall.vgm` to `300` ticks (`~1.25 s`), raised `sfxL` mix to `1.25×` in `opm_pokey.cpp`, and protected playing `dizzy` SFX for `1.25 s` from being cut off by minor `wallBounce`/`impact` events.
+  3. **Level 1 right-side jump clearable with Space at any `Nervosité` setting (`createHavokBackend.ts`, `remasterSimulation.ts`, `physicsConstants.ts`)**: `agility` now scales normal driving (`flatSpeedLimit`) only, while holding Space always unlocks full boost acceleration and `boostSpeedLimit: 24.5`.
+
+## Remaster safe non-ice respawn, smooth 1.05 s pipe traversal, stable worms on fall & live Nervosité slider — November 26, 2026
+
+- **Four fixes applied**:
+  1. **Never respawn stuck on ice (`src/remaster/engine/remasterSimulation.ts`)**: `lastSafe` is now saved ONLY on controllable non-ice, non-acid, flat solid stone with a `0.5`-cell solid non-ice margin, so falling from Level 2's ice basin always respawns cleanly on the dry stone platform before the ice.
+  2. **Smooth 1.05 s pipe traversal & camera glide (`src/remaster/engine/remasterSimulation.ts`)**: extended pipe traversal duration to `1.05 s` so the full `0x35` pipe SFX (`~0.92 s`) plays out, and smoothly interpolated `player.position` from `pipeEntryPos` to `pipeExitPos` while hidden so the camera glides naturally along the pipe instead of snapping.
+  3. **Worms stay visible during falls (`src/remaster/engine/remasterSimulation.ts`)**: anchored `updateWorms()` scroll row to `leader.life === 'falling' ? leader.lastSafe : leader.position` so falling off a cliff never jumps past `maxRow` and briefly despawns the worms.
+  4. **Live `Nervosité` slider with numeric readout (`remaster.html`, `src/remaster/remaster.ts`, `remasterSimulation.ts`, `createHavokBackend.ts`)**: added a `0.40×`–`1.50×` slider (default `0.80×`) with live value badge scaling acceleration and speed cap in real time.
+
+## Remaster cycle-accurate ymfm (YM2151) WASM audio core integration — November 26, 2026
+
+- **Integrated Aaron Giles's `ymfm` (`ymfm::ym2151`, BSD-3-Clause)** pinned to commit `81aec25ccbb98f4873a255f7551ac4dadac59b4a` in `native/audio/ymfm/` (`ymfm.h`, `ymfm_fm.h`, `ymfm_fm.ipp`, `ymfm_opm.h`, `ymfm_opm.cpp`, `LICENSE`) and documented in `public/assets/README.md`.
+- **Replaced clean-room FM core in `native/audio/opm_pokey.cpp`** with Dual `ymfm::ym2151` (`musicOpm` + `sfxOpm`, clocked at exact Atari System 1 `3,579,545 Hz` with linear resampling from `55,930.39 Hz` to WebAudio `sampleRate`) behind the exact same WASM C exports; updated `scripts/build-audio-wasm.mjs`.
+- **Restored `wallBounce` (`sfx-wall-bounce.vgm`) to the true 68010 ROM command `0x34` (`0x1b8fa`)** now that `ymfm` renders YM2151 envelopes, LFO, `DT1`/`DT2`, `KS`, and hardware feedback cycle-accurately like MAME.
+
+## Remaster sub-block VGM audio fix, zero-crackle rolling, restored snappy driving + capped fall speed, and true zero-friction ice + ice SFX — November 26, 2026
+
+- **Audio analysis & fixes (`native/audio/opm_pokey.cpp`, `public/assets/audio/opm-pokey-worklet.js`)**:
+  - Measured `02 Level 1.vgz` and `05 Level 2.vgz` directly through `opm-pokey.wasm` in Node: found `opm-pokey-worklet.js` was executing all 128-sample VGM commands at once before `audio_render(128)`, eating fast `keyOn`/`keyOff` pairs on Level 1 `ch3` (696 notes); switched worklet rendering to 16-sample (`~0.33 ms`) sub-blocks.
+  - Eliminated key-on step clicks in `FmOperator::keyOn()` (no instant `env = 1.0f` / mid-wave `phase = 0` jump), boosted `musicOpm` mix from `0.16` to `0.26`, and tamed POKEY ch 0 rolling rumble (`raw = 0.22`, `alpha = 0.045`, ~340 Hz) so rolling no longer crackles or masks collisions.
+- **Snappy driving + exact jump arcs + calm falls + safe respawn (`physicsConstants.ts`, `createHavokBackend.ts`, `remasterSimulation.ts`)**:
+  - Restored responsive arcade feel (`gravityY: -30.0`, `inputAcceleration: 34.0`, `flatSpeedLimit: 15.5`, `boostMultiplier: 1.9`, `boostSpeedLimit: 23.0`) so Level 1's right-side jump lands cleanly without overshooting.
+  - Added vertical terminal velocity cap (`maxFallSpeed: 15.5` cells/s, matching 68010 `-5 units/tick`) so deep falls stay calm and give the fall whistle plenty of time.
+  - Required a `0.45`-cell solid terrain margin around `lastSafe` so jumping off an edge never saves an off-screen void lip.
+- **True zero-friction Level 2 ice + ROM ice SFX (`createHavokBackend.ts`, `remasterSimulation.ts`, `createRemasterAudio.ts`, `remaster.ts`, `extract-rom-sfx.mjs`, `sfx-bank.json`)**:
+  - Set Havok `friction: 0.0` & `staticFriction: 0.0` dynamically whenever `isIceAtWorld()` is true (in addition to PR #10's zero linear/angular damping and disabled steering).
+  - Wired PR #10's `surfaceTransition()` to emit `iceEnter` (`0x43`, `sfx-ice-enter.vgm`) / `iceLeave` (`0x44`, `sfx-ice-leave.vgm`) and muted stone rolling rumble while sliding on ice.
+
+## Remaster PR #10 ROM ice zones integration, restored YM2151 music sustain, audible wall knock & earlier fall whistle — November 26, 2026
+
+- **PR #10 (`MM-experiments#10`) integrated** (`docs/remaster/ice-zones.md`, `src/remaster/engine/romSurfaceZones.ts`, `surfaceRules.ts`, plus unit & integration tests):
+  - Wired `isIceAtWorld()` + `resolveSurfaceRules()` into `src/remaster/engine/remasterSimulation.ts` so Level 2's ice basin ignores player steering (including Space surge) while grounded.
+  - Wired `isIceAtWorld()`, `MARBLE_ANGULAR_DAMPING`, `surfaceLinearDamping()`, and `surfaceAngularDamping()` into `src/remaster/physics/createHavokBackend.ts` so the marble glides with zero friction/damping on Level 2 ice.
+- **Audio fixes**:
+  1. **Restored full Level 1 & Level 2 music instruments (`native/audio/opm_pokey.cpp`)**: recalibrated exponential YM2151 decay (`0.08 * 2^((d1r + 0.75*ks) * 0.27)`) so music tracks keep full instrument sustain instead of decaying 10× too fast.
+  2. **Audible wall-bounce knock (`scripts/extract-rom-sfx.mjs`, `public/assets/audio/sfx-bank.json`, `createHavokBackend.ts`)**: switched `wallBounce` from slow-attack `0x5c` to instant-attack loud `0x22` (`TL=0, AR=31, kc=0x34`) and lowered `horizDelta` trigger threshold to `1.8`.
+  3. **Longer fall whistle before shatter/dizzy (`remasterSimulation.ts`)**: lowered airborne fall-whistle trigger from `dropY > 0.85, vy < -2.5` to `dropY > 0.35, vy < -1.5` so the whistle starts right at take-off.
+
+## Remaster calmer gravity/speed, less aggressive Black Marble & clean 0x5c wall-bounce knock — November 26, 2026
+
+- **Three fixes applied**:
+  1. **Wall-bounce SFX buzz eliminated (`scripts/extract-rom-sfx.mjs`, `public/assets/audio/sfx-bank.json`)**: remapped `wallBounce` from `0x34` (43.6 Hz low-frequency FM buzz) to **`0x5c`** (`0x19310`, `alg=0, fb=0, kc=0x3e`, 247 Hz hollow knock with zero feedback).
+  2. **Calmer overall marble speed & gravity (`src/remaster/engine/physicsConstants.ts`)**: reduced `gravityY` from `-32.0` to `-20.0`, `inputAcceleration` from `30.0` to `22.0`, `flatSpeedLimit` from `15.0` to `11.5`, `boostSpeedLimit` to `20.0`, `shatterImpactSpeed` to `12.2`, and `fallDurationSeconds` to `1.25`.
+  3. **Calmer Black Marble without constant dizzy spam (`src/remaster/engine/remasterSimulation.ts`)**: scaled plateau `controllerForce` by `0.62` (`0.25` during `hitCooldown = 1.1 s`), reduced close-range lunge to `+5`, and raised the Black Marble dizzy threshold from `relSpeed > 4.5` to `relSpeed > 9.5` so normal pushing/wrestling does not stun-lock the player.
+
+## Remaster YM2151 2-sample feedback, 0.96 elastic walls, lighter Black Marble & fall→thud→dizzy audio sequence — November 26, 2026
+
+- **Four fixes applied**:
+  1. **Eliminated YM2151 FM buzz ("grésillement") (`native/audio/opm_pokey.cpp`)**: implemented authentic Yamaha 2-sample averaged self-feedback `(prevOut + prevOut2) * 0.5f * (π / 2^(7 - fb))` and restored `kModIndex = 4.0f`, eliminating harsh aliasing on `0x34` (wall bounce) and `0x32` (Black Marble clack).
+  2. **More elastic wall bounce (`physicsConstants.ts`, `createHavokBackend.ts`)**: raised `wallRestitution` to `0.96` (matching 68010 `0x1b5a6` sign-flip rebound) and set cliff friction to `0.0`.
+  3. **Easier to push & knock off the Black Marble (`createHavokBackend.ts`, `remasterSimulation.ts`)**: lowered Black Marble mass to `0.62×` player mass, `linearDamping` to `0.75`, `invM2` to `1 / (0.55 * m)`, and `hitCooldown` to `0.65 s`.
+  4. **Exact original airborne fall → landing thud → dizzy audio sequence (`remasterSimulation.ts`, `createRemasterAudio.ts`)**: trigger `fall` (`0x45`) as soon as the marble drops `> 0.85` world units while airborne (outside pipe mouths) for shatter, dizzy, and void drops alike; on `< 3`-cell dizzy landings, play `impact` (`0x5d`) first and schedule `dizzy` (`0x39`) `160 ms` later so both sounds are heard clearly in order.
+
+## Remaster YM2151 exponential envelopes + LFO, true 0x34 wall-bounce, Space boost, pipe exits & 30 Hz worm sync — November 26, 2026
+
+- **Five root causes fixed**:
+  1. **YM2151 SFX sounding wrong vs `main` (`native/audio/opm_pokey.cpp`, `scripts/extract-rom-sfx.mjs`, `public/assets/audio/sfx-bank.json`)**:
+     - Located the true 68010 wall-rebound sound call at `0x1b8fa` (`cmd 0x34`, remapped `wallBounce` from `0x5a` to `0x34`).
+     - Replaced linear envelope decay in `opm_pokey.cpp` with **exponential (dB-linear) YM2151 decay + Key Scale (`KS`)** and raised FM `kModIndex` (`8.0f`) so `0x34` (wall bounce) and `0x32` (Black Marble clack) produce crisp percussive knocks instead of 2-second drones.
+     - Implemented **YM2151 hardware LFO** (`0x18` LFRQ, `0x19` PMD/AMD, `0x1b` WF, `0x38..0x3f` PMS/AMS, `0xa0..0xbf` AMS-EN) so `0x45` (fall whistle) and `0x39` (dizzy) play with their authentic arcade vibrato/warble.
+  2. **Space boost not felt on trackpad & calmer normal speed (`physicsConstants.ts`, `remasterSimulation.ts`, `createHavokBackend.ts`)**:
+     - Tuned normal rolling (`inputAcceleration: 30.0`, `flatSpeedLimit: 15.0`) and raised Space boost (`boostMultiplier: 2.35`, `boostSpeedLimit: 25.0`), passing `boosting` explicitly to `applyPlayerForce()` (instead of guessing from `forceMag`) plus adding a forward turbo surge when holding Space while already rolling.
+  3. **Pipe exit placement & exit speed (`remasterSimulation.ts`)**:
+     - Placed Y-pipe exit clearly outside the `z = 95.01` shell at `(83.6, 95.3)` and scaled pipe exit velocity to `0.55×` (`~8.2 cells/s`) so the marble rolls cleanly out of the drop-pipe and Y-pipe.
+  4. **Worm occasionally missed on fast drops (`remasterSimulation.ts`)**:
+     - Synced `lastWormViewRow` ±1 stepping with `wormWorld.viewRow === lastWormViewRow` (30 Hz tick completion) so 60 Hz frames never drop intermediate `minRow` values (`5` or `6`).
+
+## Remaster Level 2 pipe exits, 3-worm spawn stepping & wall/fall SFX fix — November 26, 2026
+
+- **Three Level 2 bugs fixed**:
+  1. **Pipe exit placement (`src/remaster/engine/remasterSimulation.ts`)**: aligned the drop-pipe exit with the open 3D pipe mouth on `main` (`cell (69.0, 76.8)`) and the Y-pipe exit with its open 3D outlet (`cell (83.6, 94.6)`) instead of popping out buried inside the pipe shell, and re-anchored `teleportMarble()` before switching back to `DYNAMIC` so Havok never injects an `ANIMATED` velocity impulse on release.
+  2. **Only 1 green worm spawning (`src/remaster/engine/remasterSimulation.ts`)**: `stepWorms()` checks exact `newRow === minRow` (`5` for worms 0 & 1, `6` for worm 2), so rolling downhill quickly skipped `row = 5`. Added single-row stepping (`lastWormViewRow`) in `updateWorms()` so all 3 Level 2 worms reliably spawn.
+  3. **Wall bounce & fall SFX (`scripts/extract-rom-sfx.mjs`, `public/assets/audio/sfx-bank.json`, `src/remaster/audio/createRemasterAudio.ts`)**: remapped `wallBounce` from `0x42` (repeating bumper warble) to `0x5a` (`0x19340`, crisp wall thump) and switched `fall` events to play `sfx-fall.vgm` (`0x45`, descending fall whistle) instead of `sfx-void-fall.vgm` (`0x3d`).
+
+## Remaster Level 2 visible void fall & blue drop-pipe fix — November 26, 2026
+
+- **Two Level 2 bugs fixed**:
+  1. **Marble disappearing mid-air when falling in the Black Marble zone (`src/remaster/engine/remasterSimulation.ts`, `physicsConstants.ts`, `createRemasterScene.ts`)**:
+     - Stopped freezing the marble kinematic when `life === 'falling'` and kept reading its live Havok position so gravity visibly pulls it all the way off the bottom of the screen (`fallDurationSeconds: 1.1`).
+     - Removed `life !== 'falling'` from `p1Visible`/`p2Visible` in `createRemasterScene.ts` and froze camera scroll at `leader.lastSafe` while falling (matching the original arcade).
+  2. **Entering the blue drop-pipe to the right of the bridge killed the marble with `fall` (`src/remaster/engine/remasterSimulation.ts`)**:
+     - `droppedOverVoid` (`currentGround === null && y < lastSafe.y - 2.4`) was firing at `-2.4` units inside the pipe hole before the marble could reach `mouthFrom = 0x3f60` (`-4.08` units) and before `updatePipeTraversals()` ran.
+     - Moved `updatePipeTraversals(dt, events)` before the void-fall check, handled `probe.kind === 'mouth'` (ROM `0x2a3d2`: zero horizontal velocity, keep vertical gravity), guarded void-fall with `!inPipeMouth`, and reset `airbornePeakY` on pipe entry so exiting never triggers shatter/dizzy.
+- **Validation**: added a regression test in `src/remaster/engine/remasterSimulation.test.ts` and ran `npm run check` + `npx playwright test tests/browser/remaster.spec.ts`.
+
+## Remaster Level 2 camera height-scroll, Havok elastic wall/billiard restitution & 68010-verified ROM SFX JSON — November 26, 2026
+
+- **Four root causes fixed**:
+  1. **Camera losing the marble below the screen after the bridge (`src/remaster/rendering/createRemasterScene.ts`)**: `computeArcadeScroll(worldX, worldY, worldZ)` now projects `(arcadeX, arcadeZ, arcadeH)` through `projectPracticePoint()` (accounting for the ~270-unit terrain height drop from spawn to ice/GOAL) and raises Level 2 `endScroll` to `-15120` (GOAL sits at `scroll = -15187`), keeping the marble centered in the 240px viewport all the way to GOAL.
+  2. **Non-elastic wall bounces & sticky Black Marble (`src/remaster/physics/createHavokBackend.ts`, `physicsConstants.ts`, `remasterSimulation.ts`)**:
+     - Configured Havok `PhysicsMaterialCombineMode`: static floors use `restitution: 0` + `MULTIPLY` (highest Havok priority → `0.0` floor restitution, zero seam hops), while cliffs/walls/landmarks (`0.84`), player marbles (`0.86`), and Black Marbles (`0.90`) use `MAXIMUM`, giving genuine native Havok elastic wall and billiard-ball collisions.
+     - Tightened `applyPlayerForce` uphill climb assist (`slope < 0.95` instead of `1.5`) so pushing into a wall/well rim no longer wedges the marble into the wall.
+     - Suppressed the Black Marble's close-range lunge impulse during `enemy.hitCooldown` (`0.45 s`) so marbles recoil cleanly apart after a billiard clack instead of sticking.
+     - Widened `resolveBilliardCollision` contact envelope to `2.15 * radius` and reused `tmpV1`/`tmpV2` (zero per-call allocations).
+  3. **100% 68010-verified ROM SFX + editable JSON mapping + YM2151 `DT2` (`native/audio/opm_pokey.cpp`, `scripts/extract-rom-sfx.mjs`, `public/assets/audio/sfx-bank.json`, `src/remaster/audio/sfxBank.ts`, `createRemasterAudio.ts`, `src/dev/localRoms.ts`, `scripts/build-remaster.mjs`)**:
+     - Disassembled all `JSR 0x158ac` call sites in `roms/marble.zip` and re-exported all 13 bit-exact `.vgm` SFX: `wallBounce` (`0x42`), `marbleClack` (`0x32`), `pvpClack` (`0x37`), `impact` (`0x5d`), `fall` (`0x45`), `voidFall` (`0x3d`), `shatter` (`0x38`), `broomSweep` (`0x5f`), `dizzy` (`0x39`), `respawn` (`0x3c`), `wormEat` (`0x33`), `pipeEnter` (`0x35`), `countdownTick` (`0x43`).
+     - Added the editable `romSfx` trigger-to-file table to `public/assets/audio/sfx-bank.json`, read dynamically at runtime by `createRemasterAudio.ts`, and wired `pvpClack`, `wormEat`, and `pipeEnter` events from `remasterSimulation.ts`.
+     - Added YM2151 `DT2` coarse detune (`reg 0xc0..0xdf`) in `native/audio/opm_pokey.cpp` and rebuilt `public/assets/audio/opm-pokey.wasm` (`13.9 KiB`).
+- **Validation**:
+  - `npm run build:audio-wasm` + `node scripts/extract-rom-sfx.mjs --export` succeeded.
+  - `npm run check` passed (lint, typecheck, Vitest + V8 coverage ≥ 90%, build).
+  - `npx playwright test tests/browser/remaster.spec.ts` passed (2/2 tests).
+- **Next action**: manual playtest by Michel on `http://127.0.0.1:5173/remaster.html` (`2 · Beginner`) to verify scrolling down to GOAL, elastic wall & Black Marble billiard bounces, and the 68010-verified ROM SFX.
+
+## Remaster Level 2 audio, camera scroll, Black Marble, dizzy/shatter & Green Worms fixes — November 26, 2026
+
+- **Six gameplay & audio bugs fixed** in `opm-pokey-worklet.js`, `createRemasterScene.ts`, `physicsConstants.ts`, and `remasterSimulation.ts`:
+  1. **Stuck note on death (`public/assets/audio/opm-pokey-worklet.js`)**: added `silenceSfxChannels()` (YM2151 key-off on SFX channels `0..7` + POKEY mute on channels `1..3`, preserving POKEY channel `0` rolling) whenever an `sfxVgm` clip starts or finishes so no SFX note can hang indefinitely after a fall/shatter.
+  2. **Level 2 camera scroll stopping after the bridge (`src/remaster/rendering/createRemasterScene.ts`)**: `computeArcadeScroll()` now uses `-15360` as `endScroll` for Level 2 instead of `terrain.lastScroll` (`-15846`, the half-level survey limit near the bridge), allowing full scrolling down to `GOAL` (`110, 114`).
+  3. **Level 2 Black Marble ramp boundary, lunge & billiard collisions (`src/remaster/engine/remasterSimulation.ts`)**: wired real player zone tracking (`nextZone(LEVEL2_ZONE_BOUNDARIES, ...)`) into `stepEnemyMarble()`, added a hard ramp-turnback clamp (`reachedPlateau && selfCell.x >= 32.0`) so the Black Marble never descends past halfway down the ramp, added a close-range lunge impulse (`bestDist < 4.2`), and wired `bumpEnemyMarble()` + crisp billiard-ball bounce (`e = 0.90`) so marbles never stick and the player can knock the Black Marble off.
+  4. **3-cell drop shatter vs. dizzy & ROM 68010 timing (`src/remaster/engine/physicsConstants.ts`, `remasterSimulation.ts`)**: tracked airborne peak height (`airbornePeakY`); drops `> 2.45` world units (`> 3` arcade cells) shatter the marble with crumbs + 3D broom sweep; drops `1.15..2.45` (`< 3` cells) or hard Black Marble hits (`relSpeed > 4.5`) trigger dizzy for **`1.67 s`** (50 ROM ticks at 30 Hz, decoded from `roms/marble.zip` `0xd0ac`: `$56 = 0x32`), reducing player steering force to **`0.40×`** and resetting the dizzy timer to full `1.67 s` on re-hit without re-triggering the dizzy SFX.
+  5. **Green Worms collision, dizzy knockback, swallow & nearby respawn (`src/remaster/engine/remasterSimulation.ts`, `createRemasterScene.ts`)**: wired real `PlayerArcadeState` into `stepWorms()` and applied returned states back to Havok and players (`knockback`/`bump` → velocity impulse + `1.67 s` dizzy reset + `marbleClack`; `swallowed` → marble hidden & kinematic in worm mouth during chew; `rebuilding` → spiral respawn at `p.lastSafe` + `respawn` SFX).
+- **Validation**:
+  - `npm run check` passed: 119 test files, 786 Vitest tests (including 3 new unit tests for shatter/dizzy drop & slowdown/reset, Black Marble ramp clamp & bump, and Green Worm collision), lint, typecheck, coverage (93.63% stmts, 90.19% branches, 96.34% funcs, 94.2% lines), and build.
+  - `npx playwright test tests/browser/remaster.spec.ts` passed (2/2 tests).
+- **Next action**: manual playtest by Michel on `http://127.0.0.1:5173/remaster.html` (`2 · Beginner`) to verify the 6 fixes live (audio note release on death, scrolling past the bridge, Black Marble ramp limit & lunge/billiard fights, 3-cell shatter/dizzy feel, and Green Worm collisions/swallow).
+
+## Remaster Level 2 animated bridge physics & control fix — November 26, 2026
+
+- **Root causes identified and fixed** in `remasterSimulation.ts`, `createHavokBackend.ts`, and `createRemasterScene.ts`:
+  - Removed the double `+ marbleRadius` vertical offset in `updateBridgeCrossing()` (which had floated the marble 0.675 cells above the deck because `player.position.y` is already the marble bottom).
+  - Removed `setTargetTransform(pos, Quaternion.Identity())` from `setMarblePosition()` in `createHavokBackend.ts` (calling `setTargetTransform` on a `DYNAMIC` Havok body injected artificial vertical launch velocities and reset orientation); `disablePreStep = false` syncs `mesh.position` cleanly without impulse, and `bridgeGrounded` preserves stone damping (`1.15`) instead of air damping (`0.08`) while on the bridge.
+  - Moved `updateBridgeCrossing(dt, events)` to run once right after `physics.step(dt)` (before the void-fall check, guarded by `!p.bridgeSupported`) and synchronized the visual deck with `snapshot.bridgePhase * 6` (`smoothStep`).
+  - Implemented all five arcade bridge behaviors:
+    1. Passable when flat or barely raised (`freeEdgeRiseUnits < 4`, steps 0–1) with zero hop and preserved `(vx, vz)` velocity.
+    2. Full player steering in `X` and `Z` on the tilted deck plus physical slope gravity `|g| · sin(θ) · cos(θ)` toward the hinge (`+Z`).
+    3. Gentle push-back (`|vz| <= 4.2, vy = 0`) when approaching or pinched by a raised free edge (`step >= 2`) instead of violent ejection.
+    4. Rising under a stationary marble rolls it smoothly downhill with `vy = 0` (no upward hop).
+    5. Seamless zero-hop exit at the hinge (`z >= 60`) or flat free edge, and standard physical Havok parabolic launch (`vy = -vz · rise / 4`) when rolling off a raised free edge (`z < 56`).
+- **Validation**:
+  - `npm run check` passed (783 Vitest tests including 4 new bridge crossing/slope/push-back/launch assertions, lint, typecheck, V8 coverage ≥ 90%, build).
+  - `npx playwright test tests/browser/remaster.spec.ts` passed (2/2 tests).
+- **Next action**: manual playtest by Michel on `http://127.0.0.1:5173/remaster.html` (`2 · Beginner`) across the animated bridge in all states (flat, rising, raised lip, hinge exit, raised free-edge exit).
+
+## Remaster Level 2 bridge and pipe runtime integration — November 26, 2026
+
+- **Branch**: `test-pr-7-on-remaster`; PR #9 is merged locally in commit
+  `af795bb`, but neither the branch nor the PR has been pushed/merged remotely.
+- `bridgeState()` now drives the Level 2 bridge step in the simulation snapshot,
+  and `createRemasterScene()` forwards that step to the existing animated bridge
+  mechanism.
+- Player pipe probes now call `probePipeEntry()` and `beginPipeTraversal()`.
+  An entry teleports the player to the ROM exit, freezes and hides it for the
+  decoded 19 ticks, then restores dynamic Havok motion, exit velocity and score.
+- `RemasterPhysicsBackend` exposes the optional `setMarbleVelocity()` hook;
+  the Havok backend implements it.
+- The generic animated bridge collider was removed after browser testing showed
+  Havok penetration impulses ejecting the marble when the deck raised or closed.
+  `decideBridgeCrossing()` now owns the special arcade response: it supports the
+  marble on the deck without vertical impulse, reflects only the longitudinal
+  velocity at a high lip, and leaves lateral falls to the normal fall path.
+- Bridge support is applied both before and after the Havok step. The pre-step
+  application prevents the marble from entering the terrain gap before the ROM
+  crossing rule can place it on the lowered deck.
+- A grounded marble may now step up by up to 1.5 world units at the lowered
+  bridge entrance, covering the measured terrain-to-deck height discontinuity
+  without enabling an airborne jump.
+- Because the decoded crossing axis is partly inferred, a lowered-deck
+  fallback also supports a grounded marble anywhere in the bridge's measured
+  footprint and one-cell approach margin.
+- Bridge support now uses a position-only physics hook instead of the
+  teleport/reset hook. This keeps the current horizontal velocity and input
+  forces while the ROM rule clamps only the support height, preventing a
+  visible step, loss of steering during the lift, and an artificial launch
+  when leaving at the hinge.
+- The bridge now remembers that a marble has entered the deck, so support does
+  not depend on Havok reporting the gap as grounded during the lift. The
+  Havok implementation also sends the target transform to the physics body,
+  not only to its visual proxy, while restoring the preserved velocity.
+- Added a simulation regression covering steering velocity while entering a
+  lowered bridge.
+- **Validation**:
+  - `npm run check` passed: 782 Vitest tests, lint, typecheck, coverage and build.
+    Coverage: 94.59% statements, 90.04% branches, 96.61% functions, 95.23% lines.
+  - `npx playwright test tests/browser/remaster.spec.ts` passed: 2 tests.
+- **Remaining manual validation**: select `2 · Beginner` at
+  `http://127.0.0.1:5173/remaster.html`, reach the drawbridge and pipe mouths,
+  and check the visual timing and collision feel. The browser smoke test confirms
+  booting only; it does not drive a marble to those coordinates.
+
+## Remaster Level 2 green-worm scene integration — November 26, 2026
+
+- **Branch**: `test-pr-7-on-remaster`; the work is local and has not been pushed.
+- Wired the PR #8 worm state machine into `remasterSimulation.ts` for Level 2:
+  the simulation creates a worm world, advances it at the decoded 30 Hz cadence,
+  converts Remaster world coordinates to arcade units, and exposes renderer-facing
+  `WormPose` snapshots.
+- Added four procedural worm renderers to `createRemasterScene.ts`. Their native
+  script/frame/state data is adapted through `wormPose.ts`, and inactive slots
+  are hidden. Scene disposal remains owned by BabylonJS through the scene.
+- Added a simulation regression assertion and a Playwright Level 2 boot test.
+- **Validation**:
+  - `npm run check` passed: 747 Vitest tests, lint, typecheck, coverage and build.
+  - `npx playwright test tests/browser/remaster.spec.ts` passed: 2 tests.
+  - Manual visual validation by Michel is still required: select `2 · Beginner`
+    at `http://127.0.0.1:5173/remaster.html` and confirm worm placement and
+    locomotion during the opening and gameplay.
+- **Known limitation**: worm contact events currently advance the ROM state
+  machine and are exposed through the simulation path, but their knockback,
+  swallow and player-state effects are not yet applied back to Havok bodies.
+
 ## Remaster Level 2 drawbridge & pipes: ROM decoding + pure modules (issues #4, #5) — November 26, 2026
 
 - **Branch `remaster-l2-bridge-pipes`** (from `origin/Remaster`). No Level 2 scene code touched (that work is unpushed elsewhere); only new pure modules, docs and one coverage-include line in `vite.config.ts`.

@@ -11,8 +11,10 @@ import {
 import {
   arcadeCellUnits,
   arcadeGroundHeight,
+  arcadeHeightScale,
   practiceFinishScroll,
   practiceOpeningScroll,
+  projectPracticePoint,
 } from '../../game/modern/practiceProjection';
 import {
   intermediateOpeningScroll,
@@ -33,6 +35,13 @@ import { createPracticeStartLift } from '../../rendering/createPracticeStartLift
 import { applyPracticeShadowQuality } from '../../rendering/createPracticeSun';
 import { createScoreAward } from '../../rendering/createScoreAward';
 import { createTerrainStudy } from '../../rendering/createTerrainStudy';
+import { createWorm } from '../../rendering/createWorm';
+import {
+  updateWormPose,
+  type WormPose as RenderWormPose,
+} from '../../game/modern/wormPose';
+import { WORM_SCRIPT_ADDRESS } from '../level2/greenWorms/wormRomData';
+import { setIntermediateBridgeStep } from '../../rendering/createIntermediateBridge';
 import { REMASTER_RULES } from '../engine/physicsConstants';
 import type { RemasterSnapshot } from '../engine/remasterSimulation';
 import { createBroomSweep } from './createBroomSweep';
@@ -83,6 +92,21 @@ export function createRemasterScene(
   blackMat.specularColor.set(0.9, 0.92, 1.0);
   blackMat.specularPower = 64;
   const enemyMeshes = new Map<string, Mesh>();
+  const wormVisuals = [0, 1, 2, 3].map((index) =>
+    createWorm(scene, `remaster-worm-${index}`),
+  );
+  const wormPoses: RenderWormPose[] = [0, 1, 2, 3].map(() => ({
+    tailY: 0,
+    tailZ: 0,
+    headY: 0,
+    headX: 0,
+    headZ: 0,
+    arch: 0,
+    heading: 0,
+    mouth: 0,
+    tongue: 0,
+    flare: 0,
+  }));
 
   const finish =
     scene.getMeshByName('practice-finish') ??
@@ -103,16 +127,24 @@ export function createRemasterScene(
 
   let frameCounter = 0;
 
-  function computeArcadeScroll(worldX: number, worldZ: number): number {
-    const cellX = worldX + columns / 2 + terrain.origin.x;
-    const cellZ = worldZ + rows / 2 + terrain.origin.z;
+  function computeArcadeScroll(
+    worldX: number,
+    worldY: number,
+    worldZ: number,
+  ): number {
+    const arcadeX = (worldX + columns / 2 + terrain.origin.x) * arcadeCellUnits;
+    const arcadeZ = (worldZ + rows / 2 + terrain.origin.z) * arcadeCellUnits;
+    const arcadeH =
+      arcadeGroundHeight + (worldY * arcadeCellUnits) / arcadeHeightScale;
     const openScroll = isLevel2
       ? intermediateOpeningScroll
       : practiceOpeningScroll;
-    const endScroll = isLevel2 ? terrain.lastScroll : practiceFinishScroll;
-    const raw = Math.round(
-      openScroll + ((cellX + cellZ - 35) * arcadeCellUnits) / 2,
-    );
+    // Level 2 descends ~270 arcade height units down to GOAL (110,114) at scroll ~-15187.
+    const endScroll = isLevel2 ? -15120 : practiceFinishScroll;
+    // projectPracticePoint accounts for both isometric (x+z)/2 and terrain height drop.
+    // Subtract 115px so the marble stays centered in the 240px viewport with lookahead below.
+    const projY = projectPracticePoint(arcadeX, arcadeZ, arcadeH).y;
+    const raw = Math.round(practiceOpeningScroll + projY - 115);
     return Math.max(openScroll, Math.min(endScroll, raw));
   }
 
@@ -141,17 +173,44 @@ export function createRemasterScene(
 
       const p1Visible =
         p1 !== undefined &&
+        !p1.pipeHidden &&
+        !p1.wormSwallowed &&
         p1.life !== 'shattered' &&
-        p1.life !== 'falling' &&
         p1.life !== 'respawning';
       const p2Visible =
         p2 !== undefined &&
+        !p2.pipeHidden &&
+        !p2.wormSwallowed &&
         p2.life !== 'shattered' &&
-        p2.life !== 'falling' &&
         p2.life !== 'respawning';
 
       first.update(p1Visible ? p1.position : null);
       second.update(p2Visible ? p2.position : null);
+      if (isLevel2) setIntermediateBridgeStep(scene, snapshot.bridgePhase * 6);
+
+      for (let i = 0; i < wormVisuals.length; i++) {
+        const worm = snapshot.worms[i];
+        const visual = wormVisuals[i]!;
+        if (!worm || !worm.active) {
+          visual.hide();
+          continue;
+        }
+        updateWormPose(
+          wormPoses[i]!,
+          worm.state,
+          WORM_SCRIPT_ADDRESS[worm.script],
+          worm.frame,
+          worm.phase,
+          worm.heading,
+        );
+        visual.update(wormPoses[i]!, {
+          x: worm.x / arcadeCellUnits - terrain.origin.x - columns / 2,
+          y:
+            ((worm.height - arcadeGroundHeight) * arcadeHeightScale) /
+            arcadeCellUnits,
+          z: worm.z / arcadeCellUnits - terrain.origin.z - rows / 2,
+        });
+      }
 
       // Spiral respawn fragments (inward 45->1) or shatter burst (outward 5->45).
       const fragmentTicks = (
@@ -248,10 +307,14 @@ export function createRemasterScene(
         const openScroll = isLevel2
           ? intermediateOpeningScroll
           : practiceOpeningScroll;
+        // Freeze camera scroll at lastSafe while falling so the marble visibly
+        // plummets off the bottom edge of the screen (matches original arcade).
+        const camAnchor =
+          leader.life === 'falling' ? leader.lastSafe : leader.position;
         const scroll =
           snapshot.phase === 'opening'
             ? openScroll
-            : computeArcadeScroll(leader.position.x, leader.position.z);
+            : computeArcadeScroll(camAnchor.x, camAnchor.y, camAnchor.z);
         const syntheticPose: PracticePose = {
           marble: p1Visible ? 'visible' : 'hidden',
           x: (p1.position.x + columns / 2) * arcadeCellUnits,

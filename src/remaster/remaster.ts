@@ -125,6 +125,11 @@ async function bootRemaster() {
   const heldKeys = new Set<string>();
   let mouseDx = 0;
   let mouseDy = 0;
+  const agilitySlider = document.getElementById(
+    'agility-slider',
+  ) as HTMLInputElement | null;
+  const agilityValEl = document.getElementById('agility-val');
+  let agilityFactor = agilitySlider ? Number(agilitySlider.value) / 100 : 0.8;
   let rafId = 0;
   let lastTime = performance.now();
   let accumulator = 0;
@@ -256,7 +261,7 @@ async function bootRemaster() {
     }
 
     const world = projectScreenToWorld(sx, sy);
-    return { x: world.x, z: world.z, boost };
+    return { x: world.x, z: world.z, boost, agility: agilityFactor };
   }
 
   function sampleInputs(): PlayerInput[] {
@@ -344,7 +349,7 @@ async function bootRemaster() {
     if (p1 && latestSnap.phase === 'playing' && p1.life === 'active') {
       audio.updateRolling(
         Math.hypot(p1.velocity.x, p1.velocity.z),
-        p1.grounded,
+        p1.grounded && p1.surface !== 'ice',
       );
     } else {
       audio.updateRolling(0, false);
@@ -508,6 +513,16 @@ async function bootRemaster() {
   }
   mixMusic.addEventListener('input', syncMix, { signal });
   mixSfx.addEventListener('input', syncMix, { signal });
+  agilitySlider?.addEventListener(
+    'input',
+    () => {
+      agilityFactor = Number(agilitySlider.value) / 100;
+      if (agilityValEl) {
+        agilityValEl.textContent = `${agilityFactor.toFixed(2)}×`;
+      }
+    },
+    { signal },
+  );
 
   vgmFile.addEventListener(
     'change',

@@ -79,6 +79,12 @@ function makeStubPhysics(): RemasterPhysicsBackend & {
         impactSpeed: 0,
       };
     },
+    setMarblePosition(i, position) {
+      marbles[i] = {
+        ...marbles[i]!,
+        position: { ...position },
+      };
+    },
     setMarbleKinematic(i, value) {
       kinematic[i] = value;
     },
@@ -138,6 +144,26 @@ describe('createRemasterSimulation', () => {
     expect(state.phase).toBe('finished');
     expect(state.goalOwner).toBe(1);
     expect(state.events.some((e) => e.type === 'goal')).toBe(true);
+  });
+
+  it('supports a lowered bridge without cancelling steering velocity', () => {
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 2,
+      spawns: {
+        player1: { x: -2, y: 0, z: -3 },
+        player2: { x: -3, y: 0, z: -5 },
+      },
+    };
+    const physics = makeStubPhysics();
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    const state = sim.step(1 / 60, [{ x: 1, z: 0 }]);
+
+    expect(state.players[0]!.grounded).toBe(true);
+    expect(state.players[0]!.velocity.x).toBeGreaterThan(0);
+    expect(physics.marbles[0]!.position.y).toBe(state.players[0]!.position.y);
   });
 
   it('shatters on hard impact and respawns at last safe grounded position', () => {
@@ -394,5 +420,533 @@ describe('createRemasterSimulation', () => {
 
     expect(enemyForce.x).toBeLessThan(0);
     expect(enemyForce.z).toBe(0);
+    expect(sim.snapshot.worms).toHaveLength(4);
+    expect(sim.snapshot.worms.every((worm) => Number.isFinite(worm.x))).toBe(
+      true,
+    );
+    expect(sim.snapshot.bridgeStep).toBe(0);
+  });
+
+  it('handles Level 2 drawbridge: flat pass, gentle raised push-back, slope roll without hop, and raised exit jump', () => {
+    const cells = Array.from({ length: 130 }, () =>
+      Array.from(
+        { length: 130 },
+        () => [-12.2474, -12.2474, -12.2474, -12.2474] as const,
+      ),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 2,
+      heightLayers: [
+        {
+          id: 'main',
+          columns: 130,
+          rows: 130,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      killY: -30,
+    };
+
+    const platformY = ((0x3f88 - 0x4000) * Math.sqrt(2 / 3)) / 8;
+    const base = makeStubPhysics();
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      setMarblePosition(idx, pos) {
+        base.marbles[idx] = { ...base.marbles[idx], position: { ...pos } };
+      },
+      setMarbleVelocity(idx, vel) {
+        base.marbles[idx] = { ...base.marbles[idx], velocity: { ...vel } };
+      },
+    };
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    // 1. Bridge starts flat (step 0): marble on deck (cell x=63 => world -2, cell z=58 => world -7)
+    // stays flush at platformY (NO +radius float) and preserves horizontal steering velocity.
+    base.marbles[0] = {
+      position: { x: -2, y: platformY, z: -7 },
+      velocity: { x: 1.5, y: 0, z: 6 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    const flatSnap = sim.step(1 / 60, []);
+    expect(flatSnap.players[0]!.position.y).toBeCloseTo(platformY, 3);
+    expect(flatSnap.players[0]!.velocity.y).toBe(0);
+    expect(flatSnap.players[0]!.velocity.x).toBeCloseTo(1.5, 2);
+    expect(flatSnap.players[0]!.velocity.z).toBeCloseTo(6, 2);
+
+    // 2. Advance until bridge is raised (~0.5s => step 6): marble on deck does NOT jump upward
+    // (vy === 0) and accelerates downhill toward the hinge (+z) under slope gravity.
+    for (let k = 0; k < 29; k++) {
+      base.marbles[0] = {
+        ...base.marbles[0],
+        position: { x: -2, y: base.marbles[0].position.y, z: -7 },
+        velocity: { x: 0, y: 0, z: 0 },
+      };
+      sim.step(1 / 60, []);
+    }
+    const raisedSnap = sim.step(1 / 60, []);
+    expect(raisedSnap.bridgeStep).toBe(6);
+    expect(raisedSnap.players[0]!.position.y).toBeGreaterThan(platformY + 0.5);
+    expect(raisedSnap.players[0]!.velocity.y).toBe(0);
+    expect(raisedSnap.players[0]!.velocity.z).toBeGreaterThan(0.1);
+
+    // 3. Exiting off the raised free edge (cell z < 56 => world z < -9) moving -z launches
+    // with standard physical ramp tangent vy > 0 (Havok jump).
+    base.marbles[0] = {
+      position: { x: -2, y: raisedSnap.players[0]!.position.y, z: -9.2 },
+      velocity: { x: 0, y: 0, z: -8 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    const jumpSnap = sim.step(1 / 60, []);
+    expect(jumpSnap.players[0]!.velocity.y).toBeGreaterThan(2);
+
+    // 4. Approaching the raised free edge from z < 56 (cell z=55.5 => world -9.5) moving +z
+    // is gently nudged back (not ejected far away).
+    base.marbles[0] = {
+      position: { x: -2, y: platformY, z: -9.5 },
+      velocity: { x: 0, y: 0, z: 12 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    const pushSnap = sim.step(1 / 60, []);
+    expect(pushSnap.players[0]!.velocity.z).toBeLessThan(0);
+    expect(Math.abs(pushSnap.players[0]!.velocity.z)).toBeLessThanOrEqual(4.2);
+    expect(pushSnap.players[0]!.velocity.y).toBe(0);
+  });
+
+  it('shatters on >3-cell drop, makes dizzy with 0.4x slowdown on <3-cell drop, and resets dizzy timer on re-hit', () => {
+    const base = makeStubPhysics();
+    let lastForceX = 0;
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      applyPlayerForce(idx, fx, fz) {
+        if (idx === 0) lastForceX = fx;
+        base.applyPlayerForce(idx, fx, fz);
+      },
+    };
+    const sim = createRemasterSimulation(makeFlatLevel(), physics);
+    sim.skipOpening();
+
+    // Airborne at y=2.0 (~2.45 arcade cells) then land at y=0 => dizzy (not shattered)
+    base.marbles[0] = {
+      position: { x: -5, y: 2.0, z: -5 },
+      velocity: { x: 0, y: -2, z: 0 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    sim.step(1 / 60, []);
+    base.marbles[0] = {
+      position: { x: -5, y: 0, z: -5 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 5,
+    };
+    const dizzySnap = sim.step(1 / 60, []);
+    expect(dizzySnap.players[0]!.life).toBe('active');
+    expect(dizzySnap.players[0]!.dizzyTimer).toBeCloseTo(
+      REMASTER_RULES.dizzyDurationSeconds,
+      2,
+    );
+    expect(dizzySnap.events).toContainEqual({ type: 'dizzy', player: 1 });
+
+    // While dizzy, player input force is scaled by dizzySpeedFactor (0.4x)
+    sim.step(0.5, [{ x: 1, z: 0 }]);
+    expect(lastForceX).toBeCloseTo(
+      REMASTER_PHYSICS.inputAcceleration * REMASTER_RULES.dizzySpeedFactor,
+      2,
+    );
+
+    // Re-hit while dizzy resets dizzyTimer back to full 1.67s without spamming dizzy SFX
+    base.marbles[0] = {
+      position: { x: -5, y: 0, z: -5 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 8.5,
+    };
+    const rehit = sim.step(1 / 60, []);
+    expect(rehit.players[0]!.dizzyTimer).toBeCloseTo(
+      REMASTER_RULES.dizzyDurationSeconds,
+      2,
+    );
+    expect(rehit.events.some((e) => e.type === 'dizzy')).toBe(false);
+
+    // Drop > 3 cells (y=3.2 -> y=0) => shatters
+    base.marbles[0] = {
+      position: { x: -5, y: 3.2, z: -5 },
+      velocity: { x: 0, y: -2, z: 0 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    sim.step(1 / 60, []);
+    base.marbles[0] = {
+      position: { x: -5, y: 0, z: -5 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 4,
+    };
+    const shatterSnap = sim.step(1 / 60, []);
+    expect(shatterSnap.players[0]!.life).toBe('shattered');
+    expect(shatterSnap.events).toContainEqual({ type: 'shatter', player: 1 });
+  });
+
+  it('prevents Level 2 Black Marble from descending past halfway down the ramp and triggers lunge/bump', () => {
+    const cells = Array.from({ length: 130 }, () =>
+      Array.from({ length: 130 }, () => [0, 0, 0, 0] as const),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 2,
+      heightLayers: [
+        {
+          id: 'main',
+          columns: 130,
+          rows: 130,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      enemies: [
+        {
+          id: 'level2-black-marble',
+          kind: 'blackMarble',
+          position: { x: 25 - 65, y: 0, z: 35.5 - 65 },
+          patrolRadius: 3.5,
+        },
+      ],
+    };
+    const base = makeStubPhysics();
+    let enemyPos = { x: 25 - 65, y: 0, z: 35.5 - 65 };
+    let lastEnemyForce = { x: 0, z: 0 };
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      applyEnemyForce(_i, fx, fz) {
+        lastEnemyForce = { x: fx, z: fz };
+      },
+      readEnemy() {
+        return {
+          position: { ...enemyPos },
+          velocity: { x: 0, y: 0, z: 0 },
+          grounded: true,
+          impactSpeed: 0,
+        };
+      },
+      resolveBilliardCollision() {
+        return 10.5;
+      },
+    };
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    // 1. At cell x=25, enemy registers reachedPlateau=true; place player 2 cells away => lunge + contact
+    base.marbles[0] = {
+      position: { x: 23 - 65, y: 0, z: 35.5 - 65 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    const contactSnap = sim.step(1 / 60, []);
+    expect(contactSnap.events.some((e) => e.type === 'marbleClack')).toBe(true);
+    expect(contactSnap.players[0]!.dizzyTimer).toBeCloseTo(
+      REMASTER_RULES.dizzyDurationSeconds,
+      2,
+    );
+
+    // 2. If enemy ever gets pushed past halfway down the ramp (cell x=33 >= 32), it turns back (-x)
+    enemyPos = { x: 33 - 65, y: 0, z: 35.5 - 65 };
+    base.marbles[0] = {
+      position: { x: 45 - 65, y: 0, z: 35.5 - 65 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    sim.step(1 / 60, []);
+    expect(lastEnemyForce.x).toBeLessThan(0);
+  });
+
+  it('applies Level 2 green worm collision dizzy stun and knockback', () => {
+    const cells = Array.from({ length: 130 }, () =>
+      Array.from(
+        { length: 130 },
+        () => [-12.2474, -12.2474, -12.2474, -12.2474] as const,
+      ),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 2,
+      heightLayers: [
+        {
+          id: 'main',
+          columns: 130,
+          rows: 130,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      killY: -30,
+    };
+    const platformY = ((0x3f88 - 0x4000) * Math.sqrt(2 / 3)) / 8;
+    const base = makeStubPhysics();
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      setMarbleVelocity(idx, vel) {
+        base.marbles[idx] = { ...base.marbles[idx], velocity: { ...vel } };
+      },
+    };
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    // Advance player onto the 3-tower plateau so worms spawn, then step onto an active worm
+    base.marbles[0] = {
+      position: { x: 48 - 65, y: platformY, z: 48 - 65 },
+      velocity: { x: 2, y: 0, z: 2 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    let snap = sim.step(1 / 30, []);
+    const activeWorm = snap.worms.find((w) => w.active);
+    if (activeWorm) {
+      base.marbles[0] = {
+        position: {
+          x: activeWorm.x / 8 - 65,
+          y: platformY,
+          z: activeWorm.z / 8 - 65,
+        },
+        velocity: { x: 3, y: 0, z: 0 },
+        grounded: true,
+        impactSpeed: 0,
+      };
+      snap = sim.step(1 / 30, []);
+      expect(snap.players[0]!.dizzyTimer).toBeGreaterThan(0);
+    }
+  });
+
+  it('captures Level 2 drop-pipe mouth without triggering void fall and keeps void-falling marbles dynamic', () => {
+    const platformY = ((0x3f88 - 0x4000) * Math.sqrt(2 / 3)) / 8;
+    const cells = Array.from({ length: 130 }, (_, z) =>
+      Array.from({ length: 130 }, (_, x) =>
+        x >= 62 && x <= 64 && z >= 74 && z <= 79
+          ? null
+          : ([platformY, platformY, platformY, platformY] as const),
+      ),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 2,
+      heightLayers: [
+        {
+          id: 'main',
+          columns: 130,
+          rows: 130,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      killY: -30,
+    };
+    const base = makeStubPhysics();
+    const recordedVels: { x: number; y: number; z: number }[] = [];
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      setMarbleVelocity(idx, vel) {
+        recordedVels.push({ ...vel });
+        base.marbles[idx] = { ...base.marbles[idx], velocity: { ...vel } };
+      },
+    };
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    // Stand near pipe rim to set lastSafe at platformY
+    base.marbles[0] = {
+      position: { x: 61 - 65, y: platformY, z: 76 - 65 },
+      velocity: { x: 2, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    sim.step(1 / 60, []);
+
+    // Drop into the drop-pipe mouth (0x3f68, > 2.4 world units below platformY, over null cells)
+    const mouthY = ((0x3f68 - 0x4000) * Math.sqrt(2 / 3)) / 8;
+    base.marbles[0] = {
+      position: { x: 63.5 - 65, y: mouthY, z: 76.5 - 65 },
+      velocity: { x: 4, y: -8, z: 2 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    let snap = sim.step(1 / 60, []);
+    // Must NOT die with falling; mouth zeroes horizontal velocity
+    expect(snap.players[0]!.life).toBe('active');
+    expect(snap.events.some((e) => e.type === 'fall')).toBe(false);
+    expect(recordedVels.some((v) => v.x === 0 && v.z === 0)).toBe(true);
+
+    // Drop below mouthFrom (0x3f58) -> enters pipe, plays pipeEnter, hides marble
+    const enterY = ((0x3f58 - 0x4000) * Math.sqrt(2 / 3)) / 8;
+    base.marbles[0] = {
+      position: { x: 63.5 - 65, y: enterY, z: 76.5 - 65 },
+      velocity: { x: 0, y: -12, z: 0 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.life).toBe('active');
+    expect(snap.players[0]!.pipeHidden).toBe(true);
+    expect(snap.events.some((e) => e.type === 'pipeEnter')).toBe(true);
+    expect(snap.events.some((e) => e.type === 'fall')).toBe(false);
+
+    // Void fall elsewhere keeps marble dynamic (not frozen kinematic) during fall
+    const voidLevel = makeFlatLevel();
+    const voidPhys = makeStubPhysics();
+    const voidSim = createRemasterSimulation(voidLevel, voidPhys);
+    voidSim.skipOpening();
+    voidPhys.marbles[0] = {
+      position: { x: 0, y: voidLevel.killY - 1, z: 0 },
+      velocity: { x: 0, y: -10, z: 0 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    const fallSnap = voidSim.step(1 / 60, []);
+    expect(fallSnap.players[0]!.life).toBe('falling');
+    expect(voidPhys.kinematic[0]).toBe(false);
+  });
+
+  it('interpolates pipe traversal over 1.05 s, preserves non-ice lastSafe, and scales force with agility', () => {
+    const platformY = ((0x3f88 - 0x4000) * Math.sqrt(2 / 3)) / 8;
+    const cells = Array.from({ length: 130 }, () =>
+      Array.from(
+        { length: 130 },
+        () => [platformY, platformY, platformY, platformY] as const,
+      ),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 2,
+      heightLayers: [
+        {
+          id: 'main',
+          columns: 130,
+          rows: 130,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      killY: -30,
+    };
+    const base = makeStubPhysics();
+    const recordedForces: { fx: number; fz: number }[] = [];
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      applyPlayerForce(idx, fx, fz) {
+        recordedForces.push({ fx, fz });
+        base.applyPlayerForce(idx, fx, fz);
+      },
+      setMarbleVelocity(idx, vel) {
+        base.marbles[idx] = { ...base.marbles[idx], velocity: { ...vel } };
+      },
+    };
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    // 1. Agility scaling + Space boost surge while rolling
+    base.marbles[0] = {
+      position: { x: 85 - 65, y: platformY, z: 100 - 65 },
+      velocity: { x: 4, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    sim.step(1 / 60, [{ x: 1, z: 0, agility: 0.5 }]);
+    sim.step(1 / 60, [{ x: 0, z: 0, boost: true, agility: 0.5 }]);
+    expect(recordedForces.length).toBe(2);
+    expect(recordedForces[0]!.fx).toBeCloseTo(
+      REMASTER_PHYSICS.inputAcceleration * 0.5,
+      1,
+    );
+    expect(recordedForces[1]!.fx).toBeGreaterThan(0);
+
+    // 2. Entering Level 2 ice (95, 100) emits iceEnter and does NOT overwrite lastSafe
+    const safeBeforeIce = sim.snapshot.players[0]!.lastSafe;
+    base.marbles[0] = {
+      position: { x: 95 - 65, y: platformY, z: 100 - 65 },
+      velocity: { x: 4, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    let snap = sim.step(1 / 60, []);
+    expect(snap.events.some((e) => e.type === 'iceEnter')).toBe(true);
+    expect(snap.players[0]!.lastSafe).toEqual(safeBeforeIce);
+
+    // Leaving ice emits iceLeave
+    base.marbles[0] = {
+      position: { x: 85 - 65, y: platformY, z: 100 - 65 },
+      velocity: { x: 4, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.events.some((e) => e.type === 'iceLeave')).toBe(true);
+
+    // 2b. Constant-velocity ice glide resists bowl slope deflection, boosts slow entry,
+    // and redirects cleanly on a wall bounce.
+    base.marbles[0] = {
+      position: { x: 95 - 65, y: platformY, z: 100 - 65 },
+      velocity: { x: 1.0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.velocity.x).toBeCloseTo(5.5, 1);
+    // Simulate bowl gravity deflecting velocity sideways -> glide restores entry vector
+    base.marbles[0] = {
+      position: { x: 96 - 65, y: platformY, z: 100 - 65 },
+      velocity: { x: 2.0, y: 0, z: 3.0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.velocity.x).toBeCloseTo(5.5, 1);
+    expect(snap.players[0]!.velocity.z).toBeCloseTo(0, 1);
+    // Wall bounce on ice redirects the stored glide vector
+    base.marbles[0] = {
+      position: { x: 97 - 65, y: platformY, z: 100 - 65 },
+      velocity: { x: -4.0, y: 0, z: 2.0 },
+      grounded: true,
+      impactSpeed: 0,
+      wallImpactSpeed: 5.0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.velocity.x).toBeCloseTo(-4.0, 1);
+    expect(snap.players[0]!.velocity.z).toBeCloseTo(2.0, 1);
+    // Leave ice again before pipe test
+    base.marbles[0] = {
+      position: { x: 85 - 65, y: platformY, z: 100 - 65 },
+      velocity: { x: 4, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    sim.step(1 / 60, []);
+
+    // 3. Y-pipe traversal smoothly interpolates for 1.05 s then releases with score
+    base.marbles[0] = {
+      position: { x: 80.5 - 65, y: platformY, z: 86.5 - 65 },
+      velocity: { x: 0, y: 0, z: 4 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.pipeHidden).toBe(true);
+    // Mid-traversal (~0.5 s): still hidden and interpolated between entry and exit
+    snap = sim.step(0.5, []);
+    expect(snap.players[0]!.pipeHidden).toBe(true);
+    // Past 1.05 s: released with exit velocity and +2000 score
+    snap = sim.step(0.6, []);
+    expect(snap.players[0]!.pipeHidden).toBe(false);
+    expect(snap.players[0]!.score).toBeGreaterThanOrEqual(2000);
   });
 });

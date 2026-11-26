@@ -861,16 +861,23 @@ if (args.has('--detail')) {
   }
 }
 
+// 100% 68010-verified sound command IDs (from JSR 0x158ac call sites in roms/marble.zip).
 const NAMED_SFX = [
-  ['sfx-wall-bounce.vgm', 0x22, 160],
-  ['sfx-marble-clack.vgm', 0x54, 180],
-  ['sfx-impact.vgm', 0x5a, 200],
-  ['sfx-fall.vgm', 0x3c, 360],
-  ['sfx-dizzy.vgm', 0x38, 280],
-  ['sfx-shatter.vgm', 0x5d, 140],
-  ['sfx-broom.vgm', 0x5f, 280],
-  ['sfx-respawn.vgm', 0x2f, 280],
-  ['sfx-countdown.vgm', 0x41, 160],
+  ['sfx-wall-bounce.vgm', 0x34, 140], // 0x1b8fa: authentic 68010 wall-rebound knock (now rendered cycle-exact via ymfm!)
+  ['sfx-marble-clack.vgm', 0x32, 110], // 0x1bf9c: player <-> Black Marble clack
+  ['sfx-pvp-clack.vgm', 0x37, 130], // 0x1bfac: player <-> player clack
+  ['sfx-impact.vgm', 0x5d, 100], // 0x124da: floor landing thud (POKEY)
+  ['sfx-fall.vgm', 0x45, 300], // 0x12482: airborne fall whistle (~1.25 s)
+  ['sfx-void-fall.vgm', 0x3d, 260], // 0x25c5a: void fall vanish
+  ['sfx-shatter.vgm', 0x38, 170], // 0x25bdc: marble shatter
+  ['sfx-broom.vgm', 0x5f, 260], // 0x26068: broom sweep (POKEY)
+  ['sfx-dizzy.vgm', 0x39, 380], // 0x15076 / 0x25db0: dizzy stars (~1.58 s)
+  ['sfx-respawn.vgm', 0x3c, 220], // 0x25c44: marble respawn
+  ['sfx-worm-eat.vgm', 0x33, 240], // 0x153a2: worm swallows marble
+  ['sfx-pipe.vgm', 0x35, 220], // 0x2a46a: pipe traversal
+  ['sfx-ice-enter.vgm', 0x43, 180], // 0x2b19c: enter Level 2 ice zone (0x10)
+  ['sfx-ice-leave.vgm', 0x44, 120], // 0x2b1ee: leave Level 2 ice zone
+  ['sfx-countdown.vgm', 0x41, 120], // low-time countdown tick
 ];
 
 if (args.has('--export')) {

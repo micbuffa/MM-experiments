@@ -4,6 +4,8 @@ import { dirname, resolve } from 'node:path';
 
 const root = process.cwd();
 const source = resolve(root, 'native/audio/opm_pokey.cpp');
+const ymfmDir = resolve(root, 'native/audio/ymfm');
+const ymfmOpm = resolve(ymfmDir, 'ymfm_opm.cpp');
 const output = resolve(root, 'public/assets/audio/opm-pokey.wasm');
 
 mkdirSync(dirname(output), { recursive: true });
@@ -16,8 +18,12 @@ execFileSync(
   emcc,
   [
     source,
+    ymfmOpm,
+    `-I${ymfmDir}`,
     '-O3',
     '-std=c++17',
+    '-fno-exceptions',
+    '-fno-rtti',
     '--no-entry',
     '-sSTANDALONE_WASM=1',
     `-sEXPORTED_FUNCTIONS=${exportsList}`,

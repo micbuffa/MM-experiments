@@ -52,12 +52,18 @@ const ORIGINAL_VGM_FILES: Readonly<Record<string, string>> = {
   'coin.vgz': '01 Coin.vgz',
   'sfx-wall-bounce.vgm': 'sfx/sfx-wall-bounce.vgm',
   'sfx-marble-clack.vgm': 'sfx/sfx-marble-clack.vgm',
+  'sfx-pvp-clack.vgm': 'sfx/sfx-pvp-clack.vgm',
   'sfx-impact.vgm': 'sfx/sfx-impact.vgm',
   'sfx-fall.vgm': 'sfx/sfx-fall.vgm',
+  'sfx-void-fall.vgm': 'sfx/sfx-void-fall.vgm',
   'sfx-dizzy.vgm': 'sfx/sfx-dizzy.vgm',
   'sfx-shatter.vgm': 'sfx/sfx-shatter.vgm',
   'sfx-broom.vgm': 'sfx/sfx-broom.vgm',
   'sfx-respawn.vgm': 'sfx/sfx-respawn.vgm',
+  'sfx-worm-eat.vgm': 'sfx/sfx-worm-eat.vgm',
+  'sfx-pipe.vgm': 'sfx/sfx-pipe.vgm',
+  'sfx-ice-enter.vgm': 'sfx/sfx-ice-enter.vgm',
+  'sfx-ice-leave.vgm': 'sfx/sfx-ice-leave.vgm',
   'sfx-countdown.vgm': 'sfx/sfx-countdown.vgm',
 };
 const LEVEL_PNG_FILES = new Map([

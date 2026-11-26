@@ -79,6 +79,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
   let disposed = false;
   let lastRollReg = -1;
   let shatterTimeout: number | undefined;
+  let dizzyProtectUntil = 0;
 
   function post(msg: unknown) {
     if (ready && node && !disposed) node.port.postMessage(msg);
@@ -215,18 +216,28 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     goalFanfareP2Vgm = goalP2Track;
     gameOverVgm = gameOverTrack;
 
-    // Preload bit-exact original Atari System 1 ROM SFX (.vgm) when available.
-    const sfxNames = [
+    // Preload bit-exact original Atari System 1 ROM SFX (.vgm) mapped in sfx-bank.json.
+    const defaultSfxNames = [
       'sfx-wall-bounce.vgm',
       'sfx-marble-clack.vgm',
+      'sfx-pvp-clack.vgm',
       'sfx-impact.vgm',
       'sfx-fall.vgm',
+      'sfx-void-fall.vgm',
       'sfx-dizzy.vgm',
       'sfx-shatter.vgm',
       'sfx-broom.vgm',
       'sfx-respawn.vgm',
+      'sfx-worm-eat.vgm',
+      'sfx-pipe.vgm',
+      'sfx-ice-enter.vgm',
+      'sfx-ice-leave.vgm',
       'sfx-countdown.vgm',
-    ] as const;
+    ];
+    const mappedNames = sfxBank.romSfx
+      ? Object.values(sfxBank.romSfx).map((entry) => entry.file)
+      : [];
+    const sfxNames = [...new Set([...defaultSfxNames, ...mappedNames])];
     await Promise.all(
       sfxNames.map(async (name) => {
         const urls: string[] = [];
@@ -343,40 +354,73 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     handleEvents(events: readonly RemasterEvent[]) {
       if (!ready || muted) return;
       const cfg = sfxBank.events;
-      const playRomSfx = (key: string): boolean => {
-        const clip = romSfx[key];
+      const playTriggerSfx = (
+        trigger: string,
+        fallbackFile: string,
+      ): boolean => {
+        const file = sfxBank.romSfx?.[trigger]?.file ?? fallbackFile;
+        const clip = romSfx[file];
         if (!clip) return false;
         post({ type: 'sfxVgm', vgm: clip });
         return true;
       };
+      const hasImpactInBatch = events.some((e) => e.type === 'impact');
       for (const ev of events) {
         if (ev.type === 'impact') {
-          if (!playRomSfx('sfx-impact.vgm')) {
+          if (performance.now() < dizzyProtectUntil) continue;
+          if (!playTriggerSfx('impact', 'sfx-impact.vgm')) {
             const midi =
               cfg.impact.baseMidi +
               Math.round(ev.intensity * cfg.impact.intensitySpan);
             triggerNote(cfg.impact.channel, midi, cfg.impact.durationMs);
           }
         } else if (ev.type === 'wallBounce') {
-          if (!playRomSfx('sfx-wall-bounce.vgm')) {
+          if (performance.now() < dizzyProtectUntil) continue;
+          if (!playTriggerSfx('wallBounce', 'sfx-wall-bounce.vgm')) {
             const wb = cfg.wallBounce ?? DEFAULT_SFX_BANK.events.wallBounce!;
             const midi =
               wb.baseMidi + Math.round(ev.intensity * wb.intensitySpan);
             triggerNote(wb.channel, midi, wb.durationMs);
           }
         } else if (ev.type === 'marbleClack') {
-          if (!playRomSfx('sfx-marble-clack.vgm')) {
+          if (!playTriggerSfx('marbleClack', 'sfx-marble-clack.vgm')) {
             const mc = cfg.marbleClack ?? DEFAULT_SFX_BANK.events.marbleClack!;
             const midi =
               mc.baseMidi + Math.round(ev.intensity * mc.intensitySpan);
             triggerNote(mc.channel, midi, mc.durationMs);
           }
+        } else if (ev.type === 'pvpClack') {
+          if (!playTriggerSfx('pvpClack', 'sfx-pvp-clack.vgm')) {
+            const mc = cfg.marbleClack ?? DEFAULT_SFX_BANK.events.marbleClack!;
+            const midi =
+              mc.baseMidi + Math.round(ev.intensity * mc.intensitySpan);
+            triggerNote(mc.channel, midi, mc.durationMs);
+          }
+        } else if (ev.type === 'wormEat') {
+          if (!playTriggerSfx('wormEat', 'sfx-worm-eat.vgm')) {
+            triggerNote(cfg.impact.channel, 34, 220);
+          }
+        } else if (ev.type === 'pipeEnter') {
+          if (!playTriggerSfx('pipeEnter', 'sfx-pipe.vgm')) {
+            triggerNote(cfg.respawn.channel, 68, 180);
+          }
+        } else if (ev.type === 'iceEnter') {
+          if (!playTriggerSfx('iceEnter', 'sfx-ice-enter.vgm')) {
+            triggerNote(cfg.respawn.channel, 84, 140);
+          }
+        } else if (ev.type === 'iceLeave') {
+          playTriggerSfx('iceLeave', 'sfx-ice-leave.vgm');
         } else if (ev.type === 'shatter') {
-          if (playRomSfx('sfx-shatter.vgm')) {
-            if (romSfx['sfx-broom.vgm']) {
-              window.setTimeout(() => {
-                playRomSfx('sfx-broom.vgm');
-              }, 360);
+          if (playTriggerSfx('shatter', 'sfx-shatter.vgm')) {
+            const broomFile =
+              sfxBank.romSfx?.broomSweep?.file ?? 'sfx-broom.vgm';
+            if (romSfx[broomFile]) {
+              window.clearTimeout(shatterTimeout);
+              // Let the full 693 ms ROM shatter crash (0x38) play uncut before
+              // switching the SFX VGM slot to the POKEY broom sweep (0x5f).
+              shatterTimeout = window.setTimeout(() => {
+                playTriggerSfx('broomSweep', 'sfx-broom.vgm');
+              }, 680);
             }
           } else {
             post({
@@ -413,26 +457,37 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
             });
           }
         } else if (ev.type === 'dizzy') {
-          if (!playRomSfx('sfx-dizzy.vgm')) {
-            const dz = cfg.dizzy ?? DEFAULT_SFX_BANK.events.dizzy!;
-            dz.notes.forEach((n, idx) => {
-              window.setTimeout(
-                () => triggerNote(dz.channel, n, dz.durationMs),
-                idx * dz.stepMs,
-              );
-            });
+          const playDizzy = () => {
+            dizzyProtectUntil = performance.now() + 1250;
+            if (!playTriggerSfx('dizzy', 'sfx-dizzy.vgm')) {
+              const dz = cfg.dizzy ?? DEFAULT_SFX_BANK.events.dizzy!;
+              dz.notes.forEach((n, idx) => {
+                window.setTimeout(
+                  () => triggerNote(dz.channel, n, dz.durationMs),
+                  idx * dz.stepMs,
+                );
+              });
+            }
+          };
+          // On a <3-cell drop landing, let the landing thud (0x5d) play first before dizzy (0x39).
+          if (hasImpactInBatch) {
+            window.setTimeout(playDizzy, 180);
+          } else {
+            playDizzy();
           }
         } else if (ev.type === 'fall') {
-          if (!playRomSfx('sfx-fall.vgm')) {
-            cfg.fall.notes.forEach((n, idx) => {
-              window.setTimeout(
-                () => triggerNote(cfg.fall.channel, n, cfg.fall.durationMs),
-                idx * cfg.fall.stepMs,
-              );
-            });
+          if (!playTriggerSfx('fall', 'sfx-fall.vgm')) {
+            if (!playTriggerSfx('voidFall', 'sfx-void-fall.vgm')) {
+              cfg.fall.notes.forEach((n, idx) => {
+                window.setTimeout(
+                  () => triggerNote(cfg.fall.channel, n, cfg.fall.durationMs),
+                  idx * cfg.fall.stepMs,
+                );
+              });
+            }
           }
         } else if (ev.type === 'respawn') {
-          if (!playRomSfx('sfx-respawn.vgm')) {
+          if (!playTriggerSfx('respawn', 'sfx-respawn.vgm')) {
             cfg.respawn.notes.forEach((n, idx) => {
               window.setTimeout(
                 () =>
@@ -447,7 +502,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
             window.setTimeout(() => triggerNote(5, n, 95), idx * 80);
           });
         } else if (ev.type === 'countdownTick') {
-          if (!playRomSfx('sfx-countdown.vgm')) {
+          if (!playTriggerSfx('countdownTick', 'sfx-countdown.vgm')) {
             triggerNote(
               cfg.countdownTick.channel,
               cfg.countdownTick.midi,

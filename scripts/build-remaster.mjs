@@ -43,12 +43,18 @@ const vgmMap = [
   ['13 Game Over.vgz', 'game-over.vgz'],
   ['sfx/sfx-wall-bounce.vgm', 'sfx-wall-bounce.vgm'],
   ['sfx/sfx-marble-clack.vgm', 'sfx-marble-clack.vgm'],
+  ['sfx/sfx-pvp-clack.vgm', 'sfx-pvp-clack.vgm'],
   ['sfx/sfx-impact.vgm', 'sfx-impact.vgm'],
   ['sfx/sfx-fall.vgm', 'sfx-fall.vgm'],
+  ['sfx/sfx-void-fall.vgm', 'sfx-void-fall.vgm'],
   ['sfx/sfx-dizzy.vgm', 'sfx-dizzy.vgm'],
   ['sfx/sfx-shatter.vgm', 'sfx-shatter.vgm'],
   ['sfx/sfx-broom.vgm', 'sfx-broom.vgm'],
   ['sfx/sfx-respawn.vgm', 'sfx-respawn.vgm'],
+  ['sfx/sfx-worm-eat.vgm', 'sfx-worm-eat.vgm'],
+  ['sfx/sfx-pipe.vgm', 'sfx-pipe.vgm'],
+  ['sfx/sfx-ice-enter.vgm', 'sfx-ice-enter.vgm'],
+  ['sfx/sfx-ice-leave.vgm', 'sfx-ice-leave.vgm'],
   ['sfx/sfx-countdown.vgm', 'sfx-countdown.vgm'],
 ];
 for (const [srcName, dstName] of vgmMap) {

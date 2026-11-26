@@ -16,8 +16,15 @@ import {
 } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
+import { PhysicsMaterialCombineMode } from '@babylonjs/core/Physics/v2/physicsMaterial';
 import type { Scene } from '@babylonjs/core/scene';
 import { REMASTER_PHYSICS } from '../engine/physicsConstants';
+import { isIceAtWorld } from '../engine/romSurfaceZones';
+import {
+  MARBLE_ANGULAR_DAMPING,
+  surfaceAngularDamping,
+  surfaceLinearDamping,
+} from '../engine/surfaceRules';
 import type {
   PhysicsMarbleSnapshot,
   RemasterPhysicsBackend,
@@ -58,6 +65,7 @@ export async function createHavokBackend(
       part: { readonly positions: Float32Array; readonly indices: Uint32Array },
       friction: number,
       restitution: number,
+      restitutionCombine: PhysicsMaterialCombineMode,
     ) => {
       if (part.indices.length === 0) return;
       const mesh = new Mesh(name, scene);
@@ -76,21 +84,30 @@ export async function createHavokBackend(
         { mass: 0, friction, restitution },
         scene,
       );
+      aggregate.shape.material = {
+        friction,
+        restitution,
+        restitutionCombine,
+      };
       ownedMeshes.push(mesh);
       ownedAggregates.push(aggregate);
     };
 
+    // Floor uses MULTIPLY combine (highest Havok priority): 0 * marbleRestitution = 0
+    // so marbles never hop on tile seams, while walls & marbles bounce elastically.
     addStaticPart(
       `remaster-floor-${layer.id}`,
       floor,
       surfaceProps.friction,
       0,
+      PhysicsMaterialCombineMode.MULTIPLY,
     );
     addStaticPart(
       `remaster-cliffs-${layer.id}`,
       cliffs,
-      0.08,
+      0.0,
       REMASTER_PHYSICS.wallRestitution,
+      PhysicsMaterialCombineMode.MAXIMUM,
     );
   }
 
@@ -182,7 +199,9 @@ export async function createHavokBackend(
     lastImpact: number;
     lastWallImpact: number;
     wallCooldown: number;
+    bridgeGrounded: boolean;
     surface: RemasterSurfaceKind;
+    onRomIce: boolean;
   }[] = [];
 
   for (let i = 0; i < count; i++) {
@@ -195,22 +214,27 @@ export async function createHavokBackend(
     mesh.isPickable = false;
     const spawn = i === 0 ? level.spawns.player1 : level.spawns.player2;
     mesh.position.set(spawn.x, spawn.y + radius, spawn.z);
-    // Zero marble restitution so floor contacts (max(0, 0) = 0) never hop on
-    // tile seams or stairs, while walls (max(0, 0.42) = 0.42) still bounce crisply.
+    // High marble restitution with MAXIMUM combine gives crisp native Havok
+    // billiard bounces against walls & other marbles, while floor uses MULTIPLY(0) = 0.
     const aggregate = new PhysicsAggregate(
       mesh,
       PhysicsShapeType.SPHERE,
       {
         mass: REMASTER_PHYSICS.marbleMass,
         friction: REMASTER_PHYSICS.surfaces.stone.friction,
-        restitution: 0,
+        restitution: REMASTER_PHYSICS.marbleRestitution,
       },
       scene,
     );
+    aggregate.shape.material = {
+      friction: REMASTER_PHYSICS.surfaces.stone.friction,
+      restitution: REMASTER_PHYSICS.marbleRestitution,
+      restitutionCombine: PhysicsMaterialCombineMode.MAXIMUM,
+    };
     aggregate.body.setLinearDamping(
       REMASTER_PHYSICS.surfaces.stone.linearDamping,
     );
-    aggregate.body.setAngularDamping(2.0);
+    aggregate.body.setAngularDamping(MARBLE_ANGULAR_DAMPING);
     aggregate.body.disablePreStep = false;
     ownedMeshes.push(mesh);
     ownedAggregates.push(aggregate);
@@ -223,7 +247,9 @@ export async function createHavokBackend(
       lastImpact: 0,
       lastWallImpact: 0,
       wallCooldown: 0,
+      bridgeGrounded: false,
       surface: 'stone',
+      onRomIce: false,
     });
   }
 
@@ -254,13 +280,18 @@ export async function createHavokBackend(
       mesh,
       PhysicsShapeType.SPHERE,
       {
-        mass: REMASTER_PHYSICS.marbleMass * 0.88,
+        mass: REMASTER_PHYSICS.marbleMass * 0.62,
         friction: REMASTER_PHYSICS.surfaces.stone.friction,
-        restitution: 0,
+        restitution: 0.92,
       },
       scene,
     );
-    aggregate.body.setLinearDamping(1.35);
+    aggregate.shape.material = {
+      friction: REMASTER_PHYSICS.surfaces.stone.friction,
+      restitution: 0.92,
+      restitutionCombine: PhysicsMaterialCombineMode.MAXIMUM,
+    };
+    aggregate.body.setLinearDamping(0.75);
     aggregate.body.setAngularDamping(2.0);
     aggregate.body.disablePreStep = false;
     ownedMeshes.push(mesh);
@@ -270,21 +301,32 @@ export async function createHavokBackend(
 
   const tmpForce = Vector3.Zero();
   const tmpVel = Vector3.Zero();
+  const tmpV1 = Vector3.Zero();
+  const tmpV2 = Vector3.Zero();
   const mainLayer = level.heightLayers[0];
   let disposed = false;
 
   return {
-    applyPlayerForce(playerIndex: 0 | 1, fx: number, fz: number) {
+    applyPlayerForce(
+      playerIndex: 0 | 1,
+      fx: number,
+      fz: number,
+      boosting = false,
+      agility = 1,
+    ) {
       const m = marbles[playerIndex];
       if (!m || disposed) return;
       m.aggregate.body.getLinearVelocityToRef(tmpVel);
       const speed = Math.hypot(tmpVel.x, tmpVel.z);
       const forceMag = Math.hypot(fx, fz);
-      // Detect boost from force magnitude exceeding base inputAcceleration.
-      const boosting = forceMag > REMASTER_PHYSICS.inputAcceleration * 1.05;
-      const limit = boosting
+      const isBoosting =
+        boosting || forceMag > REMASTER_PHYSICS.inputAcceleration * 1.05;
+      const speedScale = Math.max(0.55, Math.min(1.4, agility));
+      // Keep full boostSpeedLimit when holding Space so Level 1 side jumps remain
+      // clearable regardless of the normal-driving Nervosité slider.
+      const limit = isBoosting
         ? REMASTER_PHYSICS.boostSpeedLimit
-        : REMASTER_PHYSICS.flatSpeedLimit;
+        : REMASTER_PHYSICS.flatSpeedLimit * speedScale;
       const scale =
         speed > limit ? Math.max(0.2, 1 - (speed - limit) * 0.12) : 1;
 
@@ -307,8 +349,8 @@ export async function createHavokBackend(
           );
           if (hAhead !== null) {
             const slope = (hAhead - h0) / 0.35;
-            if (slope > 0.08 && slope < 1.5) {
-              // Apply force tangent to the ramp + mild climbing assist on steep ramps.
+            if (slope > 0.08 && slope < 0.95) {
+              // Apply force tangent to climbable ramps (not vertical walls or well rims).
               uphillScale = 1 + Math.min(0.65, slope * 0.65);
               fy = forceMag * scale * uphillScale * Math.min(0.95, slope);
             }
@@ -334,6 +376,15 @@ export async function createHavokBackend(
       m.wallCooldown = 0;
     },
 
+    setMarblePosition(playerIndex: 0 | 1, position: Vec3) {
+      const m = marbles[playerIndex];
+      if (!m || disposed) return;
+      // With disablePreStep = false, updating mesh.position syncs the Havok body
+      // cleanly on the next step without setTargetTransform's artificial launch impulse.
+      m.mesh.position.set(position.x, position.y + radius, position.z);
+      m.bridgeGrounded = true;
+    },
+
     setMarbleKinematic(playerIndex: 0 | 1, kinematic: boolean) {
       const m = marbles[playerIndex];
       if (!m || disposed) return;
@@ -346,6 +397,13 @@ export async function createHavokBackend(
       }
     },
 
+    setMarbleVelocity(playerIndex: 0 | 1, velocity: Vec3) {
+      const m = marbles[playerIndex];
+      if (!m || disposed) return;
+      tmpVel.set(velocity.x, velocity.y, velocity.z);
+      m.aggregate.body.setLinearVelocity(tmpVel);
+    },
+
     setMarbleSurface(playerIndex: 0 | 1, surface: RemasterSurfaceKind) {
       const m = marbles[playerIndex];
       if (!m || disposed || m.surface === surface) return;
@@ -353,7 +411,8 @@ export async function createHavokBackend(
       const props = REMASTER_PHYSICS.surfaces[surface];
       m.aggregate.shape.material = {
         friction: props.friction,
-        restitution: 0,
+        restitution: REMASTER_PHYSICS.marbleRestitution,
+        restitutionCombine: PhysicsMaterialCombineMode.MAXIMUM,
       };
     },
 
@@ -376,10 +435,12 @@ export async function createHavokBackend(
         // Sudden upward velocity change after falling indicates a landing impact.
         const deltaVy = tmpVel.y - m.prevVy;
         m.lastImpact =
-          m.prevVy < -2.0 && deltaVy > 2.5 ? Math.abs(m.prevVy) : 0;
+          !m.bridgeGrounded && m.prevVy < -2.0 && deltaVy > 2.5
+            ? Math.abs(m.prevVy)
+            : 0;
         // Sharp horizontal velocity reversal/impulse indicates a wall or obstacle bounce.
         const horizDelta = Math.hypot(tmpVel.x - m.prevVx, tmpVel.z - m.prevVz);
-        if (horizDelta > 3.2 && m.wallCooldown <= 0) {
+        if (horizDelta > 1.8 && m.wallCooldown <= 0) {
           m.lastWallImpact = horizDelta;
           m.wallCooldown = 0.14;
         } else {
@@ -389,18 +450,38 @@ export async function createHavokBackend(
           ? sampleLayerHeight(mainLayer, m.mesh.position.x, m.mesh.position.z)
           : null;
         const bottomY = m.mesh.position.y - radius;
-        const grounded = groundH !== null && Math.abs(bottomY - groundH) < 0.35;
-        // Keep full horizontal momentum while airborne; use ice/stone damping when grounded.
-        const surfaceDamping =
-          REMASTER_PHYSICS.surfaces[m.surface].linearDamping;
+        const grounded =
+          m.bridgeGrounded ||
+          (groundH !== null && Math.abs(bottomY - groundH) < 0.35);
+        // PR #10: Arcade ice zones have zero friction & zero damping (decoded in romSurfaceZones.ts).
+        const onIce = isIceAtWorld(level, m.mesh.position.x, m.mesh.position.z);
+        const romSurface = onIce ? 'ice' : 'normal';
+        if (onIce !== m.onRomIce) {
+          m.onRomIce = onIce;
+          const baseFriction = REMASTER_PHYSICS.surfaces[m.surface].friction;
+          m.aggregate.shape.material = {
+            friction: onIce ? 0.0 : baseFriction,
+            staticFriction: onIce ? 0.0 : baseFriction,
+            restitution: REMASTER_PHYSICS.marbleRestitution,
+            restitutionCombine: PhysicsMaterialCombineMode.MAXIMUM,
+          };
+        }
         m.aggregate.body.setLinearDamping(
-          grounded ? surfaceDamping : REMASTER_PHYSICS.airLinearDamping,
+          surfaceLinearDamping(romSurface, grounded),
         );
+        m.aggregate.body.setAngularDamping(surfaceAngularDamping(romSurface));
+        // Cap downward fall speed (matches 68010 terminal velocity) so jumps keep crisp
+        // -30 gravity arcs while deep falls stay calm and readable.
+        if (!grounded && tmpVel.y < -REMASTER_PHYSICS.maxFallSpeed) {
+          tmpVel.y = -REMASTER_PHYSICS.maxFallSpeed;
+          m.aggregate.body.setLinearVelocity(tmpVel);
+        }
         // Suppress tiny internal-edge ghost hops ONLY when rolling downhill (never on uphill launch ramps).
         if (grounded && m.prevVy < -0.25 && tmpVel.y > 0.35 && tmpVel.y < 2.2) {
           tmpVel.y = 0;
           m.aggregate.body.setLinearVelocity(tmpVel);
         }
+        m.bridgeGrounded = false;
       }
     },
 
@@ -466,7 +547,7 @@ export async function createHavokBackend(
     resolveBilliardCollision(
       playerIndex: 0 | 1,
       enemyIndex: number,
-      restitution = 0.85,
+      restitution = 0.9,
     ): number {
       const m = marbles[playerIndex];
       const e = enemyBodies[enemyIndex];
@@ -474,77 +555,76 @@ export async function createHavokBackend(
       const dx = m.mesh.position.x - e.mesh.position.x;
       const dz = m.mesh.position.z - e.mesh.position.z;
       const dist = Math.hypot(dx, dz);
-      const minDist = radius * 2.02;
+      const minDist = radius * 2.15;
       if (dist <= 0.0001 || dist >= minDist) return 0;
       const nx = dx / dist;
       const nz = dz / dist;
 
-      // Read current velocities
-      const v1 = Vector3.Zero();
-      const v2 = Vector3.Zero();
-      m.aggregate.body.getLinearVelocityToRef(v1);
-      e.aggregate.body.getLinearVelocityToRef(v2);
+      m.aggregate.body.getLinearVelocityToRef(tmpV1);
+      e.aggregate.body.getLinearVelocityToRef(tmpV2);
 
-      // Separate overlap slightly so Havok never glues the spheres together
-      const overlap = (minDist - dist) * 0.55;
-      m.mesh.position.x += nx * overlap;
-      m.mesh.position.z += nz * overlap;
-      e.mesh.position.x -= nx * overlap;
-      e.mesh.position.z -= nz * overlap;
+      // Separate overlap so spheres never glue together.
+      const overlap = Math.max(0, (radius * 2.04 - dist) * 0.6);
+      if (overlap > 0) {
+        m.mesh.position.x += nx * overlap;
+        m.mesh.position.z += nz * overlap;
+        e.mesh.position.x -= nx * overlap;
+        e.mesh.position.z -= nz * overlap;
+      }
 
-      // Exact 2D elastic billiard-ball impulse along collision normal
-      const rvx = v1.x - v2.x;
-      const rvz = v1.z - v2.z;
+      // 2D elastic billiard-ball impulse along collision normal (guarantees crisp recoil).
+      const rvx = tmpV1.x - tmpV2.x;
+      const rvz = tmpV1.z - tmpV2.z;
       const velAlongNormal = rvx * nx + rvz * nz;
-      // Ensure even a slow sumo push transfers a crisp knock rather than sticking
-      const closing = velAlongNormal < 0 ? velAlongNormal : -2.2;
+      if (velAlongNormal > 3.5) return velAlongNormal;
+      const closing = velAlongNormal < -1.5 ? velAlongNormal : -4.2;
       const invM1 = 1 / REMASTER_PHYSICS.marbleMass;
-      const invM2 = 1 / (REMASTER_PHYSICS.marbleMass * 0.88);
+      const invM2 = 1 / (REMASTER_PHYSICS.marbleMass * 0.55);
       const j = (-(1 + restitution) * closing) / (invM1 + invM2);
 
-      v1.x += j * invM1 * nx;
-      v1.z += j * invM1 * nz;
-      v2.x -= j * invM2 * nx;
-      v2.z -= j * invM2 * nz;
-      m.aggregate.body.setLinearVelocity(v1);
-      e.aggregate.body.setLinearVelocity(v2);
+      tmpV1.x += j * invM1 * nx;
+      tmpV1.z += j * invM1 * nz;
+      tmpV2.x -= j * invM2 * nx;
+      tmpV2.z -= j * invM2 * nz;
+      m.aggregate.body.setLinearVelocity(tmpV1);
+      e.aggregate.body.setLinearVelocity(tmpV2);
       return Math.abs(closing);
     },
 
-    resolvePlayerBilliardCollision(restitution = 0.85): number {
+    resolvePlayerBilliardCollision(restitution = 0.86): number {
       const m0 = marbles[0];
       const m1 = marbles[1];
       if (!m0 || !m1 || disposed) return 0;
       const dx = m0.mesh.position.x - m1.mesh.position.x;
       const dz = m0.mesh.position.z - m1.mesh.position.z;
       const dist = Math.hypot(dx, dz);
-      const minDist = radius * 2.02;
+      const minDist = radius * 2.12;
       if (dist <= 0.0001 || dist >= minDist) return 0;
       const nx = dx / dist;
       const nz = dz / dist;
 
-      const v0 = Vector3.Zero();
-      const v1 = Vector3.Zero();
-      m0.aggregate.body.getLinearVelocityToRef(v0);
-      m1.aggregate.body.getLinearVelocityToRef(v1);
+      m0.aggregate.body.getLinearVelocityToRef(tmpV1);
+      m1.aggregate.body.getLinearVelocityToRef(tmpV2);
 
-      const overlap = (minDist - dist) * 0.55;
-      m0.mesh.position.x += nx * overlap;
-      m0.mesh.position.z += nz * overlap;
-      m1.mesh.position.x -= nx * overlap;
-      m1.mesh.position.z -= nz * overlap;
+      const overlap = Math.max(0, (radius * 2.04 - dist) * 0.6);
+      if (overlap > 0) {
+        m0.mesh.position.x += nx * overlap;
+        m0.mesh.position.z += nz * overlap;
+        m1.mesh.position.x -= nx * overlap;
+        m1.mesh.position.z -= nz * overlap;
+      }
 
-      const rvx = v0.x - v1.x;
-      const rvz = v0.z - v1.z;
+      const rvx = tmpV1.x - tmpV2.x;
+      const rvz = tmpV1.z - tmpV2.z;
       const velAlongNormal = rvx * nx + rvz * nz;
       if (velAlongNormal >= 0) return 0;
       const j = (-(1 + restitution) * velAlongNormal) / 2;
-      v0.x += j * nx;
-      v0.z += j * nz;
-      v1.x -= j * nx;
-      v1.z -= j * nz;
-      m0.aggregate.body.setLinearVelocity(v0);
-      m1.aggregate.body.setLinearVelocity(v1);
+      tmpV1.x += j * nx;
+      tmpV1.z += j * nz;
+      tmpV2.x -= j * nx;
+      tmpV2.z -= j * nz;
+      m0.aggregate.body.setLinearVelocity(tmpV1);
+      m1.aggregate.body.setLinearVelocity(tmpV2);
       return Math.abs(velAlongNormal);
     },
 

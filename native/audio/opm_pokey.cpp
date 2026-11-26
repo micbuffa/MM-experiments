@@ -1,203 +1,62 @@
-// Autonomous Yamaha YM2151 (OPM) 8-channel 4-operator FM + Atari POKEY 4-channel
-// polynomial-counter audio engine compiled to standalone WASM for AudioWorklet.
-// 100% original clean-room implementation, register-compatible with YM2151 VGM streams.
+// Dual cycle-accurate Yamaha YM2151 (OPM via Aaron Giles's ymfm, BSD-3-Clause)
+// + Dual Atari POKEY 4-channel polynomial-counter audio engine compiled to
+// standalone WASM for AudioWorklet.
+// Exact Atari System 1 YM2151 clock: 3,579,545 Hz (native output: 55,930.39 Hz).
 
 #include <cmath>
 #include <cstdint>
-#include <cstring>
+#include <new>
+#include "ymfm_opm.h"
 
 namespace {
 
-constexpr float kTwoPi = 6.28318530717958647692f;
 constexpr float kDefaultSampleRate = 48000.0f;
+constexpr uint32_t kOpmClockHz = 3579545u;
+constexpr double kOpmNativeRate = static_cast<double>(kOpmClockHz) / 64.0;
 
-// Standard YM2151 KC note-code to semitone offset table (skipping unused 3,7,11,15).
-constexpr int8_t kNoteTable[16] = {
-    0, 1, 2, 2, 3, 4, 5, 5, 6, 7, 8, 8, 9, 10, 11, 11};
-// Standard YM2151 DT2 coarse detune ratios (0=1.0, 1=sqrt(2), 2=1.581, 3=sqrt(3)).
-constexpr float kDt2Ratios[4] = {1.0f, 1.41421356f, 1.58113883f, 1.73205081f};
+class MinimalYmfmInterface : public ymfm::ymfm_interface {};
 
-struct FmOperator {
-  float phase = 0.0f;
-  float phaseInc = 0.0f;
-  float env = 0.0f;
-  uint8_t envState = 0; // 0=off, 1=attack, 2=decay, 3=sustain, 4=release
-  uint8_t mul = 1;
-  uint8_t dt1 = 0;
-  uint8_t dt2 = 0;
-  uint8_t tl = 127;     // Total Level (0=loudest, 127=silent)
-  uint8_t ar = 31;      // Attack Rate (0..31)
-  uint8_t d1r = 0;      // Decay 1 Rate
-  uint8_t d1l = 0;      // Sustain Level (0..15)
-  uint8_t d2r = 0;      // Decay 2 Rate
-  uint8_t rr = 15;      // Release Rate (0..15)
-  float prevOut = 0.0f; // For operator 0 self-feedback
+// Wrapper around ymfm::ym2151 with linear resampling from 55,930.39 Hz to host sampleRate.
+struct YmfmOpmChip {
+  MinimalYmfmInterface intf;
+  ymfm::ym2151 chip;
+  double phase = 0.0;
+  double step = kOpmNativeRate / static_cast<double>(kDefaultSampleRate);
+  float prevL = 0.0f;
+  float prevR = 0.0f;
+  float currL = 0.0f;
+  float currR = 0.0f;
 
-  float totalLevelGain() const {
-    if (tl >= 127) return 0.0f;
-    // YM2151 attenuation is 0.75 dB per TL step.
-    return std::pow(10.0f, -0.75f * static_cast<float>(tl) / 20.0f);
+  YmfmOpmChip() : chip(intf) {}
+
+  void reset(float sampleRate) {
+    const double sr = (sampleRate > 8000.0f) ? static_cast<double>(sampleRate)
+                                             : static_cast<double>(kDefaultSampleRate);
+    step = kOpmNativeRate / sr;
+    phase = 0.0;
+    prevL = prevR = currL = currR = 0.0f;
+    chip.reset();
   }
 
-  float sustainLevel() const {
-    if (d1l >= 15) return 0.0f;
-    return std::pow(10.0f, -3.0f * static_cast<float>(d1l) / 20.0f);
+  void write(uint8_t reg, uint8_t val) {
+    chip.write_address(reg);
+    chip.write_data(val);
   }
 
-  void keyOn() {
-    phase = 0.0f;
-    envState = 1;
-    if (ar >= 31) {
-      env = 1.0f;
-      envState = 2;
+  void renderSample(float& outL, float& outR) {
+    phase += step;
+    while (phase >= 1.0) {
+      phase -= 1.0;
+      prevL = currL;
+      prevR = currR;
+      ymfm::ym2151::output_data data;
+      chip.generate(&data, 1);
+      currL = static_cast<float>(data.data[0]) / 32768.0f;
+      currR = static_cast<float>(data.data[1]) / 32768.0f;
     }
-  }
-
-  void keyOff() {
-    if (envState != 0) envState = 4;
-  }
-
-  void stepEnv(float sampleRate) {
-    if (envState == 0) return;
-    if (envState == 1) {
-      const float rate =
-          (ar == 0) ? 0.0f : (0.5f * std::pow(2.0f, ar * 0.35f) / sampleRate);
-      env += rate;
-      if (env >= 1.0f) {
-        env = 1.0f;
-        envState = 2;
-      }
-    } else if (envState == 2) {
-      const float sl = sustainLevel();
-      if (d1r == 0) {
-        if (env <= sl) envState = 3;
-        return;
-      }
-      const float rate = 0.12f * std::pow(2.0f, d1r * 0.28f) / sampleRate;
-      env -= rate;
-      if (env <= sl) {
-        env = sl;
-        envState = 3;
-      }
-    } else if (envState == 3) {
-      if (d2r > 0) {
-        const float rate = 0.08f * std::pow(2.0f, d2r * 0.26f) / sampleRate;
-        env -= rate;
-        if (env <= 0.0001f) {
-          env = 0.0f;
-          envState = 0;
-        }
-      }
-    } else if (envState == 4) {
-      const float rate =
-          0.35f * std::pow(2.0f, (rr * 2 + 1) * 0.28f) / sampleRate;
-      env -= rate;
-      if (env <= 0.0001f) {
-        env = 0.0f;
-        envState = 0;
-      }
-    }
-  }
-
-  float sample(float modRadians, float sampleRate) {
-    stepEnv(sampleRate);
-    if (envState == 0 || env <= 0.0001f) return 0.0f;
-    const float out = std::sin(phase + modRadians) * env * totalLevelGain();
-    phase += phaseInc;
-    if (phase >= kTwoPi) phase -= kTwoPi;
-    return out;
-  }
-};
-
-struct FmChannel {
-  FmOperator ops[4]; // OPM slot order: 0=M1, 1=C1, 2=M2, 3=C2
-  uint8_t alg = 0;   // Connection algorithm 0..7
-  uint8_t fb = 0;    // Operator 0 feedback 0..7
-  uint8_t pan = 3;   // Bit 0=Left, Bit 1=Right
-  uint8_t kc = 0x40; // Key Code (octave + note)
-  uint8_t kf = 0;    // Key Fraction (upper 6 bits)
-  float baseFreq = 440.0f;
-
-  void updateFreq(float sampleRate) {
-    const int oct = (kc >> 4) & 0x07;
-    const int note = kNoteTable[kc & 0x0f];
-    const float frac = static_cast<float>(kf >> 2) / 64.0f;
-    // YM2151 octave 4, note 9 (A) ~= 440 Hz (at 3.579545 MHz clock).
-    const float semis = (oct - 4) * 12.0f + (note - 9) + frac;
-    baseFreq = 440.0f * std::pow(2.0f, semis / 12.0f);
-    for (int i = 0; i < 4; ++i) {
-      const float mulFactor =
-          (ops[i].mul == 0) ? 0.5f : static_cast<float>(ops[i].mul);
-      const float dt2Factor = kDt2Ratios[ops[i].dt2 & 3];
-      ops[i].phaseInc =
-          (kTwoPi * baseFreq * mulFactor * dt2Factor) / sampleRate;
-    }
-  }
-
-  void render(float sampleRate, float& outL, float& outR) {
-    const float fbScale =
-        (fb == 0) ? 0.0f : (0.125f * static_cast<float>(1 << (fb - 1)));
-    const float m1 = ops[0].sample(ops[0].prevOut * fbScale, sampleRate);
-    ops[0].prevOut = m1;
-
-    constexpr float kModIndex = 4.0f;
-    float s = 0.0f;
-    switch (alg & 7) {
-      case 0: {
-        const float c1 = ops[1].sample(m1 * kModIndex, sampleRate);
-        const float m2 = ops[2].sample(c1 * kModIndex, sampleRate);
-        s = ops[3].sample(m2 * kModIndex, sampleRate);
-        break;
-      }
-      case 1: {
-        const float m2 = ops[2].sample(0.0f, sampleRate);
-        const float c1 = ops[1].sample((m1 + m2) * kModIndex, sampleRate);
-        s = ops[3].sample(c1 * kModIndex, sampleRate);
-        break;
-      }
-      case 2: {
-        const float c1 = ops[1].sample(0.0f, sampleRate);
-        const float m2 = ops[2].sample(c1 * kModIndex, sampleRate);
-        s = ops[3].sample((m1 + m2) * kModIndex, sampleRate);
-        break;
-      }
-      case 3: {
-        const float c1 = ops[1].sample(m1 * kModIndex, sampleRate);
-        const float m2 = ops[2].sample(0.0f, sampleRate);
-        s = ops[3].sample((c1 + m2) * kModIndex, sampleRate);
-        break;
-      }
-      case 4: {
-        const float c1 = ops[1].sample(m1 * kModIndex, sampleRate);
-        const float m2 = ops[2].sample(0.0f, sampleRate);
-        const float c2 = ops[3].sample(m2 * kModIndex, sampleRate);
-        s = (c1 + c2) * 0.5f;
-        break;
-      }
-      case 5: {
-        const float c1 = ops[1].sample(m1 * kModIndex, sampleRate);
-        const float m2 = ops[2].sample(m1 * kModIndex, sampleRate);
-        const float c2 = ops[3].sample(m1 * kModIndex, sampleRate);
-        s = (c1 + m2 + c2) * 0.35f;
-        break;
-      }
-      case 6: {
-        const float c1 = ops[1].sample(m1 * kModIndex, sampleRate);
-        const float m2 = ops[2].sample(0.0f, sampleRate);
-        const float c2 = ops[3].sample(0.0f, sampleRate);
-        s = (c1 + m2 + c2) * 0.35f;
-        break;
-      }
-      default: {
-        const float c1 = ops[1].sample(0.0f, sampleRate);
-        const float m2 = ops[2].sample(0.0f, sampleRate);
-        const float c2 = ops[3].sample(0.0f, sampleRate);
-        s = (m1 + c1 + m2 + c2) * 0.28f;
-        break;
-      }
-    }
-    if (pan & 1) outL += s;
-    if (pan & 2) outR += s;
+    const float t = static_cast<float>(phase);
+    outL = prevL + (currL - prevL) * t;
+    outR = prevR + (currR - prevR) * t;
   }
 };
 
@@ -267,89 +126,28 @@ struct PokeyChip {
         }
       }
       if (lowPassCh0 && i == 0) {
-        // Warm low-passed marble rolling rumble with post-filter makeup gain.
-        const float raw = p.outBit * gain * 0.85f;
-        const float alpha =
-            0.09f + (1.0f - static_cast<float>(p.audf) / 255.0f) * 0.12f;
+        // Silky ceramic-on-stone rolling rumble (~340 Hz) with zero static crackle.
+        const float raw = p.outBit * gain * 0.22f;
+        const float alpha = 0.045f;
         rollLp1 += alpha * (raw - rollLp1);
         rollLp2 += alpha * (rollLp1 - rollLp2);
         mix += rollLp2;
       } else {
-        mix += p.outBit * gain * 0.28f;
+        mix += p.outBit * gain * 0.30f;
       }
     }
     return mix;
   }
 };
 
-struct OpmChip {
-  FmChannel fm[8];
-
-  void reset(float sampleRate) {
-    for (int c = 0; c < 8; ++c) {
-      fm[c] = FmChannel{};
-      fm[c].updateFreq(sampleRate);
-    }
-  }
-
-  void write(uint8_t reg, uint8_t val, float sampleRate) {
-    if (reg == 0x08) {
-      const uint8_t ch = val & 0x07;
-      constexpr int kSlotMap[4] = {0, 2, 1, 3};
-      for (int b = 0; b < 4; ++b) {
-        if (val & (1u << (b + 3))) fm[ch].ops[kSlotMap[b]].keyOn();
-        else fm[ch].ops[kSlotMap[b]].keyOff();
-      }
-      return;
-    }
-    const uint8_t ch = reg & 0x07;
-    if (reg >= 0x20 && reg <= 0x27) {
-      fm[ch].pan = (val >> 6) & 0x03;
-      fm[ch].fb = (val >> 3) & 0x07;
-      fm[ch].alg = val & 0x07;
-    } else if (reg >= 0x28 && reg <= 0x2f) {
-      fm[ch].kc = val & 0x7f;
-      fm[ch].updateFreq(sampleRate);
-    } else if (reg >= 0x30 && reg <= 0x37) {
-      fm[ch].kf = val & 0xfc;
-      fm[ch].updateFreq(sampleRate);
-    } else if (reg >= 0x40) {
-      constexpr int kSlotMap[4] = {0, 2, 1, 3};
-      const int slot = kSlotMap[(reg >> 3) & 0x03];
-      FmOperator& op = fm[ch].ops[slot];
-      const uint8_t bank = reg & 0xe0;
-      if (bank == 0x40) {
-        op.dt1 = (val >> 4) & 0x07;
-        op.mul = val & 0x0f;
-        fm[ch].updateFreq(sampleRate);
-      } else if (bank == 0x60) {
-        op.tl = val & 0x7f;
-      } else if (bank == 0x80) {
-        op.ar = val & 0x1f;
-      } else if (bank == 0xa0) {
-        op.d1r = val & 0x1f;
-      } else if (bank == 0xc0) {
-        op.d2r = val & 0x1f;
-      } else if (bank == 0xe0) {
-        op.d1l = (val >> 4) & 0x0f;
-        op.rr = val & 0x0f;
-      }
-    }
-  }
-
-  void render(float sampleRate, float& outL, float& outR) {
-    for (int c = 0; c < 8; ++c) fm[c].render(sampleRate, outL, outR);
-  }
-};
-
-// Dual YM2151 + Dual POKEY engine:
-// - Music bus (dedicated 8-ch YM2151 + 4-ch POKEY) for full 8-channel VGM playback
-// - SFX bus   (dedicated 8-ch YM2151 + 4-ch POKEY) for zero-collision real-time SFX
+// Dual YM2151 (ymfm) + Dual POKEY engine:
+// - musicOpm + musicPokey: full 8-channel YM2151 + 4-channel POKEY for VGM music
+// - sfxOpm   + sfxPokey:   dedicated 8-channel YM2151 + 4-channel POKEY for SFX
 struct OpmPokeyEngine {
   float sampleRate = kDefaultSampleRate;
-  OpmChip musicOpm;
+  YmfmOpmChip musicOpm;
   PokeyChip musicPokey;
-  OpmChip sfxOpm;
+  YmfmOpmChip sfxOpm;
   PokeyChip sfxPokey;
   float musicGain = 0.75f;
   float sfxGain = 1.0f;
@@ -373,59 +171,69 @@ struct OpmPokeyEngine {
       float musR = 0.0f;
       float sfxL = 0.0f;
       float sfxR = 0.0f;
-      musicOpm.render(sampleRate, musL, musR);
+      musicOpm.renderSample(musL, musR);
       const float musP = musicPokey.step(sampleRate, false);
-      sfxOpm.render(sampleRate, sfxL, sfxR);
+      sfxOpm.renderSample(sfxL, sfxR);
       const float sfxP = sfxPokey.step(sampleRate, true);
 
-      left[i] = std::tanh((musL * 0.16f + musP * 0.28f) * musicGain +
-                          (sfxL * 0.55f + sfxP * 0.85f) * sfxGain);
-      right[i] = std::tanh((musR * 0.16f + musP * 0.28f) * musicGain +
-                           (sfxR * 0.55f + sfxP * 0.85f) * sfxGain);
+      // ymfm outputs full-scale signed 16-bit normalized to [-1, 1] per chip.
+      left[i] = std::tanh((musL * 0.68f + musP * 0.28f) * musicGain +
+                          (sfxL * 1.25f + sfxP * 0.80f) * sfxGain);
+      right[i] = std::tanh((musR * 0.68f + musP * 0.28f) * musicGain +
+                           (sfxR * 1.25f + sfxP * 0.80f) * sfxGain);
     }
   }
 };
 
-OpmPokeyEngine gEngine;
+alignas(OpmPokeyEngine) uint8_t gEngineStorage[sizeof(OpmPokeyEngine)];
+OpmPokeyEngine* gEngine = nullptr;
 float gLeft[128];
 float gRight[128];
+
+inline OpmPokeyEngine& engine() {
+  if (!gEngine) {
+    gEngine = new (gEngineStorage) OpmPokeyEngine();
+  }
+  return *gEngine;
+}
 
 } // namespace
 
 extern "C" {
 
-void audio_init(float sampleRate) { gEngine.reset(sampleRate); }
+void audio_init(float sampleRate) { engine().reset(sampleRate); }
 
-void audio_reset_music() { gEngine.resetMusic(); }
+void audio_reset_music() { engine().resetMusic(); }
 
 void audio_set_mix(float musicGain, float sfxGain) {
-  gEngine.musicGain = (musicGain < 0.0f) ? 0.0f : (musicGain > 2.0f ? 2.0f : musicGain);
-  gEngine.sfxGain = (sfxGain < 0.0f) ? 0.0f : (sfxGain > 2.0f ? 2.0f : sfxGain);
+  OpmPokeyEngine& eng = engine();
+  eng.musicGain = (musicGain < 0.0f) ? 0.0f : (musicGain > 2.0f ? 2.0f : musicGain);
+  eng.sfxGain = (sfxGain < 0.0f) ? 0.0f : (sfxGain > 2.0f ? 2.0f : sfxGain);
 }
 
 void opm_write(uint32_t reg, uint32_t val) {
-  gEngine.sfxOpm.write(static_cast<uint8_t>(reg & 0xffu),
-                       static_cast<uint8_t>(val & 0xffu), gEngine.sampleRate);
+  engine().sfxOpm.write(static_cast<uint8_t>(reg & 0xffu),
+                        static_cast<uint8_t>(val & 0xffu));
 }
 
 void pokey_write(uint32_t reg, uint32_t val) {
-  gEngine.sfxPokey.write(static_cast<uint8_t>(reg & 0x0fu),
-                         static_cast<uint8_t>(val & 0xffu));
+  engine().sfxPokey.write(static_cast<uint8_t>(reg & 0xffu),
+                          static_cast<uint8_t>(val & 0xffu));
 }
 
 void opm_music_write(uint32_t reg, uint32_t val) {
-  gEngine.musicOpm.write(static_cast<uint8_t>(reg & 0xffu),
-                         static_cast<uint8_t>(val & 0xffu), gEngine.sampleRate);
+  engine().musicOpm.write(static_cast<uint8_t>(reg & 0xffu),
+                          static_cast<uint8_t>(val & 0xffu));
 }
 
 void pokey_music_write(uint32_t reg, uint32_t val) {
-  gEngine.musicPokey.write(static_cast<uint8_t>(reg & 0x0fu),
-                           static_cast<uint8_t>(val & 0xffu));
+  engine().musicPokey.write(static_cast<uint8_t>(reg & 0xffu),
+                            static_cast<uint8_t>(val & 0xffu));
 }
 
 void audio_render(int frames) {
-  const int count = (frames > 128) ? 128 : (frames < 0 ? 0 : frames);
-  gEngine.renderBlock(gLeft, gRight, count);
+  const int count = (frames < 0) ? 0 : (frames > 128 ? 128 : frames);
+  engine().renderBlock(gLeft, gRight, count);
 }
 
 float* audio_left_ptr() { return gLeft; }

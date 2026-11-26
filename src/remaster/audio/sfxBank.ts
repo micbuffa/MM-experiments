@@ -14,8 +14,16 @@ export interface FmChannelPatch {
   readonly ops: readonly [FmOpPatch, FmOpPatch, FmOpPatch, FmOpPatch];
 }
 
+export interface RomSfxMappingEntry {
+  readonly file: string;
+  readonly romCommand?: string;
+  readonly romCallSite?: string;
+  readonly description?: string;
+}
+
 export interface SfxBankV1 {
   readonly format: 'remaster-sfx-bank-v1';
+  readonly romSfx?: Readonly<Record<string, RomSfxMappingEntry>>;
   readonly patches: {
     readonly impact: FmChannelPatch;
     readonly chime: FmChannelPatch;

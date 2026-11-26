@@ -5,6 +5,10 @@ import {
 } from '../../game/modern/practiceProjection';
 import type { PracticeTerrain } from '../../game/modern/practiceTerrain';
 import type { TerrainCell } from '../../game/modern/terrainMesh';
+import {
+  intermediateGoal,
+  intermediateIce,
+} from '../../rendering/intermediateFinish';
 
 export type RemasterSurfaceKind =
   'stone' | 'ice' | 'acid' | 'goal' | 'wave' | 'booster';
@@ -46,6 +50,22 @@ export interface GoalZone {
   readonly y: number;
 }
 
+export interface SurfaceZone {
+  readonly id: string;
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minZ: number;
+  readonly maxZ: number;
+  readonly surface: RemasterSurfaceKind;
+}
+
+export interface EnemySpawn {
+  readonly id: string;
+  readonly kind: 'blackMarble';
+  readonly position: Vec3;
+  readonly patrolRadius: number;
+}
+
 export interface RemasterLevelV1 {
   readonly format: 'remaster-level-v1';
   readonly id: string;
@@ -55,6 +75,8 @@ export interface RemasterLevelV1 {
   readonly direction: 1 | -1;
   readonly heightLayers: readonly HeightLayer[];
   readonly volumes: readonly LevelVolume[];
+  readonly surfaceZones: readonly SurfaceZone[];
+  readonly enemies: readonly EnemySpawn[];
   readonly spawns: {
     readonly player1: Vec3;
     readonly player2: Vec3;
@@ -98,49 +120,218 @@ export function isInsideGoal(goal: GoalZone, x: number, z: number): boolean {
   return x >= goal.minX && x <= goal.maxX && z >= goal.minZ && z <= goal.maxZ;
 }
 
+export function sampleSurfaceAt(
+  level: RemasterLevelV1,
+  x: number,
+  z: number,
+): RemasterSurfaceKind {
+  for (const zone of level.surfaceZones) {
+    if (x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) {
+      return zone.surface;
+    }
+  }
+  return level.heightLayers[0]?.defaultSurface ?? 'stone';
+}
+
 /**
- * Convert an existing PracticeTerrain (e.g. Level 1 Practice Race) into
- * the hybrid RemasterLevelV1 format.
+ * Convert an existing PracticeTerrain (Level 1 Practice Race or Level 2 Beginner Race)
+ * into the hybrid RemasterLevelV1 format.
  */
 export function practiceTerrainToRemasterLevel(
   terrain: PracticeTerrain,
 ): RemasterLevelV1 {
   const rows = terrain.cells.length;
   const columns = terrain.cells[0]?.length ?? 0;
-  const p1 = practiceWorldPoint(
-    140,
-    140,
-    arcadeGroundHeight,
-    columns,
-    rows,
-    terrain.origin,
-  ) ?? { x: -28, y: 0, z: -28 };
-  const p2 = practiceWorldPoint(
-    156,
-    124,
-    arcadeGroundHeight,
-    columns,
-    rows,
-    terrain.origin,
-  ) ?? { x: p1.x + 2, y: p1.y, z: p1.z - 2 };
+  const isLevel2 = terrain.level === 'intermediate';
 
-  // Practice Race GOAL banner spans cells x = 72..80, z = 64..68 (matches createTerrainStudy.ts).
-  const goalMin = practiceWorldPoint(
-    72 * arcadeCellUnits,
-    64 * arcadeCellUnits,
-    16348,
-    columns,
-    rows,
-    terrain.origin,
-  ) ?? { x: 26.5, y: -3.67, z: 18.5 };
-  const goalMax = practiceWorldPoint(
-    80 * arcadeCellUnits,
-    68 * arcadeCellUnits,
-    16348,
-    columns,
-    rows,
-    terrain.origin,
-  ) ?? { x: 34.5, y: -3.67, z: 22.5 };
+  const p1 = isLevel2
+    ? (practiceWorldPoint(
+        17.5 * arcadeCellUnits,
+        14 * arcadeCellUnits,
+        16378,
+        columns,
+        rows,
+        terrain.origin,
+      ) ?? { x: -47.5, y: 0, z: -51 })
+    : (practiceWorldPoint(
+        140,
+        140,
+        arcadeGroundHeight,
+        columns,
+        rows,
+        terrain.origin,
+      ) ?? { x: -28, y: 0, z: -28 });
+  const p2 = isLevel2
+    ? (practiceWorldPoint(
+        27.5 * arcadeCellUnits,
+        14 * arcadeCellUnits,
+        16378,
+        columns,
+        rows,
+        terrain.origin,
+      ) ?? { x: p1.x + 10, y: p1.y, z: p1.z })
+    : (practiceWorldPoint(
+        156,
+        124,
+        arcadeGroundHeight,
+        columns,
+        rows,
+        terrain.origin,
+      ) ?? { x: p1.x + 2, y: p1.y, z: p1.z - 2 });
+
+  const goalMin = isLevel2
+    ? (practiceWorldPoint(
+        intermediateGoal.x * arcadeCellUnits,
+        intermediateGoal.z * arcadeCellUnits,
+        arcadeGroundHeight,
+        columns,
+        rows,
+        terrain.origin,
+      ) ?? { x: 45, y: 0, z: 44 })
+    : (practiceWorldPoint(
+        72 * arcadeCellUnits,
+        64 * arcadeCellUnits,
+        16348,
+        columns,
+        rows,
+        terrain.origin,
+      ) ?? { x: 26.5, y: -3.67, z: 18.5 });
+  const goalMax = isLevel2
+    ? (practiceWorldPoint(
+        (intermediateGoal.x + intermediateGoal.width) * arcadeCellUnits,
+        (intermediateGoal.z + intermediateGoal.length) * arcadeCellUnits,
+        arcadeGroundHeight,
+        columns,
+        rows,
+        terrain.origin,
+      ) ?? { x: 49, y: 0, z: 54 })
+    : (practiceWorldPoint(
+        80 * arcadeCellUnits,
+        68 * arcadeCellUnits,
+        16348,
+        columns,
+        rows,
+        terrain.origin,
+      ) ?? { x: 34.5, y: -3.67, z: 22.5 });
+
+  const surfaceZones: SurfaceZone[] = [];
+  const enemies: EnemySpawn[] = [];
+  const volumes: LevelVolume[] = [];
+  if (isLevel2) {
+    const iceMin = practiceWorldPoint(
+      intermediateIce.x * arcadeCellUnits,
+      intermediateIce.z * arcadeCellUnits,
+      arcadeGroundHeight,
+      columns,
+      rows,
+      terrain.origin,
+    );
+    const iceMax = practiceWorldPoint(
+      (intermediateIce.x + intermediateIce.width) * arcadeCellUnits,
+      (intermediateIce.z + intermediateIce.length) * arcadeCellUnits,
+      arcadeGroundHeight,
+      columns,
+      rows,
+      terrain.origin,
+    );
+    if (iceMin && iceMax) {
+      surfaceZones.push({
+        id: 'level2-ice-basin',
+        minX: Math.min(iceMin.x, iceMax.x),
+        maxX: Math.max(iceMin.x, iceMax.x),
+        minZ: Math.min(iceMin.z, iceMax.z),
+        maxZ: Math.max(iceMin.z, iceMax.z),
+        surface: 'ice',
+      });
+    }
+    // Exact native Level 2 Black Marble spawn read from MAME 68010 RAM 0x400a20
+    // (324, 284, 16290) => cell (40.5, 35.5) on the narrow bridge before the 3 towers.
+    const blackSpawn = practiceWorldPoint(
+      324,
+      284,
+      16290,
+      columns,
+      rows,
+      terrain.origin,
+    );
+    if (blackSpawn) {
+      enemies.push({
+        id: 'level2-black-marble',
+        kind: 'blackMarble',
+        position: blackSpawn,
+        patrolRadius: 3.5,
+      });
+    }
+    // Elastic outer-wall bumpers for the 5 raised rectangular wells at the start of Level 2.
+    // Because the marble radius (0.675) exceeds the back-wall step height (~0.41),
+    // thin bumper strips along each well's 4 walls guarantee crisp wall restitution
+    // instead of contacting the 0-restitution top floor lip, while keeping the interior hollow.
+    const level2Wells = [
+      [14, 17, 16382],
+      [24, 17, 16382],
+      [9, 25, 16366],
+      [19, 25, 16366],
+      [29, 25, 16366],
+    ] as const;
+    const stripThick = 0.22;
+    const stripHeight = 1.1;
+    for (let i = 0; i < level2Wells.length; i++) {
+      const [wx, wz, wh] = level2Wells[i]!;
+      const corner = practiceWorldPoint(
+        wx * arcadeCellUnits,
+        wz * arcadeCellUnits,
+        wh,
+        columns,
+        rows,
+        terrain.origin,
+      );
+      if (!corner) continue;
+      // Top sits +0.05 above the well rim so the marble hits the elastic bumper first.
+      const centerY = corner.y + 0.05 - stripHeight / 2;
+      const w = 6;
+      const d = 4;
+      const cx = corner.x + w / 2;
+      const cz = corner.z + d / 2;
+      volumes.push(
+        {
+          id: `level2-well-${i}-n`,
+          shape: 'box',
+          position: { x: cx, y: centerY, z: corner.z + stripThick / 2 - 0.04 },
+          size: { x: w + 0.08, y: stripHeight, z: stripThick },
+          surface: 'booster',
+        },
+        {
+          id: `level2-well-${i}-s`,
+          shape: 'box',
+          position: {
+            x: cx,
+            y: centerY,
+            z: corner.z + d - stripThick / 2 + 0.04,
+          },
+          size: { x: w + 0.08, y: stripHeight, z: stripThick },
+          surface: 'booster',
+        },
+        {
+          id: `level2-well-${i}-w`,
+          shape: 'box',
+          position: { x: corner.x + stripThick / 2 - 0.04, y: centerY, z: cz },
+          size: { x: stripThick, y: stripHeight, z: d + 0.08 },
+          surface: 'booster',
+        },
+        {
+          id: `level2-well-${i}-e`,
+          shape: 'box',
+          position: {
+            x: corner.x + w - stripThick / 2 + 0.04,
+            y: centerY,
+            z: cz,
+          },
+          size: { x: stripThick, y: stripHeight, z: d + 0.08 },
+          surface: 'booster',
+        },
+      );
+    }
+  }
 
   let minHeight = Infinity;
   for (const row of terrain.cells) {
@@ -156,9 +347,9 @@ export function practiceTerrainToRemasterLevel(
   return {
     format: 'remaster-level-v1',
     id: terrain.level ?? 'practice',
-    name: terrain.level ? terrain.level : 'Practice Race',
-    courseIndex: 1,
-    timerSeconds: 60,
+    name: isLevel2 ? 'Beginner Race' : (terrain.level ?? 'Practice Race'),
+    courseIndex: isLevel2 ? 2 : 1,
+    timerSeconds: isLevel2 ? 75 : 60,
     direction: terrain.level === 'level5' ? -1 : 1,
     heightLayers: [
       {
@@ -170,7 +361,9 @@ export function practiceTerrainToRemasterLevel(
         defaultSurface: 'stone',
       },
     ],
-    volumes: [],
+    volumes,
+    surfaceZones,
+    enemies,
     spawns: {
       player1: p1,
       player2: p2,

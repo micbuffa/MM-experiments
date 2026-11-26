@@ -25,6 +25,10 @@ copyFileSync(
   resolve(root, 'local-roms/practice-complete-terrain.json'),
   resolve(dataDir, 'practice-complete-terrain.json'),
 );
+copyFileSync(
+  resolve(root, 'local-roms/intermediate-terrain-pipes.json'),
+  resolve(dataDir, 'intermediate-terrain-pipes.json'),
+);
 
 // Bundle local reference VGM tracks into dist-remaster/assets/audio/ when present
 // so Peter Salomonsen can test them directly on the live /remaster/ preview.
@@ -35,7 +39,17 @@ const vgmMap = [
   ['02 Level 1.vgz', 'level1-practice.vgz'],
   ['03 Player 1 Goal In.vgz', 'goal-fanfare.vgz'],
   ['04 Player 2 Goal In.vgz', 'goal-fanfare-p2.vgz'],
+  ['05 Level 2.vgz', 'level2-beginner.vgz'],
   ['13 Game Over.vgz', 'game-over.vgz'],
+  ['sfx/sfx-wall-bounce.vgm', 'sfx-wall-bounce.vgm'],
+  ['sfx/sfx-marble-clack.vgm', 'sfx-marble-clack.vgm'],
+  ['sfx/sfx-impact.vgm', 'sfx-impact.vgm'],
+  ['sfx/sfx-fall.vgm', 'sfx-fall.vgm'],
+  ['sfx/sfx-dizzy.vgm', 'sfx-dizzy.vgm'],
+  ['sfx/sfx-shatter.vgm', 'sfx-shatter.vgm'],
+  ['sfx/sfx-broom.vgm', 'sfx-broom.vgm'],
+  ['sfx/sfx-respawn.vgm', 'sfx-respawn.vgm'],
+  ['sfx/sfx-countdown.vgm', 'sfx-countdown.vgm'],
 ];
 for (const [srcName, dstName] of vgmMap) {
   const src = resolve(packDir, srcName);

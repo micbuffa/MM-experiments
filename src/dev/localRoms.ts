@@ -50,6 +50,15 @@ const ORIGINAL_VGM_FILES: Readonly<Record<string, string>> = {
   'high-score.vgz': '12 High Score Entry.vgz',
   'game-over.vgz': '13 Game Over.vgz',
   'coin.vgz': '01 Coin.vgz',
+  'sfx-wall-bounce.vgm': 'sfx/sfx-wall-bounce.vgm',
+  'sfx-marble-clack.vgm': 'sfx/sfx-marble-clack.vgm',
+  'sfx-impact.vgm': 'sfx/sfx-impact.vgm',
+  'sfx-fall.vgm': 'sfx/sfx-fall.vgm',
+  'sfx-dizzy.vgm': 'sfx/sfx-dizzy.vgm',
+  'sfx-shatter.vgm': 'sfx/sfx-shatter.vgm',
+  'sfx-broom.vgm': 'sfx/sfx-broom.vgm',
+  'sfx-respawn.vgm': 'sfx/sfx-respawn.vgm',
+  'sfx-countdown.vgm': 'sfx/sfx-countdown.vgm',
 };
 const LEVEL_PNG_FILES = new Map([
   ['level-png-1.png', 'MarbleMadness_Level1.png'],

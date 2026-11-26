@@ -14,6 +14,8 @@ constexpr float kDefaultSampleRate = 48000.0f;
 // Standard YM2151 KC note-code to semitone offset table (skipping unused 3,7,11,15).
 constexpr int8_t kNoteTable[16] = {
     0, 1, 2, 2, 3, 4, 5, 5, 6, 7, 8, 8, 9, 10, 11, 11};
+// Standard YM2151 DT2 coarse detune ratios (0=1.0, 1=sqrt(2), 2=1.581, 3=sqrt(3)).
+constexpr float kDt2Ratios[4] = {1.0f, 1.41421356f, 1.58113883f, 1.73205081f};
 
 struct FmOperator {
   float phase = 0.0f;
@@ -22,6 +24,7 @@ struct FmOperator {
   uint8_t envState = 0; // 0=off, 1=attack, 2=decay, 3=sustain, 4=release
   uint8_t mul = 1;
   uint8_t dt1 = 0;
+  uint8_t dt2 = 0;
   uint8_t tl = 127;     // Total Level (0=loudest, 127=silent)
   uint8_t ar = 31;      // Attack Rate (0..31)
   uint8_t d1r = 0;      // Decay 1 Rate
@@ -125,7 +128,9 @@ struct FmChannel {
     for (int i = 0; i < 4; ++i) {
       const float mulFactor =
           (ops[i].mul == 0) ? 0.5f : static_cast<float>(ops[i].mul);
-      ops[i].phaseInc = (kTwoPi * baseFreq * mulFactor) / sampleRate;
+      const float dt2Factor = kDt2Ratios[ops[i].dt2 & 3];
+      ops[i].phaseInc =
+          (kTwoPi * baseFreq * mulFactor * dt2Factor) / sampleRate;
     }
   }
 
@@ -373,10 +378,10 @@ struct OpmPokeyEngine {
       sfxOpm.render(sampleRate, sfxL, sfxR);
       const float sfxP = sfxPokey.step(sampleRate, true);
 
-      left[i] = std::tanh((musL * 0.18f + musP * 0.30f) * musicGain +
-                          (sfxL * 0.30f + sfxP * 0.65f) * sfxGain);
-      right[i] = std::tanh((musR * 0.18f + musP * 0.30f) * musicGain +
-                           (sfxR * 0.30f + sfxP * 0.65f) * sfxGain);
+      left[i] = std::tanh((musL * 0.16f + musP * 0.28f) * musicGain +
+                          (sfxL * 0.55f + sfxP * 0.85f) * sfxGain);
+      right[i] = std::tanh((musR * 0.16f + musP * 0.28f) * musicGain +
+                           (sfxR * 0.55f + sfxP * 0.85f) * sfxGain);
     }
   }
 };

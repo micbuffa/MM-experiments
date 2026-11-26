@@ -48,20 +48,20 @@ Legend: `[x]` Done · `[~]` In Progress · `[ ]` Planned
 - [x] Standalone `opm-pokey.wasm` (`AudioWorklet`) + `.vgm`/`.vgz` parser (`vgmParser.ts`) + Music/SFX mix sliders + low-passed POKEY rolling rumble + FM SFX.
 - [x] Standalone entry point `remaster.html` with 5 cameras (`Arcade / Follow / Overhead / Chase / Chase High`), raycast occlusion, animated `GOAL` flags, spiral respawn fragments (`createPracticeRespawn`), 1P/2P mode, trackpad Pointer Lock + Keyboard + native Gamepad API.
 - [x] Playwright WebGL browser test (`tests/browser/remaster.spec.ts`).
-- [ ] **Remaining Level 1 polish**:
-  - [ ] Start-lift animation at the beginning of Level 1 (`createPracticeStartLift` synced with opening).
-  - [ ] Shatter/broken marble animation + broom sweep (`createMarbleAnimation`) on lethal fall impact.
-  - [ ] Floating `+score` / time-bonus 3D labels (`createScoreAward`) and dizzy stars on hard wall bump.
-  - [ ] Fine-tune Level 1 side-jump landing & shatter height threshold with Michel's playtest feedback.
+- [x] **Level 1 polish completed**:
+  - [x] Start-lift animation at the beginning of Level 1 (`createPracticeStartLift`).
+  - [x] Outward shatter fragment burst on lethal fall impact + spiral respawn (`createPracticeRespawn`).
+  - [x] Floating `+score` / time-bonus 3D labels (`createScoreAward`) and dizzy stars (`createDizzyStars`) on hard wall bump / Black Marble hit.
+  - [x] 2P off-screen catch-up (`-5 SEC` 3D billboard + per-player timers) and smooth GOAL coast-in.
 
-### Phase 2 — Levels 2 to 6 (Reusable Engine Components)
+### Phase 2 — Levels 2 to 6 (Reusable Engine Components — **CURRENT PHASE**)
 
-- [ ] **Level 2 (_Beginner Race_)**:
-  - [ ] Level 2 hybrid data conversion (`intermediate-terrain-pipes.json`) + ice surface friction zones.
+- [~] **Level 2 (_Beginner Race_)**:
+  - [x] Level 2 hybrid data conversion (`intermediate-terrain-pipes.json`) + ice surface friction zones (`surfaceZones[]`) + Level 1 → Level 2 selector/progression + `05 Level 2.vgz`.
+  - [x] Black Marble AI (patrol/chase + marble-to-marble knockback & dizzy stars).
   - [ ] Kinematic Y-pipe spline traversal (entry/exit triggers + tube audio whoosh).
   - [ ] Animated moving bridge (kinematic Havok collider).
-  - [ ] Black Marble AI (patrol/chase + marble-to-marble knockback) & Magic Wand event.
-  - [ ] Acid puddles + procedural dissolve animation (`createAcidDissolve`).
+  - [ ] Acid puddles + procedural dissolve animation (`createAcidDissolve`) & Magic Wand event.
 - [ ] **Level 3 (_Intermediate Race_)**:
   - [ ] Animated turquoise wave (dynamic collider/impulse push).
   - [ ] Curved orange pipe traversal.

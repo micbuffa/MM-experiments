@@ -20,6 +20,8 @@ export interface SfxBankV1 {
     readonly impact: FmChannelPatch;
     readonly chime: FmChannelPatch;
     readonly fall: FmChannelPatch;
+    readonly wallBounce?: FmChannelPatch;
+    readonly marbleClack?: FmChannelPatch;
   };
   readonly rolling: {
     readonly speedThreshold: number;
@@ -37,6 +39,18 @@ export interface SfxBankV1 {
       readonly intensitySpan: number;
       readonly durationMs: number;
     };
+    readonly wallBounce?: {
+      readonly channel: number;
+      readonly baseMidi: number;
+      readonly intensitySpan: number;
+      readonly durationMs: number;
+    };
+    readonly marbleClack?: {
+      readonly channel: number;
+      readonly baseMidi: number;
+      readonly intensitySpan: number;
+      readonly durationMs: number;
+    };
     readonly shatter: {
       readonly pokeyAudf: number;
       readonly pokeyAudc: number;
@@ -44,6 +58,19 @@ export interface SfxBankV1 {
       readonly fmChannel: number;
       readonly fmMidi: number;
       readonly fmDurationMs: number;
+    };
+    readonly broomSweep?: {
+      readonly strokes: readonly number[];
+      readonly pokeyAudc: number;
+      readonly delayMs: number;
+      readonly stepMs: number;
+      readonly strokeMs: number;
+    };
+    readonly dizzy?: {
+      readonly channel: number;
+      readonly notes: readonly number[];
+      readonly stepMs: number;
+      readonly durationMs: number;
     };
     readonly fall: {
       readonly channel: number;
@@ -101,6 +128,28 @@ export const DEFAULT_SFX_BANK: SfxBankV1 = {
         { mul: 1, tl: 20, ar: 28, d1r: 6, d1l: 3, rr: 8 },
       ],
     },
+    wallBounce: {
+      channel: 7,
+      alg: 4,
+      fb: 5,
+      ops: [
+        { mul: 3, tl: 16, ar: 31, d1r: 26, d1l: 14, rr: 15 },
+        { mul: 1, tl: 10, ar: 31, d1r: 22, d1l: 13, rr: 15 },
+        { mul: 5, tl: 28, ar: 31, d1r: 28, d1l: 14, rr: 15 },
+        { mul: 2, tl: 18, ar: 31, d1r: 24, d1l: 14, rr: 15 },
+      ],
+    },
+    marbleClack: {
+      channel: 3,
+      alg: 2,
+      fb: 3,
+      ops: [
+        { mul: 7, tl: 14, ar: 31, d1r: 28, d1l: 15, rr: 15 },
+        { mul: 3, tl: 18, ar: 31, d1r: 26, d1l: 14, rr: 15 },
+        { mul: 5, tl: 22, ar: 31, d1r: 25, d1l: 14, rr: 15 },
+        { mul: 1, tl: 8, ar: 31, d1r: 23, d1l: 14, rr: 15 },
+      ],
+    },
   },
   rolling: {
     speedThreshold: 0.4,
@@ -113,18 +162,38 @@ export const DEFAULT_SFX_BANK: SfxBankV1 = {
   },
   events: {
     impact: { channel: 4, baseMidi: 38, intensitySpan: 14, durationMs: 90 },
+    wallBounce: { channel: 7, baseMidi: 46, intensitySpan: 12, durationMs: 65 },
+    marbleClack: {
+      channel: 3,
+      baseMidi: 72,
+      intensitySpan: 10,
+      durationMs: 60,
+    },
     shatter: {
-      pokeyAudf: 42,
-      pokeyAudc: 141,
-      pokeyDurationMs: 260,
+      pokeyAudf: 24,
+      pokeyAudc: 143,
+      pokeyDurationMs: 320,
       fmChannel: 4,
-      fmMidi: 34,
-      fmDurationMs: 240,
+      fmMidi: 32,
+      fmDurationMs: 260,
+    },
+    broomSweep: {
+      strokes: [64, 48, 58],
+      pokeyAudc: 139,
+      delayMs: 360,
+      stepMs: 320,
+      strokeMs: 170,
+    },
+    dizzy: {
+      channel: 5,
+      notes: [82, 87, 82, 87, 80, 85],
+      stepMs: 65,
+      durationMs: 70,
     },
     fall: {
       channel: 6,
-      notes: [76, 71, 66, 61, 56, 51],
-      stepMs: 75,
+      notes: [81, 77, 73, 69, 65, 61, 57, 53],
+      stepMs: 70,
       durationMs: 85,
     },
     respawn: { channel: 5, notes: [64, 76], stepMs: 90, durationMs: 120 },

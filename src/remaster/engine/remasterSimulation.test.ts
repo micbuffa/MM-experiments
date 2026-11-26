@@ -29,6 +29,8 @@ function makeFlatLevel(): RemasterLevelV1 {
       },
     ],
     volumes: [],
+    surfaceZones: [],
+    enemies: [],
     spawns: {
       player1: { x: -5, y: 0, z: -5 },
       player2: { x: -3, y: 0, z: -5 },
@@ -240,5 +242,119 @@ describe('createRemasterSimulation', () => {
       12 - 1 / 60 - REMASTER_RULES.catchUpPenaltySeconds,
       2,
     );
+  });
+
+  it('triggers startLift only when idle at spawn and pushes the marble downhill, plus Black Marble AI chase', () => {
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      enemies: [
+        {
+          id: 'black-1',
+          kind: 'blackMarble',
+          position: { x: -4.2, y: 0, z: -4.2 },
+          patrolRadius: 4,
+        },
+      ],
+    };
+    const physics = makeStubPhysics();
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    // Immediately after start, the lift has NOT appeared yet
+    const early = sim.step(0.1, []);
+    expect(early.startLiftPhase).toBeUndefined();
+    expect(early.enemies).toHaveLength(1);
+    // Close black marble emits marbleClack event on contact
+    expect(early.events.some((e) => e.type === 'marbleClack')).toBe(true);
+
+    // Separate run without enemy interference: staying idle at spawn past 2.2s
+    // raises the start-lift and pushes the marble downhill (+x).
+    const idleBase = makeStubPhysics();
+    let pushedForward = false;
+    const idlePhysics: RemasterPhysicsBackend = {
+      ...idleBase,
+      applyPlayerForce(idx, fx, fz) {
+        if (idx === 0 && fx > 0) pushedForward = true;
+        idleBase.applyPlayerForce(idx, fx, fz);
+      },
+    };
+    const idleSim = createRemasterSimulation(makeFlatLevel(), idlePhysics);
+    idleSim.skipOpening();
+    let maxLift = 0;
+    for (let i = 0; i < 28; i++) {
+      const s = idleSim.step(0.1, []);
+      if (s.startLiftPhase && s.startLiftPhase > maxLift) {
+        maxLift = s.startLiftPhase;
+      }
+    }
+    expect(maxLift).toBeGreaterThanOrEqual(1);
+    expect(pushedForward).toBe(true);
+  });
+
+  it('drives dynamic Black Marble bodies and awards +1000 points when knocked off the ledge', () => {
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      enemies: [
+        {
+          id: 'black-dyn',
+          kind: 'blackMarble',
+          position: { x: -4.2, y: 0, z: -4.2 },
+          patrolRadius: 4,
+        },
+      ],
+    };
+    const enemyForces: Array<{ fx: number; fz: number }> = [];
+    let enemyPos = { x: -4.2, y: 0, z: -4.2 };
+    let teleportCount = 0;
+    const base = makeStubPhysics();
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      applyEnemyForce(_idx, fx, fz) {
+        enemyForces.push({ fx, fz });
+      },
+      teleportEnemy(_idx, pos) {
+        enemyPos = { ...pos };
+        teleportCount += 1;
+      },
+      readEnemy() {
+        return {
+          position: { ...enemyPos },
+          velocity: { x: 0, y: 0, z: 0 },
+          grounded: true,
+          impactSpeed: 0,
+        };
+      },
+    };
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    // First step: AI applies force and mutual push on contact
+    sim.step(1 / 60, []);
+    expect(enemyForces.length).toBeGreaterThan(0);
+
+    // Simulate player knocking Black Marble below killY
+    const beforeFall = teleportCount;
+    enemyPos = { x: -4.2, y: level.killY - 1, z: -4.2 };
+    const after = sim.step(1 / 60, []);
+    expect(teleportCount).toBe(beforeFall + 1);
+    expect(after.players[0]!.score).toBeGreaterThanOrEqual(1000);
+    expect(after.players[0]!.scoreAward?.points).toBe(1000);
+  });
+
+  it('emits dizzy on hard landing and wallBounce on horizontal obstacle impact', () => {
+    const physics = makeStubPhysics();
+    const sim = createRemasterSimulation(makeFlatLevel(), physics);
+    sim.skipOpening();
+    physics.marbles[0] = {
+      position: { x: -5, y: 0, z: -5 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 8.5,
+      wallImpactSpeed: 6.0,
+    };
+    const state = sim.step(1 / 60, []);
+    expect(state.events).toContainEqual({ type: 'dizzy', player: 1 });
+    expect(state.events.some((e) => e.type === 'wallBounce')).toBe(true);
+    expect(state.players[0]!.dizzyTimer).toBeGreaterThan(0);
   });
 });

@@ -1279,3 +1279,23 @@ Documentation: docs/CALIBRATION.md, README, ARCHITECTURE, DECISIONS, VALIDATION.
 Final validation: npm run check succeeded, **200 tests / 22 files**, coverage 99.39% statements, 99.46% branches, 100% functions, 99.35% lines. Chrome dev 19 tests, preview 3 tests succeeded. Usual BabylonJS chunk warning kept. No new dependency or deployment; no Git initialized. ROMs and real user preferences unchanged by harnesses.
 
 Concrete next action: Michel can reload, start a game, Esc, click the test button then Capturer and play normally. Ask only for feel on accelerations/jumping and small gestures, not a new identical capture to qualify. Candidate gain to be human-confirmed; Level 3 braking and session/endurance test run remain open.
+
+## Level 2 Remaster integration branch — November 26, 2026
+
+The committed `Remaster` branch on GitHub still contains the Level 1 vertical
+slice only. Local staged work adds the Level 2 selector and terrain loading,
+Beginner Race conversion, ice surface zones, Black Marble simulation and
+Havok collision support. It is being kept on the dedicated local branch
+`remaster-l2-scene`; it has not been pushed to GitHub.
+
+Validation on this branch:
+
+- `npx vitest run src/remaster/levels/remasterLevel.test.ts src/remaster/engine/remasterSimulation.test.ts` — 2 files, 10 tests passed.
+- `npm run typecheck` — passed.
+- `npm run build` — passed; Vite retained its existing large-chunk warning.
+
+The worktree also contains staged audio/SFX and Level 1 polish changes from
+the preceding local work. Do not push the whole worktree blindly as a
+production `Remaster` update; review and split the eventual pull request
+before publishing. Peter's ROM-analysis PR can remain focused and does not
+need to be restarted.

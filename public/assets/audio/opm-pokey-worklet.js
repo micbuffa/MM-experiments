@@ -10,6 +10,9 @@ class OpmPokeyWorklet extends AudioWorkletProcessor {
     this.vgm = null;
     this.vgmIndex = 0;
     this.vgmWaitSamples = 0;
+    this.sfxVgm = null;
+    this.sfxVgmIndex = 0;
+    this.sfxVgmWaitSamples = 0;
 
     this.port.onmessage = async (event) => {
       const msg = event.data;
@@ -44,6 +47,10 @@ class OpmPokeyWorklet extends AudioWorkletProcessor {
         this.vgm = msg.vgm;
         this.vgmIndex = 0;
         this.vgmWaitSamples = 0;
+      } else if (msg.type === 'sfxVgm') {
+        this.sfxVgm = msg.vgm;
+        this.sfxVgmIndex = 0;
+        this.sfxVgmWaitSamples = 0;
       } else if (msg.type === 'mute') {
         this.muted = Boolean(msg.muted);
       } else if (msg.type === 'mix' && this.exports?.audio_set_mix) {
@@ -84,6 +91,29 @@ class OpmPokeyWorklet extends AudioWorkletProcessor {
     }
   }
 
+  stepSfxVgm(frames) {
+    if (!this.sfxVgm || !this.exports) return;
+    let remaining = (frames * 44100) / sampleRate;
+    const cmds = this.sfxVgm.commands;
+    let safety = 0;
+    while (remaining > 0 && safety++ < 2048) {
+      if (this.sfxVgmWaitSamples > 0) {
+        const take = Math.min(remaining, this.sfxVgmWaitSamples);
+        this.sfxVgmWaitSamples -= take;
+        remaining -= take;
+        if (this.sfxVgmWaitSamples > 0) break;
+      }
+      if (this.sfxVgmIndex >= cmds.length) {
+        this.sfxVgm = null;
+        break;
+      }
+      const cmd = cmds[this.sfxVgmIndex++];
+      if (cmd.type === 'opm') this.exports.opm_write(cmd.reg, cmd.val);
+      else if (cmd.type === 'pokey') this.exports.pokey_write(cmd.reg, cmd.val);
+      else if (cmd.type === 'wait') this.sfxVgmWaitSamples += cmd.samples;
+    }
+  }
+
   process(_inputs, outputs) {
     const out = outputs[0];
     if (!out || out.length === 0) return true;
@@ -98,6 +128,7 @@ class OpmPokeyWorklet extends AudioWorkletProcessor {
     }
 
     this.stepVgm(frames);
+    this.stepSfxVgm(frames);
     this.exports.audio_render(frames);
     const heap = new Float32Array(this.memory.buffer);
     left.set(heap.subarray(this.leftOffset, this.leftOffset + frames));

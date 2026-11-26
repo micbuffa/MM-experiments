@@ -22,8 +22,8 @@ export const REMASTER_PHYSICS = {
   airLinearDamping: 0.08,
   /** Downward landing speed that shatters the marble (corresponds to ~3.75-cell drop). */
   shatterImpactSpeed: 15.5,
-  /** Vertical restitution against walls and guardrails. */
-  wallRestitution: 0.42,
+  /** Vertical restitution against walls, raised well rims, and guardrails. */
+  wallRestitution: 0.72,
   /** Marble-to-marble restitution in 2-player mode. */
   marbleRestitution: 0.65,
   /** Surface-specific Havok friction and linear damping. */
@@ -46,7 +46,7 @@ export const REMASTER_PHYSICS = {
 
 export const REMASTER_RULES = {
   openingDurationSeconds: 3.5,
-  shatterDurationSeconds: 1.1,
+  shatterDurationSeconds: 1.65,
   fallDurationSeconds: 0.9,
   respawnInvulnSeconds: 0.75,
   progressPointsPerCell: 10,

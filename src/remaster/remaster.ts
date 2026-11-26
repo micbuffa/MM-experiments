@@ -12,6 +12,7 @@ import {
   type PracticeTerrain,
 } from '../game/modern/practiceTerrain';
 import { practiceDisplayTerrain } from '../rendering/createPracticeLandmarks';
+import { intermediateDisplayTerrain } from '../rendering/intermediateLandmarks';
 import { createRemasterAudio } from './audio/createRemasterAudio';
 import { REMASTER_PHYSICS } from './engine/physicsConstants';
 import {
@@ -38,10 +39,14 @@ const CAMERA_LABELS: Record<PracticeCameraPreset, string> = {
   chaseHigh: 'Chase High',
 };
 
-async function loadPracticeTerrain(): Promise<PracticeTerrain> {
+async function loadCourseTerrain(courseIndex: 1 | 2): Promise<PracticeTerrain> {
+  const filename =
+    courseIndex === 2
+      ? 'intermediate-terrain-pipes.json'
+      : 'practice-complete-terrain.json';
   const candidates = [
-    '/__local-roms/practice-complete-terrain.json',
-    `${import.meta.env.BASE_URL}beta-data/practice-complete-terrain.json`,
+    `/__local-roms/${filename}`,
+    `${import.meta.env.BASE_URL}beta-data/${filename}`,
   ];
   for (const url of candidates) {
     try {
@@ -51,9 +56,7 @@ async function loadPracticeTerrain(): Promise<PracticeTerrain> {
       // Try next source.
     }
   }
-  throw new Error(
-    'Impossible de charger practice-complete-terrain.json pour le Niveau 1.',
-  );
+  throw new Error(`Impossible de charger ${filename}.`);
 }
 
 async function bootRemaster() {
@@ -62,10 +65,13 @@ async function bootRemaster() {
   const p2HudBlock = document.querySelector<HTMLElement>('#hud-p2-block')!;
   const scoreP2El = document.querySelector<HTMLElement>('#hud-score-p2')!;
   const timerEl = document.querySelector<HTMLElement>('#hud-timer')!;
+  const levelLabelEl = document.querySelector<HTMLElement>('#hud-level-label')!;
   const statusEl = document.querySelector<HTMLElement>('#hud-status')!;
   const bannerEl = document.querySelector<HTMLElement>('#remaster-banner')!;
   const bannerTitle = document.querySelector<HTMLElement>('#banner-title')!;
   const bannerSub = document.querySelector<HTMLElement>('#banner-sub')!;
+  const levelSelect =
+    document.querySelector<HTMLSelectElement>('#level-select')!;
   const btnCamera = document.querySelector<HTMLButtonElement>('#btn-camera')!;
   const btnPlayers = document.querySelector<HTMLButtonElement>('#btn-players')!;
   const p1ControlSelect =
@@ -88,22 +94,27 @@ async function bootRemaster() {
   const audio = createRemasterAudio(import.meta.env.BASE_URL);
   let audioMuted = false;
 
-  statusEl.textContent = 'LOADING TERRAIN…';
-  const terrain = await loadPracticeTerrain();
-  // Use the same display-smoothed geometry for Havok collision so the marble
-  // rolls over the exact 3D surface shown on screen (no raw-survey spikes/steps).
-  const displayTerrain: PracticeTerrain = {
-    ...terrain,
-    cells: practiceDisplayTerrain(terrain),
-  };
-  const level = practiceTerrainToRemasterLevel(displayTerrain);
-
+  let currentCourse: 1 | 2 = 1;
   let twoPlayers = false;
   let controls: RemasterPlayerControls = { ...DEFAULT_REMASTER_CONTROLS };
   let cameraPreset: PracticeCameraPreset = 'arcade';
   let fov = practiceLens.initial;
 
-  const view = createRemasterScene(engine, terrain);
+  function prepareLevel(rawTerrain: PracticeTerrain) {
+    const displayTerrain: PracticeTerrain =
+      rawTerrain.level === undefined
+        ? { ...rawTerrain, cells: practiceDisplayTerrain(rawTerrain) }
+        : rawTerrain.level === 'intermediate'
+          ? { ...rawTerrain, cells: intermediateDisplayTerrain(rawTerrain) }
+          : rawTerrain;
+    return practiceTerrainToRemasterLevel(displayTerrain);
+  }
+
+  statusEl.textContent = 'LOADING TERRAIN…';
+  let terrain = await loadCourseTerrain(currentCourse);
+  let level = prepareLevel(terrain);
+
+  let view = createRemasterScene(engine, terrain);
   view.camera.select(cameraPreset);
   view.camera.setFov(fov);
 
@@ -128,6 +139,8 @@ async function bootRemaster() {
   }
 
   function updateToolbarLabels() {
+    levelSelect.value = String(currentCourse);
+    levelLabelEl.textContent = `LEVEL ${currentCourse} · ${level.name.toUpperCase()}`;
     btnCamera.textContent = `Camera: ${CAMERA_LABELS[cameraPreset]} (C)`;
     btnPlayers.textContent = `Mode: ${twoPlayers ? '2P' : '1P'}`;
     p1ControlSelect.value = controls.p1;
@@ -139,12 +152,29 @@ async function bootRemaster() {
       : 'Audio: YM2151 + POKEY (M)';
   }
 
+  async function loadLevel(course: 1 | 2) {
+    currentCourse = course;
+    statusEl.textContent = `LOADING LEVEL ${course}…`;
+    terrain = await loadCourseTerrain(course);
+    level = prepareLevel(terrain);
+    physics.dispose();
+    view.dispose();
+    view = createRemasterScene(engine, terrain);
+    view.camera.select(cameraPreset);
+    view.camera.setFov(fov);
+    physics = await createHavokBackend(view.scene, level, twoPlayers);
+    sim = createRemasterSimulation(level, physics, twoPlayers);
+    accumulator = 0;
+    audio.playLevelTheme(currentCourse);
+    updateToolbarLabels();
+  }
+
   async function rebuildSession() {
     physics.dispose();
     physics = await createHavokBackend(view.scene, level, twoPlayers);
     sim = createRemasterSimulation(level, physics, twoPlayers);
     accumulator = 0;
-    audio.playLevelTheme();
+    audio.playLevelTheme(currentCourse);
     updateToolbarLabels();
   }
 
@@ -261,14 +291,17 @@ async function bootRemaster() {
     if (snap.phase === 'opening') {
       statusEl.textContent = 'FLYOVER';
       bannerEl.hidden = false;
-      bannerTitle.textContent = 'PRACTICE RACE';
+      bannerTitle.textContent = level.name.toUpperCase();
       bannerSub.textContent =
         'Remaster Havok + YM2151/POKEY · Space to skip flyover · Click to capture trackpad';
     } else if (snap.phase === 'finished') {
       statusEl.textContent = 'GOAL!';
       bannerEl.hidden = false;
       bannerTitle.textContent = `GOAL! SCORE ${p1?.score ?? 0}`;
-      bannerSub.textContent = 'Press R to race again';
+      bannerSub.textContent =
+        currentCourse === 1
+          ? 'Press N for Level 2 (Beginner Race) or R to replay'
+          : 'Press R to race again';
     } else if (snap.phase === 'gameOver') {
       statusEl.textContent = 'TIME UP';
       bannerEl.hidden = false;
@@ -371,7 +404,9 @@ async function bootRemaster() {
         view.camera.setFov(fov);
       } else if (event.code === 'KeyR') {
         sim.reset();
-        audio.playLevelTheme();
+        audio.playLevelTheme(currentCourse);
+      } else if (event.code === 'KeyN' && currentCourse === 1) {
+        void loadLevel(2);
       } else if (event.code === 'KeyM') {
         audioMuted = !audioMuted;
         audio.setMuted(audioMuted);
@@ -385,6 +420,16 @@ async function bootRemaster() {
     'keyup',
     (event) => {
       heldKeys.delete(event.code);
+    },
+    { signal },
+  );
+
+  levelSelect.addEventListener(
+    'change',
+    () => {
+      unlockAudio();
+      const target = levelSelect.value === '2' ? 2 : 1;
+      if (target !== currentCourse) void loadLevel(target);
     },
     { signal },
   );

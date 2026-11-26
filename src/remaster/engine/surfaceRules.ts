@@ -64,7 +64,7 @@ export function resolveSurfaceRules(input: SurfaceRulesInput): SurfaceRules {
   };
 }
 
-/** Surface change between two frames, for effects such as a sound cue. */
+/** Surface change between two steps, for effects such as a sound cue. */
 export function surfaceTransition(
   previous: SurfaceKind,
   next: SurfaceKind,

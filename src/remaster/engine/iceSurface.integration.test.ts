@@ -142,7 +142,7 @@ describe('Beginner Race ice in the simulation', () => {
     }
   });
 
-  it('applies the entry frame input, then locks steering on the next frame', () => {
+  it('applies the entry step input, then locks steering on the next step', () => {
     const level = makeBeginnerLevel();
     const { backend, marble, forces } = makeSlidingPhysics(level);
     const sim = createRemasterSimulation(level, backend);
@@ -154,7 +154,8 @@ describe('Beginner Race ice in the simulation', () => {
       false,
     );
     // The input of the crossing step is read on normal ground, as in the ROM
-    // (FUN_17F66 runs before the zone scan of the same frame).
+    // (FUN_17F66 runs before the zone scan of the same 30 Hz tick). The
+    // Remaster lag is one 60 Hz step instead of one arcade tick.
     const entry = sim.step(dt, steerNorth).players[0]!;
     expect(forces.at(-1)!.z).toBeGreaterThan(0);
     expect(isIceAtWorld(level, entry.position.x, entry.position.z)).toBe(true);

@@ -8,7 +8,8 @@ Branch `remaster-l2-ice-zone` (from `origin/Remaster`). Full decode in
 - **Decoded**: ice is not a tile or height attribute. It is a zone object
   (slot table `0x400A9C`, type tag at `+0x1F`) spawned from the per-course
   lists at `0x1DEC0`. `FUN_00029CCE` copies the tag into the marble's zone
-  byte `+0x58` each frame. Ice tags: `0x10` (Level 2), `0x17/0x18` (Level 4
+  byte `+0x58` each game tick (30 Hz: main loop `0x11804` waits two VBLANKs
+  via `0x28DEA`). Ice tags: `0x10` (Level 2), `0x17/0x18` (Level 4
   start lines), `0x32..0x37` (Level 6).
 - **Level 2 ice cells**: x 90..105, z 94..107 (arcade cells = terrain JSON
   indices), script `0x1DB94`, anchor (105, 107) is the max corner.
@@ -16,7 +17,8 @@ Branch `remaster-l2-ice-zone` (from `origin/Remaster`). Full decode in
   `0x17FA8..0x1808E`); no friction (`FUN_000121B8` skips `FUN_00025E7C` at
   `0x127EA`); slope gravity kept (`FUN_00025DF6`, inputs are terrain height
   differences); walls unchanged. Same code for Level 6. Control returns one
-  frame after the cell leaves the zone. Sound commands `0x43` (enter) and
+  tick (1/30 s) after the cell leaves the zone; the Remaster hook uses one
+  60 Hz step (1/60 s), noted in the doc. Sound commands `0x43` (enter) and
   `0x44` (leave) at `0x2B19C` / `0x2B1EE`; listed for Peter, not played here.
 - **Code**: `src/remaster/engine/romSurfaceZones.ts` (`isIceCell`,
   `iceZoneAt`, `arcadeCellAt`, `isIceAtWorld`, `ROM_ICE_ZONES`) and

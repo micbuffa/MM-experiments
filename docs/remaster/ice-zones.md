@@ -14,17 +14,17 @@ against our own disassembly. Claims marked **inferred** were not.
 
 ## Summary
 
-| Question                         | Answer                                                                             | Status                                      |
-| -------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
-| How does the ROM know about ice? | Not from tiles or heights. Ice is a rectangular **zone object** with a type tag.   | decoded                                     |
-| Level 2 ice cells                | One zone, tag `0x10`: arcade cells **x 90..105, z 94..107** (16 × 14 = 224 cells). | decoded                                     |
-| Player input on ice              | **Fully ignored** (not scaled).                                                    | decoded                                     |
-| Friction / drag on ice           | **None at all.** The friction routine is skipped.                                  | decoded                                     |
-| Slope gravity on ice             | **Still applies.**                                                                 | decoded                                     |
-| Wall bounces on ice              | Unchanged (same code path as normal ground).                                       | decoded                                     |
-| Sound                            | Command `0x43` on entering, `0x44` on leaving.                                     | decoded (what they sound like: not checked) |
-| Same routine for Level 6?        | Yes. Level 6 has six ice zones (tags `0x32..0x37`), same code.                     | decoded                                     |
-| Control recovery                 | Next frame after the marble's cell leaves the zone (1/60 s).                       | decoded                                     |
+| Question                         | Answer                                                                                | Status                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------- |
+| How does the ROM know about ice? | Not from tiles or heights. Ice is a rectangular **zone object** with a type tag.      | decoded                                     |
+| Level 2 ice cells                | One zone, tag `0x10`: arcade cells **x 90..105, z 94..107** (16 × 14 = 224 cells).    | decoded                                     |
+| Player input on ice              | **Fully ignored** (not scaled).                                                       | decoded                                     |
+| Friction / drag on ice           | **None at all.** The friction routine is skipped.                                     | decoded                                     |
+| Slope gravity on ice             | **Still applies.**                                                                    | decoded                                     |
+| Wall bounces on ice              | Unchanged (same code path as normal ground).                                          | decoded                                     |
+| Sound                            | Command `0x43` on entering, `0x44` on leaving.                                        | decoded (what they sound like: not checked) |
+| Same routine for Level 6?        | Yes. Level 6 has six ice zones (tags `0x32..0x37`), same code.                        | decoded                                     |
+| Control recovery                 | Next game tick after the marble's cell leaves the zone (1/30 s; logic runs at 30 Hz). | decoded                                     |
 
 ## 1. How the ROM identifies ice
 
@@ -45,14 +45,14 @@ Instead, each course has a **spawn list** of zone and actor scripts
   `<< 19`), y cell (word, `<< 19`), z (word, `<< 16`), a flag byte into `+0x1E`
   and the **type tag** into `+0x1F`.
 
-Every frame, for each moving object, `FUN_00029CCE` (called from
+Every game tick, for each moving object, `FUN_00029CCE` (called from
 `FUN_000121B8` at `0x12368`) does the zone test (**decoded**):
 
 1. Saves the old zone byte `+0x58` in D3 and clears it (`0x29D32..0x29D36`).
 2. For each active slot: `D1 = (slot.x >> 3) - marbleCellX`,
    `D2 = (slot.y >> 3) - marbleCellY`. The marble cell words `0x400696/698`
    are `position >> 3`, written by `FUN_0001BB50` through `FUN_0001BAB2`
-   (`0x12324`, `0x12354`), so they are up to date for this frame.
+   (`0x12324`, `0x12354`), so they are up to date for this tick.
 3. Jumps on the tag through the table at `0x29DB4`. The ice handlers copy
    the tag into `+0x58` and write `0xFF` into `+0x59` when the marble is
    inside.
@@ -118,7 +118,7 @@ Notes:
 
 ## 2. What the 68010 physics does on ice
 
-Per frame, a player marble runs (player state dispatch near `0x25730`):
+Per game tick, a player marble runs (player state dispatch near `0x25730`):
 `FUN_000253BC`, then the input routine `FUN_00017F66`, then the object update
 `FUN_000121B8` (pointer loaded at `0x25402`). Inside `FUN_000121B8`:
 integrate velocity, update the cell (`FUN_0001BAB2`), zone scan
@@ -174,14 +174,25 @@ and negate vx or vy) does not depend on the zone byte.
 
 ### Timing of entry and exit (decoded)
 
-Input (`FUN_00017F66`) runs **before** the zone scan of the same frame, so it
-uses the zone byte of the previous frame. Friction runs **after** the scan.
+**Game tick = 2 VBLANKs = 1/30 s (decoded).** All the routines above run
+inside the main loop `0x11804..0x118CE`: `0x11818` calls `FUN_0001101E`,
+which calls `FUN_00010FCE` (`0x111AE`, `0x111B8`), which reaches the object
+dispatch `FUN_000251DE` (`0x10FD4`) and the player update (`0x2521A` ->
+`0x253EC`, which loads `FUN_000121B8` at `0x25402` and calls `FUN_00017F66`).
+The loop ends by waiting for VBLANK twice through `FUN_00028DEA`
+(`0x118BA`, skipped if a VBLANK already came during the tick, and
+`0x118C8`). `FUN_00028DEA` clears `0x400016` and spins until the VBLANK
+interrupt sets it. So the arcade logic runs at 30 Hz, and one "tick" below is
+1/30 s, not 1/60 s.
 
-- Entering: on the frame where the marble's cell enters the zone, that
-  frame's input is still applied, and friction already stops. From the next
-  frame, input is ignored.
-- Leaving: on the frame where the cell leaves, friction is back and input is
-  still ignored for that frame. Control returns on the next frame (1/60 s).
+Input (`FUN_00017F66`) runs **before** the zone scan of the same tick, so it
+uses the zone byte of the previous tick. Friction runs **after** the scan.
+
+- Entering: on the tick where the marble's cell enters the zone, that
+  tick's input is still applied, and friction already stops. From the next
+  tick, input is ignored.
+- Leaving: on the tick where the cell leaves, friction is back and input is
+  still ignored for that tick. Control returns on the next tick (1/30 s).
 
 ### Same routine for Level 6 (decoded)
 
@@ -221,10 +232,14 @@ while Havok gravity on the slope and wall contacts still act, as in the ROM.
 - `remasterSimulation.ts`: before `applyPlayerForce`, the simulation calls
   `resolveSurfaceRules` with `isIceAtWorld(level, p.position...)` and skips the
   force on ice. `p.position` is the previous step's position, so this matches
-  the ROM order (input uses the previous frame's zone).
+  the ROM order (input uses the previous tick's zone). The Remaster steps at
+  60 Hz, so this lag is one Remaster step (1/60 s) instead of one arcade
+  tick (1/30 s). We kept it: 17 ms is not noticeable and a timer would add
+  state for no visible gain. If Michel wants the exact delay, hold the
+  previous surface for 2 steps.
 - `createHavokBackend.ts`: after each step, linear and angular damping come
   from `surfaceLinearDamping` / `surfaceAngularDamping` for the new position
-  (ROM: friction uses the current frame's zone). On normal ground the values
+  (ROM: friction uses the current tick's zone). On normal ground the values
   are the same as before, so Level 1 is unchanged.
 
 ### Tests
@@ -263,17 +278,19 @@ while Havok gravity on the slope and wall contacts still act, as in the ROM.
 
 ## 5. Sound cues (for Peter Salomonsen's review)
 
-All commands go through `FUN_000158AC` (sends the byte to the sound CPU
+Timings are in game ticks: the logic runs at 30 Hz (main loop `0x11804`
+waits two VBLANKs per pass via `FUN_00028DEA`), so the earliest a cue can
+repeat is 1/30 s. All commands go through `FUN_000158AC` (sends the byte to the sound CPU
 through the BIOS routine at `0x23C`, unless the mute word `0x4003B8` is set).
 Playback is not implemented in this branch.
 
-| Address   | Command | Trigger                                                                                                                                                                                        | Timing                                                                                                                                              | Status                                 |
-| --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `0x2B19C` | `0x43`  | Object's zone byte becomes an ice tag (`0x10, 0x17, 0x18, 0x32..0x37`) and was not one before.                                                                                                 | Once, on the frame the cell enters the zone. Moving between two ice zones (Level 6 `0x34`/`0x35`) plays nothing. Per object (P1 and P2 separately). | decoded                                |
-| `0x2B1EE` | `0x44`  | Zone byte was an ice tag and no longer is.                                                                                                                                                     | Once, on the frame the cell leaves.                                                                                                                 | decoded                                |
-| `0x17698` | `0x5E`  | Marble box overlaps an active slot of the `0x401482` table in `FUN_000175C8`, only on courses 3 and 6 (`0x400394` = 2 or 5). That table holds the acid/amoeba pools (`intermediateActors.ts`). | First overlapping slot, on the frame of the hit.                                                                                                    | decoded call; meaning inferred         |
-| `0x12A78` | `0x60`  | Script opcode 2 on a slot whose tag is `0x0A` (Aerial catapult).                                                                                                                               | When the script reaches the opcode.                                                                                                                 | decoded call; meaning from Marble Love |
-| `0x2571A` | `0x53`  | Player state set to 8 (`0x25708`; magic wand bonus per `docs/ANIMATION_AUDIT.md`).                                                                                                             | Once on entry to state 8.                                                                                                                           | decoded call; meaning inferred         |
+| Address   | Command | Trigger                                                                                                                                                                                        | Timing                                                                                                                                                           | Status                                 |
+| --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `0x2B19C` | `0x43`  | Object's zone byte becomes an ice tag (`0x10, 0x17, 0x18, 0x32..0x37`) and was not one before.                                                                                                 | Once, on the game tick (1/30 s) the cell enters the zone. Moving between two ice zones (Level 6 `0x34`/`0x35`) plays nothing. Per object (P1 and P2 separately). | decoded                                |
+| `0x2B1EE` | `0x44`  | Zone byte was an ice tag and no longer is.                                                                                                                                                     | Once, on the game tick (1/30 s) the cell leaves.                                                                                                                 | decoded                                |
+| `0x17698` | `0x5E`  | Marble box overlaps an active slot of the `0x401482` table in `FUN_000175C8`, only on courses 3 and 6 (`0x400394` = 2 or 5). That table holds the acid/amoeba pools (`intermediateActors.ts`). | First overlapping slot, on the game tick of the hit.                                                                                                             | decoded call; meaning inferred         |
+| `0x12A78` | `0x60`  | Script opcode 2 on a slot whose tag is `0x0A` (Aerial catapult).                                                                                                                               | When the script reaches the opcode.                                                                                                                              | decoded call; meaning from Marble Love |
+| `0x2571A` | `0x53`  | Player state set to 8 (`0x25708`; magic wand bonus per `docs/ANIMATION_AUDIT.md`).                                                                                                             | Once on entry to state 8.                                                                                                                                        | decoded call; meaning inferred         |
 
 What `0x43` and `0x44` sound like was not checked (the 6502 sound program was
 not decoded). These are the only sound commands tied to ice.

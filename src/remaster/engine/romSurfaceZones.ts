@@ -6,7 +6,7 @@ import type { HeightLayer, RemasterLevelV1 } from '../levels/remasterLevel';
  * The arcade does not mark ice in the height map or in the playfield
  * attributes. Ice is a "zone object": a script slot in the 25-entry table at
  * `0x400A9C` (stride `0x56`) whose type byte `+0x1F` is one of the tags below.
- * Every frame, `FUN_00029CCE` clears the marble's zone byte `+0x58` and copies
+ * Every game tick (30 Hz), `FUN_00029CCE` clears the marble's zone byte `+0x58` and copies
  * the tag of the zone it stands in (`0x2A1E4..0x2A356`). The physics code then
  * reads `+0x58`:
  *

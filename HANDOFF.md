@@ -1,5 +1,19 @@
 # Handoff
 
+## Remaster Level 2 drawbridge & pipes: ROM decoding + pure modules (issues #4, #5) — November 26, 2026
+
+- **Branch `remaster-l2-bridge-pipes`** (from `origin/Remaster`). No Level 2 scene code touched (that work is unpushed elsewhere); only new pure modules, docs and one coverage-include line in `vite.config.ts`.
+- **Findings** ([docs/remaster/level2-bridge-pipes.md](docs/remaster/level2-bridge-pipes.md)), static 68010 disassembly, DECODED vs INFERRED marked:
+  - ROM game logic runs at **30 Hz** (main loop `0x11804` waits two VBLANKs via `0x28dea`); all tick counts are 1/30 s.
+  - Level 2 course list `0x1df7a` (table `0x1dec0`): bridge script `0x1db12` (type 3, cell 61,56), pipe zones `0x12` (64,78), `0x13` (81,86), `0x14` (87,86), outlets `0x15`, `0x16`.
+  - Bridge: 73-tick cycle (raise 7 steps × 2 ticks, hold 15, lower, hold 30); 12 terrain-code overrides `0x40076e..` per step (`0x1b908 + 0x1c·step`); free-edge lip 0/3/5/8/10/(13 inferred)/16 units; generic wall rule edge ≥ 4 units (`0x1b5c2`) → passable only at steps 0-1. No bridge-specific collision or sound.
+  - Pipes: teleport on the trigger tick to the exit, hidden/frozen 19 ticks (0.633 s), exit velocity 4 units/tick (15 cells/s) +X (drop pipe) / +Z (Y-pipe), alternate exit if occupied (`0x17cb8`), cue `0x35`, score 4000 / 2000 at release.
+  - Approach B: drop-pipe tube radius ≈ 0.60 < marble 0.675 (does not fit), Y-pipe ≈ 0.9-1.1 (fits). Mesh is a closed visual shell.
+  - Sound cues section for Peter (not implemented here).
+- **Modules** (`src/remaster/level2/`, pure TS, tests next to them): `romUnits.ts`, `bridgeCycle.ts` (`bridgeState(t)`), `bridgeCrossing.ts` (`decideBridgeCrossing`), `pipeTeleport.ts` (`probePipeEntry`, `beginPipeTraversal`, `pipeTraversalAt`), `romSoundCues.ts`. Integration: [docs/remaster/level2-bridge-pipes-integration.md](docs/remaster/level2-bridge-pipes-integration.md).
+- **Limitations**: step-5 free-edge rise interpolated (banked level record); bridge side/axis orientation inferred from the existing survey; marble gravity constant not located (fall duration estimate uses actor gravity); nothing verified in MAME or in a browser.
+- **Next action**: Level 2 scene owner wires `bridgeState` to the kinematic deck and `probePipeEntry`/`pipeTraversalAt` to the marble; optionally confirm tick timings with a MAME probe on `0x772` and `$59`.
+
 ## Remaster Branch: Phase 1 Level 1 Vertical Slice (Havok + YM2151/POKEY WASM) — November 25, 2026
 
 - **Branch `Remaster` created** from `main` (`76bfdae`) for the standalone ROM-free / MAME-free Marble Madness remaster (see [REMASTER_OWN_ENGINE_SPEC.md](REMASTER_OWN_ENGINE_SPEC.md)).

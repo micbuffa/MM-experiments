@@ -41,6 +41,7 @@ export default defineConfig({
         'src/game/**/*.ts',
         'src/remaster/engine/**/*.ts',
         'src/remaster/levels/**/*.ts',
+        'src/remaster/level2/**/*.ts',
         'src/diagnostics/**/*.ts',
         'src/rendering/videoLayout.ts',
         'src/emulation/romArchive.ts',

@@ -1,36 +1,18 @@
 # Handoff
 
-## Remaster Level 2 black marble AI: ROM reverse-engineering + pure controller (issue #1) — November 26, 2026
+## Remaster Level 2 drawbridge & pipes: ROM decoding + pure modules (issues #4, #5) — November 26, 2026
 
-- **Branch `remaster-l2-black-marble-ai`** (from `origin/Remaster`). Only new files plus one coverage line in `vite.config.ts`. Nothing touches the unpushed Level 2 scene.
-- **Findings** in [docs/remaster/level2-black-marble.md](docs/remaster/level2-black-marble.md). Each item is marked decoded (with address) or inferred. Game logic runs at 30 Hz (main loop `0x11804`, two VBLANKs per iteration). Enemy slots `0x4009a4/0x400a20`. AI modes `0x20` patrol / `0x21` attack / `0x22` chase / `0x23` return (`0x15e24`, `0x1605c`, `0x160d4`). Steering `0x182ba`: velocity tracking 1/32 per tick, desired speeds 7/12/8/7 u/tick, clamp 5 u/tick (`0x26196`). 150-tick give-up timer armed by the first marble contact (`0x1bf4c`). Spawn/despawn by scroll row (`0x15a12`, table `0x22706`). Zone tracker `0x1365c` with Level 2 boundaries `0x239fa`. The "lower descent boundary" is the zone 1 → 2 line at column x = 30 (z 34..37): the black marble only targets zone-1 players. Its node graph `0x2276e` climbs the corridor on z = 35.5.
-- **Module** `src/remaster/level2/` (`blackMarbleRom.ts`, `enemyZones.ts`, `blackMarbleController.ts` + tests, 44 Vitest cases). Integration guide in [docs/remaster/level2-black-marble-integration.md](docs/remaster/level2-black-marble-integration.md).
-- **Left-wall stall** (not reproduced, no Level 2 scene here). Recommendation in section 9 of the findings: follow the ROM nodes instead of aiming at the patrol zone, wall-slide projection, frictionless enemy material, stall watchdog, optional slope compensation.
-- **Sound cues** for Peter are listed in section 10 of the findings; no playback implemented.
-- **Validation**: `npm run check` passed (Prettier, ESLint, tsc, Vitest 714 tests with V8 coverage, `src/remaster/level2` at 98% statements / 94.7% branches, Vite build). Not done: MAME verification of the inferred scroll ↔ world mapping, and of slot `0x4009a4` for the second Level 2 enemy. Not tested with Havok.
-- **Next action**: the Level 2 scene owner wires `stepEnemyMarble` following the integration note, then checks the corridor climb in Chrome.
-
-## Remaster: Level 2 green worms, ROM decode and pure state machine (issue #3) — November 26, 2026
-
-- **Branch `remaster-l2-green-worms`** (from `origin/Remaster`). It contains no scene code: the Level 2 scene is being built separately and has not been pushed yet.
-- **Findings** in [docs/remaster/level2-green-worms.md](docs/remaster/level2-green-worms.md), decoded statically from the 68010 program:
-  - Slots at `0x401302` (stride `0x60`). Per-tick update `0x14966`, state machine `0x15148`/`0x15460`, detection `0x15670`, contact `0x14e92`, spawn/despawn on scroll rows `0x14c46`.
-  - Level 2 spawn table `0x2259a` holds 3 worms. Waypoint paths `0x2260a`/`0x22642`/`0x2267a` all lie on the 16264 plateau.
-  - Timings: lunge 34 ticks with a 32-tick arc (`0x2255a`, peak 32 units), eat 30 ticks, recover 26 ticks, 50-tick dizzy on contact. One tick = 1/30 s: the main loop `0x11804` waits two VBLANKs per pass (`0x28dea`), corrected from an initial 60 Hz assumption.
-  - The swallow / knockback / miss radii are decoded.
-  - The doc separates DECODED and INFERRED items and has a sound-cue table for Peter.
-  - The doc also explains how `main` draws the worms: procedural `createWorm.ts` + `wormPose.ts`, no model files.
-- **Module** `src/remaster/level2/greenWorms/`:
-  - `wormRomData.ts`: tables for Levels 2, 3 and 6.
-  - `wormSimulation.ts`: `createWormWorld`, `stepWorms`, `tickWorms`, `readWormPose`, `scrollRow`, `arcadeScrollForPoint`. Fixed 30 Hz ticks, 16.16 arithmetic as in the ROM.
-  - `wormSimulation.test.ts`: 28 tests.
-  - Integration note: [docs/remaster/level2-green-worms-integration.md](docs/remaster/level2-green-worms-integration.md).
-- `vite.config.ts`: added `src/remaster/level2/**` to the coverage includes (module at 98% lines).
-- Validation: `npm run check` passed. Not compared against live MAME. No browser test, because the module has no rendering.
-- Next actions:
-  - Confirm in MAME the speed condition of the detection (`> 0.75 units/tick`).
-  - Calibrate the scroll line used by `arcadeScrollForPoint`.
-  - Wire the module into the Level 2 scene following the integration note.
+- **Branch `remaster-l2-bridge-pipes`** (from `origin/Remaster`). No Level 2 scene code touched (that work is unpushed elsewhere); only new pure modules, docs and one coverage-include line in `vite.config.ts`.
+- **Findings** ([docs/remaster/level2-bridge-pipes.md](docs/remaster/level2-bridge-pipes.md)), static 68010 disassembly, DECODED vs INFERRED marked:
+  - ROM game logic runs at **30 Hz** (main loop `0x11804` waits two VBLANKs via `0x28dea`); all tick counts are 1/30 s.
+  - Level 2 course list `0x1df7a` (table `0x1dec0`): bridge script `0x1db12` (type 3, cell 61,56), pipe zones `0x12` (64,78), `0x13` (81,86), `0x14` (87,86), outlets `0x15`, `0x16`.
+  - Bridge: 73-tick cycle (raise 7 steps × 2 ticks, hold 15, lower, hold 30); 12 terrain-code overrides `0x40076e..` per step (`0x1b908 + 0x1c·step`); free-edge lip 0/3/5/8/10/(13 inferred)/16 units; generic wall rule edge ≥ 4 units (`0x1b5c2`) → passable only at steps 0-1. No bridge-specific collision or sound.
+  - Pipes: teleport on the trigger tick to the exit, hidden/frozen 19 ticks (0.633 s), exit velocity 4 units/tick (15 cells/s) +X (drop pipe) / +Z (Y-pipe), alternate exit if occupied (`0x17cb8`), cue `0x35`, score 4000 / 2000 at release.
+  - Approach B: drop-pipe tube radius ≈ 0.60 < marble 0.675 (does not fit), Y-pipe ≈ 0.9-1.1 (fits). Mesh is a closed visual shell.
+  - Sound cues section for Peter (not implemented here).
+- **Modules** (`src/remaster/level2/`, pure TS, tests next to them): `romUnits.ts`, `bridgeCycle.ts` (`bridgeState(t)`), `bridgeCrossing.ts` (`decideBridgeCrossing`), `pipeTeleport.ts` (`probePipeEntry`, `beginPipeTraversal`, `pipeTraversalAt`), `romSoundCues.ts`. Integration: [docs/remaster/level2-bridge-pipes-integration.md](docs/remaster/level2-bridge-pipes-integration.md).
+- **Limitations**: step-5 free-edge rise interpolated (banked level record); bridge side/axis orientation inferred from the existing survey; marble gravity constant not located (fall duration estimate uses actor gravity); nothing verified in MAME or in a browser.
+- **Next action**: Level 2 scene owner wires `bridgeState` to the kinematic deck and `probePipeEntry`/`pipeTraversalAt` to the marble; optionally confirm tick timings with a MAME probe on `0x772` and `$59`.
 
 ## Remaster Branch: Phase 1 Level 1 Vertical Slice (Havok + YM2151/POKEY WASM) — November 25, 2026
 
@@ -1311,23 +1293,3 @@ Documentation: docs/CALIBRATION.md, README, ARCHITECTURE, DECISIONS, VALIDATION.
 Final validation: npm run check succeeded, **200 tests / 22 files**, coverage 99.39% statements, 99.46% branches, 100% functions, 99.35% lines. Chrome dev 19 tests, preview 3 tests succeeded. Usual BabylonJS chunk warning kept. No new dependency or deployment; no Git initialized. ROMs and real user preferences unchanged by harnesses.
 
 Concrete next action: Michel can reload, start a game, Esc, click the test button then Capturer and play normally. Ask only for feel on accelerations/jumping and small gestures, not a new identical capture to qualify. Candidate gain to be human-confirmed; Level 3 braking and session/endurance test run remain open.
-
-## Level 2 Remaster integration branch — November 26, 2026
-
-The committed `Remaster` branch on GitHub still contains the Level 1 vertical
-slice only. Local staged work adds the Level 2 selector and terrain loading,
-Beginner Race conversion, ice surface zones, Black Marble simulation and
-Havok collision support. It is being kept on the dedicated local branch
-`remaster-l2-scene`; it has not been pushed to GitHub.
-
-Validation on this branch:
-
-- `npx vitest run src/remaster/levels/remasterLevel.test.ts src/remaster/engine/remasterSimulation.test.ts` — 2 files, 10 tests passed.
-- `npm run typecheck` — passed.
-- `npm run build` — passed; Vite retained its existing large-chunk warning.
-
-The worktree also contains staged audio/SFX and Level 1 polish changes from
-the preceding local work. Do not push the whole worktree blindly as a
-production `Remaster` update; review and split the eventual pull request
-before publishing. Peter's ROM-analysis PR can remain focused and does not
-need to be restarted.

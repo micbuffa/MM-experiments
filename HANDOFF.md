@@ -1,5 +1,40 @@
 # Handoff
 
+## Remaster: Level 2 ice zone decoded from the ROM (issue #6) — November 26, 2026
+
+Branch `remaster-l2-ice-zone` (from `origin/Remaster`). Full decode in
+[docs/remaster/ice-zones.md](docs/remaster/ice-zones.md).
+
+- **Decoded**: ice is not a tile or height attribute. It is a zone object
+  (slot table `0x400A9C`, type tag at `+0x1F`) spawned from the per-course
+  lists at `0x1DEC0`. `FUN_00029CCE` copies the tag into the marble's zone
+  byte `+0x58` each frame. Ice tags: `0x10` (Level 2), `0x17/0x18` (Level 4
+  start lines), `0x32..0x37` (Level 6).
+- **Level 2 ice cells**: x 90..105, z 94..107 (arcade cells = terrain JSON
+  indices), script `0x1DB94`, anchor (105, 107) is the max corner.
+- **Physics on ice (decoded)**: input fully ignored (`FUN_00017F66`,
+  `0x17FA8..0x1808E`); no friction (`FUN_000121B8` skips `FUN_00025E7C` at
+  `0x127EA`); slope gravity kept (`FUN_00025DF6`, inputs are terrain height
+  differences); walls unchanged. Same code for Level 6. Control returns one
+  frame after the cell leaves the zone. Sound commands `0x43` (enter) and
+  `0x44` (leave) at `0x2B19C` / `0x2B1EE`; listed for Peter, not played here.
+- **Code**: `src/remaster/engine/romSurfaceZones.ts` (`isIceCell`,
+  `iceZoneAt`, `arcadeCellAt`, `isIceAtWorld`, `ROM_ICE_ZONES`) and
+  `src/remaster/engine/surfaceRules.ts` (`resolveSurfaceRules`,
+  `surfaceLinearDamping`, `surfaceAngularDamping`, `surfaceTransition`).
+  Small hooks: `remasterSimulation.ts` skips the player force on ice;
+  `createHavokBackend.ts` takes linear/angular damping from the surface
+  rules (unchanged values on normal ground, so Level 1 behaves as before).
+- **Tests**: `romSurfaceZones.test.ts`, `surfaceRules.test.ts`,
+  `iceSurface.integration.test.ts` (enter, stay, leave, control recovery).
+  `npm run check` passes (114 files, 684 tests). The Playwright Remaster test
+  was not run: Chromium for Playwright is not installed on this machine.
+- **Next action**: the Level 2 scene builds its level with `courseIndex: 2`
+  and the intermediate grid (origin 0, 130 × 130) as `heightLayers[0]`; the
+  hooks then apply. Optional: separate ice floor aggregate with
+  `surfaces.ice.friction` so the marble slides instead of rolls. Human
+  playtest of the ice feel by Michel.
+
 ## Remaster Branch: Phase 1 Level 1 Vertical Slice (Havok + YM2151/POKEY WASM) — November 25, 2026
 
 - **Branch `Remaster` created** from `main` (`76bfdae`) for the standalone ROM-free / MAME-free Marble Madness remaster (see [REMASTER_OWN_ENGINE_SPEC.md](REMASTER_OWN_ENGINE_SPEC.md)).

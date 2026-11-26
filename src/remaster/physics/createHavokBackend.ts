@@ -18,6 +18,12 @@ import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import type { Scene } from '@babylonjs/core/scene';
 import { REMASTER_PHYSICS } from '../engine/physicsConstants';
+import { isIceAtWorld } from '../engine/romSurfaceZones';
+import {
+  MARBLE_ANGULAR_DAMPING,
+  surfaceAngularDamping,
+  surfaceLinearDamping,
+} from '../engine/surfaceRules';
 import type {
   PhysicsMarbleSnapshot,
   RemasterPhysicsBackend,
@@ -199,7 +205,7 @@ export async function createHavokBackend(
     aggregate.body.setLinearDamping(
       REMASTER_PHYSICS.surfaces.stone.linearDamping,
     );
-    aggregate.body.setAngularDamping(2.0);
+    aggregate.body.setAngularDamping(MARBLE_ANGULAR_DAMPING);
     aggregate.body.disablePreStep = false;
     ownedMeshes.push(mesh);
     ownedAggregates.push(aggregate);
@@ -302,11 +308,18 @@ export async function createHavokBackend(
         const bottomY = m.mesh.position.y - radius;
         const grounded = groundH !== null && Math.abs(bottomY - groundH) < 0.35;
         // Keep full horizontal momentum while airborne so ramp jumps clear side gaps naturally.
+        // Arcade ice zones have no friction at all (romSurfaceZones.ts).
+        const surface = isIceAtWorld(
+          level,
+          m.mesh.position.x,
+          m.mesh.position.z,
+        )
+          ? 'ice'
+          : 'normal';
         m.aggregate.body.setLinearDamping(
-          grounded
-            ? REMASTER_PHYSICS.surfaces.stone.linearDamping
-            : REMASTER_PHYSICS.airLinearDamping,
+          surfaceLinearDamping(surface, grounded),
         );
+        m.aggregate.body.setAngularDamping(surfaceAngularDamping(surface));
         // Suppress tiny internal-edge ghost hops ONLY when rolling downhill (never on uphill launch ramps).
         if (grounded && m.prevVy < -0.25 && tmpVel.y > 0.35 && tmpVel.y < 2.2) {
           tmpVel.y = 0;

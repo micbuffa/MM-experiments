@@ -10,13 +10,27 @@ class OpmPokeyWorklet extends AudioWorkletProcessor {
     this.vgm = null;
     this.vgmIndex = 0;
     this.vgmWaitSamples = 0;
+    this.sfxVgm = null;
+    this.sfxVgmIndex = 0;
+    this.sfxVgmWaitSamples = 0;
 
     this.port.onmessage = async (event) => {
       const msg = event.data;
       if (!msg || typeof msg !== 'object') return;
       if (msg.type === 'init' && msg.wasmBytes) {
         try {
-          const { instance } = await WebAssembly.instantiate(msg.wasmBytes, {});
+          const wasiStub = {
+            wasi_snapshot_preview1: {
+              fd_close: () => 0,
+              fd_write: () => 0,
+              fd_seek: () => 0,
+              proc_exit: () => {},
+            },
+          };
+          const { instance } = await WebAssembly.instantiate(
+            msg.wasmBytes,
+            wasiStub,
+          );
           this.exports = instance.exports;
           this.memory = instance.exports.memory;
           this.exports.audio_init(sampleRate);
@@ -44,6 +58,11 @@ class OpmPokeyWorklet extends AudioWorkletProcessor {
         this.vgm = msg.vgm;
         this.vgmIndex = 0;
         this.vgmWaitSamples = 0;
+      } else if (msg.type === 'sfxVgm') {
+        this.silenceSfxChannels();
+        this.sfxVgm = msg.vgm;
+        this.sfxVgmIndex = 0;
+        this.sfxVgmWaitSamples = 0;
       } else if (msg.type === 'mute') {
         this.muted = Boolean(msg.muted);
       } else if (msg.type === 'mix' && this.exports?.audio_set_mix) {
@@ -84,6 +103,42 @@ class OpmPokeyWorklet extends AudioWorkletProcessor {
     }
   }
 
+  silenceSfxChannels() {
+    if (!this.exports) return;
+    // Key-off all 8 SFX YM2151 channels and silence SFX POKEY ch 1..3
+    // (leaving POKEY ch 0 rolling noise untouched) so no SFX note ever hangs.
+    for (let ch = 0; ch < 8; ch++) {
+      this.exports.opm_write(0x08, ch);
+    }
+    this.exports.pokey_write(0x03, 0x00);
+    this.exports.pokey_write(0x05, 0x00);
+    this.exports.pokey_write(0x07, 0x00);
+  }
+
+  stepSfxVgm(frames) {
+    if (!this.sfxVgm || !this.exports) return;
+    let remaining = (frames * 44100) / sampleRate;
+    const cmds = this.sfxVgm.commands;
+    let safety = 0;
+    while (remaining > 0 && safety++ < 2048) {
+      if (this.sfxVgmWaitSamples > 0) {
+        const take = Math.min(remaining, this.sfxVgmWaitSamples);
+        this.sfxVgmWaitSamples -= take;
+        remaining -= take;
+        if (this.sfxVgmWaitSamples > 0) break;
+      }
+      if (this.sfxVgmIndex >= cmds.length) {
+        this.sfxVgm = null;
+        this.silenceSfxChannels();
+        break;
+      }
+      const cmd = cmds[this.sfxVgmIndex++];
+      if (cmd.type === 'opm') this.exports.opm_write(cmd.reg, cmd.val);
+      else if (cmd.type === 'pokey') this.exports.pokey_write(cmd.reg, cmd.val);
+      else if (cmd.type === 'wait') this.sfxVgmWaitSamples += cmd.samples;
+    }
+  }
+
   process(_inputs, outputs) {
     const out = outputs[0];
     if (!out || out.length === 0) return true;
@@ -97,12 +152,23 @@ class OpmPokeyWorklet extends AudioWorkletProcessor {
       return true;
     }
 
-    this.stepVgm(frames);
-    this.exports.audio_render(frames);
+    // Render in 16-sample (~0.33 ms) sub-blocks so fast VGM keyOn/keyOff pairs
+    // and SFX pitch steps are never eaten or jittered across a 128-sample quantum.
     const heap = new Float32Array(this.memory.buffer);
-    left.set(heap.subarray(this.leftOffset, this.leftOffset + frames));
-    if (right !== left) {
-      right.set(heap.subarray(this.rightOffset, this.rightOffset + frames));
+    let offset = 0;
+    while (offset < frames) {
+      const chunk = Math.min(16, frames - offset);
+      this.stepVgm(chunk);
+      this.stepSfxVgm(chunk);
+      this.exports.audio_render(chunk);
+      left.set(heap.subarray(this.leftOffset, this.leftOffset + chunk), offset);
+      if (right !== left) {
+        right.set(
+          heap.subarray(this.rightOffset, this.rightOffset + chunk),
+          offset,
+        );
+      }
+      offset += chunk;
     }
     return true;
   }

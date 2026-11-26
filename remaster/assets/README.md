@@ -1,5 +1,15 @@
 # Assets
 
+## Remaster Standalone Audio Core (`ymfm`) — November 26, 2026
+
+`public/assets/audio/opm-pokey.wasm` compiles `native/audio/opm_pokey.cpp` with
+Aaron Giles's **`ymfm`** (`ymfm::ym2151`, BSD-3-Clause license in
+`native/audio/ymfm/LICENSE`), pinned to commit
+`81aec25ccbb98f4873a255f7551ac4dadac59b4a` of
+<https://github.com/aaronsgiles/ymfm>. It provides cycle-accurate Yamaha
+YM2151 (OPM) emulation at the original Atari System 1 clock (`3,579,545 Hz`)
+paired with the project's clean-room Atari POKEY generator.
+
 ## Corrected Tower and Finish Geometry — Captures 16:06–17:47
 
 The procedural pyramidal tower shared by levels 1 and 5 is centered on its

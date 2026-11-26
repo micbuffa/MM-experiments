@@ -1,6 +1,98 @@
 {
   "format": "remaster-sfx-bank-v1",
-  "description": "Editable Yamaha YM2151 (OPM) + Atari POKEY sound-design bank for Marble Madness Remaster. Edit any FM operator, note sequence, or POKEY curve and reload the browser.",
+  "description": "Editable Yamaha YM2151 (OPM) + Atari POKEY sound-design bank for Marble Madness Remaster. Includes verified 68010 ROM trigger-to-VGM mapping (romSfx) and fallback FM/POKEY patches. Edit and reload the browser.",
+  "romSfx": {
+    "wallBounce": {
+      "file": "sfx-wall-bounce.vgm",
+      "romCommand": "0x34",
+      "romCallSite": "0x1b8fa",
+      "description": "Wall / cliff / well-rim bounce (cycle-accurate ymfm YM2151)"
+    },
+    "marbleClack": {
+      "file": "sfx-marble-clack.vgm",
+      "romCommand": "0x32",
+      "romCallSite": "0x1bf9c",
+      "description": "Player <-> Black Marble billiard clack"
+    },
+    "pvpClack": {
+      "file": "sfx-pvp-clack.vgm",
+      "romCommand": "0x37",
+      "romCallSite": "0x1bfac",
+      "description": "Player 1 <-> Player 2 clack"
+    },
+    "impact": {
+      "file": "sfx-impact.vgm",
+      "romCommand": "0x5d",
+      "romCallSite": "0x124da",
+      "description": "Floor landing thud (POKEY)"
+    },
+    "fall": {
+      "file": "sfx-fall.vgm",
+      "romCommand": "0x45",
+      "romCallSite": "0x12482",
+      "description": "Airborne fall whistle"
+    },
+    "voidFall": {
+      "file": "sfx-void-fall.vgm",
+      "romCommand": "0x3d",
+      "romCallSite": "0x25c5a",
+      "description": "Void fall vanish"
+    },
+    "shatter": {
+      "file": "sfx-shatter.vgm",
+      "romCommand": "0x38",
+      "romCallSite": "0x25bdc",
+      "description": "Marble shatter (> 3-cell drop)"
+    },
+    "broomSweep": {
+      "file": "sfx-broom.vgm",
+      "romCommand": "0x5f",
+      "romCallSite": "0x26068",
+      "description": "Broom sweeping crumbs (POKEY)"
+    },
+    "dizzy": {
+      "file": "sfx-dizzy.vgm",
+      "romCommand": "0x39",
+      "romCallSite": "0x15076",
+      "description": "Dizzy stars (< 3-cell drop / hard bump / worm bump)"
+    },
+    "respawn": {
+      "file": "sfx-respawn.vgm",
+      "romCommand": "0x3c",
+      "romCallSite": "0x25c44",
+      "description": "Spiral respawn"
+    },
+    "wormEat": {
+      "file": "sfx-worm-eat.vgm",
+      "romCommand": "0x33",
+      "romCallSite": "0x153a2",
+      "description": "Green worm swallows marble"
+    },
+    "pipeEnter": {
+      "file": "sfx-pipe.vgm",
+      "romCommand": "0x35",
+      "romCallSite": "0x2a46a",
+      "description": "Marble enters pipe"
+    },
+    "iceEnter": {
+      "file": "sfx-ice-enter.vgm",
+      "romCommand": "0x43",
+      "romCallSite": "0x2b19c",
+      "description": "Enter ice surface shimmer/slide"
+    },
+    "iceLeave": {
+      "file": "sfx-ice-leave.vgm",
+      "romCommand": "0x44",
+      "romCallSite": "0x2b1ee",
+      "description": "Leave ice surface"
+    },
+    "countdownTick": {
+      "file": "sfx-countdown.vgm",
+      "romCommand": "0x41",
+      "romCallSite": "6502-tick",
+      "description": "Low-time countdown tick"
+    }
+  },
   "patches": {
     "impact": {
       "channel": 4,
@@ -27,12 +119,34 @@
     "fall": {
       "channel": 6,
       "alg": 4,
-      "fb": 0,
+      "fb": 2,
       "ops": [
-        { "mul": 2, "tl": 44, "ar": 28, "d1r": 8, "d1l": 4, "rr": 8 },
-        { "mul": 1, "tl": 16, "ar": 28, "d1r": 6, "d1l": 3, "rr": 8 },
-        { "mul": 1, "tl": 50, "ar": 28, "d1r": 8, "d1l": 4, "rr": 8 },
-        { "mul": 1, "tl": 20, "ar": 28, "d1r": 6, "d1l": 3, "rr": 8 }
+        { "mul": 2, "tl": 36, "ar": 31, "d1r": 8, "d1l": 4, "rr": 8 },
+        { "mul": 1, "tl": 8, "ar": 31, "d1r": 6, "d1l": 3, "rr": 8 },
+        { "mul": 1, "tl": 42, "ar": 31, "d1r": 8, "d1l": 4, "rr": 8 },
+        { "mul": 1, "tl": 10, "ar": 31, "d1r": 6, "d1l": 3, "rr": 8 }
+      ]
+    },
+    "wallBounce": {
+      "channel": 7,
+      "alg": 4,
+      "fb": 5,
+      "ops": [
+        { "mul": 3, "tl": 16, "ar": 31, "d1r": 26, "d1l": 14, "rr": 15 },
+        { "mul": 1, "tl": 10, "ar": 31, "d1r": 22, "d1l": 13, "rr": 15 },
+        { "mul": 5, "tl": 28, "ar": 31, "d1r": 28, "d1l": 14, "rr": 15 },
+        { "mul": 2, "tl": 18, "ar": 31, "d1r": 24, "d1l": 14, "rr": 15 }
+      ]
+    },
+    "marbleClack": {
+      "channel": 3,
+      "alg": 2,
+      "fb": 3,
+      "ops": [
+        { "mul": 7, "tl": 14, "ar": 31, "d1r": 28, "d1l": 15, "rr": 15 },
+        { "mul": 3, "tl": 18, "ar": 31, "d1r": 26, "d1l": 14, "rr": 15 },
+        { "mul": 5, "tl": 22, "ar": 31, "d1r": 25, "d1l": 14, "rr": 15 },
+        { "mul": 1, "tl": 8, "ar": 31, "d1r": 23, "d1l": 14, "rr": 15 }
       ]
     }
   },
@@ -52,18 +166,43 @@
       "intensitySpan": 14,
       "durationMs": 90
     },
+    "wallBounce": {
+      "channel": 7,
+      "baseMidi": 46,
+      "intensitySpan": 12,
+      "durationMs": 65
+    },
+    "marbleClack": {
+      "channel": 3,
+      "baseMidi": 72,
+      "intensitySpan": 10,
+      "durationMs": 60
+    },
     "shatter": {
-      "pokeyAudf": 42,
-      "pokeyAudc": 141,
-      "pokeyDurationMs": 260,
+      "pokeyAudf": 24,
+      "pokeyAudc": 143,
+      "pokeyDurationMs": 320,
       "fmChannel": 4,
-      "fmMidi": 34,
-      "fmDurationMs": 240
+      "fmMidi": 32,
+      "fmDurationMs": 260
+    },
+    "broomSweep": {
+      "strokes": [64, 48, 58],
+      "pokeyAudc": 139,
+      "delayMs": 360,
+      "stepMs": 320,
+      "strokeMs": 170
+    },
+    "dizzy": {
+      "channel": 5,
+      "notes": [82, 87, 82, 87, 80, 85],
+      "stepMs": 65,
+      "durationMs": 70
     },
     "fall": {
       "channel": 6,
-      "notes": [76, 71, 66, 61, 56, 51],
-      "stepMs": 75,
+      "notes": [81, 77, 73, 69, 65, 61, 57, 53],
+      "stepMs": 70,
       "durationMs": 85
     },
     "respawn": {

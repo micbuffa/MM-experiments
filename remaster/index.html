@@ -9,7 +9,7 @@
     />
     <title>Marble Madness Remaster — Havok + YM2151/POKEY</title>
     <link rel="icon" href="data:," />
-    <script type="module" crossorigin src="./assets/remaster-BgOEOSXm.js"></script>
+    <script type="module" crossorigin src="./assets/remaster-CraE_zx9.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/engineStore-Bn2tApal.js">
     <link rel="modulepreload" crossorigin href="./assets/logger-CuBYPcDK.js">
     <link rel="modulepreload" crossorigin href="./assets/shaderStore-D-XQlhUT.js">
@@ -43,7 +43,7 @@
           <strong id="hud-timer">60</strong>
         </div>
         <div class="hud-block hud-right">
-          <span class="hud-label">LEVEL 1 · HAVOK</span>
+          <span class="hud-label" id="hud-level-label">LEVEL 1 · HAVOK</span>
           <strong id="hud-status">OPENING</strong>
         </div>
       </header>
@@ -55,6 +55,13 @@
 
       <footer id="remaster-toolbar">
         <div class="toolbar-group">
+          <label class="control-select">
+            Course
+            <select id="level-select" aria-label="Choisir le niveau">
+              <option value="1" selected>1 · Practice</option>
+              <option value="2">2 · Beginner</option>
+            </select>
+          </label>
           <button id="btn-camera" type="button">Camera: Arcade (C)</button>
           <button id="btn-players" type="button">Mode: 1P</button>
           <label class="control-select">
@@ -108,6 +115,19 @@
               value="100"
               aria-label="Volume sound design"
             />
+          </label>
+          <label class="mix-slider">
+            Nervosité
+            <input
+              id="agility-slider"
+              type="range"
+              min="40"
+              max="150"
+              step="5"
+              value="80"
+              aria-label="Nervosité de la bille"
+            />
+            <span id="agility-val">0.80×</span>
           </label>
           <label class="file-btn">
             Load .VGM/.VGZ

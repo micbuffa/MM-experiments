@@ -1816,6 +1816,29 @@ export function createRemasterSimulation(
               Boolean(input.boost),
               agility,
             );
+          } else if (level.courseIndex === 4 && onRomIce && mainLayer) {
+            // Level 4 crossing start beams: allow gentle rail-projected control (~42%)
+            // so a 2P mid-beam collision never stalls a marble permanently on the beam.
+            const cellX =
+              p.position.x + mainLayer.origin.x + mainLayer.columns / 2;
+            const cellZ =
+              p.position.z + mainLayer.origin.z + mainLayer.rows / 2;
+            const onBeamX =
+              Math.floor(cellZ) === 23 && Math.floor(cellX) !== 22;
+            const onBeamZ =
+              Math.floor(cellX) === 22 && Math.floor(cellZ) !== 23;
+            const railAccel = accel * 0.42;
+            const rfx = onBeamZ ? 0 : nx * railAccel;
+            const rfz = onBeamX ? 0 : nz * railAccel;
+            if (Math.abs(rfx) > 0.001 || Math.abs(rfz) > 0.001) {
+              physics.applyPlayerForce(
+                i as 0 | 1,
+                rfx,
+                rfz,
+                Boolean(input.boost),
+                agility,
+              );
+            }
           }
         } else if (input.boost && !onRomIce) {
           // Holding Space while rolling (e.g. between trackpad strokes) gives a

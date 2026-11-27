@@ -1602,4 +1602,41 @@ describe('createRemasterSimulation', () => {
     const goneSnap = enemySim.step(0.7, []);
     expect(goneSnap.enemies).toHaveLength(0);
   });
+
+  it('allows gentle rail-projected steering on Level 4 start beams after a 2P bump', () => {
+    const cells = Array.from({ length: 40 }, () =>
+      Array.from({ length: 40 }, () => [0, 0, 0, 0] as const),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 4,
+      heightLayers: [
+        {
+          id: 'l4',
+          columns: 40,
+          rows: 40,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      spawns: {
+        player1: { x: 18.5 - 20, y: 0, z: 23.5 - 20 },
+        player2: { x: 22.5 - 20, y: 0, z: 18.5 - 20 },
+      },
+    };
+    const stub = makeStubPhysics();
+    const sim = createRemasterSimulation(level, stub, true);
+    sim.skipOpening();
+    // P1 is on Beam X (cell 18.5, 23.5 -> ice), P2 is on Beam Z (cell 22.5, 18.5 -> ice).
+    // Pushing diagonally must apply gentle rail-projected force along X for P1 and Z for P2.
+    const snap = sim.step(1 / 60, [
+      { x: 1, z: 1 },
+      { x: 1, z: 1 },
+    ]);
+    expect(snap.players[0]!.velocity.x).toBeGreaterThan(0);
+    expect(snap.players[0]!.velocity.z).toBe(0);
+    expect(snap.players[1]!.velocity.x).toBe(0);
+    expect(snap.players[1]!.velocity.z).toBeGreaterThan(0);
+  });
 });

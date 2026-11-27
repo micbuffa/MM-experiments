@@ -86,6 +86,12 @@
       "romCallSite": "0x2b1ee",
       "description": "Leave ice surface"
     },
+    "acidDissolve": {
+      "file": "sfx-acid-dissolve.vgm",
+      "romCommand": "0x5e",
+      "romCallSite": "0x1769e",
+      "description": "Level 3 acid amoeba sizzle/dissolve (POKEY)"
+    },
     "countdownTick": {
       "file": "sfx-countdown.vgm",
       "romCommand": "0x41",

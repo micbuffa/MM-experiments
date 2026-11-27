@@ -6,15 +6,24 @@ Standalone 3D **Marble Madness** engine built with **TypeScript, BabylonJS 9.33.
 
 ---
 
-## Current Status (Level 1 & Level 2 — _Practice_ & _Beginner Race_ Playable)
+## Current Status (All 6 Original Courses Playable — Levels 1 to 6)
 
-The **`Remaster`** branch runs a **complete, standalone Level 1 (_Practice Race_) and Level 2 (_Beginner Race_)** at **`http://127.0.0.1:5173/remaster.html`**:
+The **`Remaster`** branch runs **all 6 original arcade courses standalone** at **`http://127.0.0.1:5173/remaster.html`** (live demo: **https://micbuffa.github.io/MM-experiments/remaster/**):
 
-- **Own Fixed-Step Game Engine (`60 Hz`)** ([`src/remaster/engine/`](src/remaster/engine/), [`src/remaster/level2/`](src/remaster/level2/)): deterministic pure-TypeScript simulation covering opening flyover, countdown timer, progress & time-bonus scoring, 3-cell lethal shatter + broom sweep, `< 3`-cell dizzy stun (`1.67 s`), safe non-ice spiral respawn, `GOAL` arrival, 1P/2P support, and full Level 2 mechanics (Black Marble AI, 3 Green Worms, animated drawbridge, drop-pipe & Y-pipe traversals, and ROM ice zones with constant-velocity glide).
-- **Havok 3D Physics** ([`src/remaster/physics/`](src/remaster/physics/)): welded & slope-smoothed floor collision mesh (`restitution = 0`, `MULTIPLY`), elastic wall/cliff & marble-to-marble billiard bounces (`MAXIMUM`, `0.90–0.96`), automatic colliders on all landmarks, terminal fall velocity cap, live **`Nervosité`** responsiveness slider (`0.40×–1.50×`), and `Space` turbo boost.
+1. **Level 1 — _Practice Race_**: opening flyover, start lift, jump ramps, gorge, `GOAL` flags & time-bonus fanfare.
+2. **Level 2 — _Beginner Race_**: Black Marble AI (68010 patrol/chase/attack graph), 3 Green Worms, animated drawbridge, drop-pipe & Y-pipe traversals, and frictionless ROM ice basin.
+3. **Level 3 — _Intermediate Race_**: animated sine-wave bridge, copper pipe launcher, 4 Green Worms, and 7 gelatinous Acid Amoebas with dissolve VFX/SFX.
+4. **Level 4 — _Aerial Race_**: frictionless start ice beams, twin vacuums with suction VFX, rhythmic floor pistons, spring catapult launcher, rhythmic overhead hammers, and Black Marble guardian.
+5. **Level 5 — _Silly Race_**: uphill inverted-gravity course, 9 squashable miniature enemies (`+3 SEC` / `+500 pts` + per-kind ROM squash SFX), curly red Y-pipe, 10 flying birds across 5 lanes (spiral 8-fragment bird death), and bidirectional zero-jump Escher `?` arch teleport.
+6. **Level 6 — _Ultimate Race_**: floating amber sand plateau (`4×` drag), 2×2 golden pit → twin wedge tunnels, cyan ice strips & 4-pyramid ice diamond, anisotropic ribbed worm slopes (`X: 5× / Z: 1×`), 10 Hz animated shimmering peach amoeba plateaus, Black Marble guardian (shatters on drop), 144-point native ROM respawn table, 4-phase disappearing-block maze (`41 frames` at `60 Hz`) + `CONGRATULATIONS!` finish.
+
+### Engine Architecture
+
+- **Own Fixed-Step Game Engine (`60 Hz`)** ([`src/remaster/engine/`](src/remaster/engine/), [`src/remaster/level2/`](src/remaster/level2/)–[`src/remaster/level6/`](src/remaster/level6/)): deterministic pure-TypeScript simulation covering opening flyover, countdown timer, progress & time-bonus scoring, 3-cell lethal shatter + broom sweep, `< 3`-cell dizzy stun (`1.67 s`), elevation-preserving safe respawn, `GOAL` arrival, and 1P/2P support.
+- **Havok 3D Physics** ([`src/remaster/physics/`](src/remaster/physics/)): welded & slope-smoothed floor collision meshes (`restitution = 0`, `MULTIPLY`), elastic wall/cliff & marble-to-marble billiard bounces (`MAXIMUM`, `0.90–0.96`), static `PhysicsShapeMesh` phase swapping (`60 FPS`) for Level 6's disappearing maze, automatic colliders on landmarks & pyramids, terminal fall velocity cap, live **`Nervosité`** responsiveness slider (`0.40×–1.50×`), and `Space` turbo boost.
 - **Hybrid Level Format (`RemasterLevelV1`)** ([`src/remaster/levels/`](src/remaster/levels/)): combines height-grid layers (for the 6 original courses) with free-form 3D volumes (`volumes[]`) ready for future multi-tier _Hamsterball_-style levels and an in-browser level editor.
-- **Cycle-Accurate Dual `ymfm::ym2151` + Dual Atari POKEY WASM Audio** ([`native/audio/opm_pokey.cpp`](native/audio/opm_pokey.cpp), [`native/audio/ymfm/`](native/audio/ymfm/), [`src/remaster/audio/`](src/remaster/audio/)): 36.1 KiB standalone WASM synth (Aaron Giles's BSD-3-Clause `ymfm` YM2151 core + Atari POKEY) running in an `AudioWorkletProcessor` with 16-sample sub-block VGM stepping, independent **Music** / **SFX** mix sliders, low-passed POKEY rolling rumble, 15 editable ROM-verified SFX in [`public/assets/audio/sfx-bank.json`](public/assets/audio/sfx-bank.json), and a live **`.vgm` / `.vgz`** player.
-- **Full 3D Presentation**: reuses our BabylonJS 9.33.2 terrain, animated `GOAL` flags, spiral respawn fragments, height-projected arcade scrolling, 5 cameras (`Arcade`, `Follow`, `Overhead`, `Chase`, `Chase High` with raycast-gated wall occlusion), trackpad Pointer Lock, keyboard, and native **Gamepad API** support.
+- **Cycle-Accurate Dual `ymfm::ym2151` + Dual Atari POKEY WASM Audio** ([`native/audio/opm_pokey.cpp`](native/audio/opm_pokey.cpp), [`native/audio/ymfm/`](native/audio/ymfm/), [`src/remaster/audio/`](src/remaster/audio/)): standalone WASM synth (Aaron Giles's BSD-3-Clause `ymfm` YM2151 core + Atari POKEY) running in an `AudioWorkletProcessor` with 16-sample sub-block VGM stepping, independent **Music** / **SFX** mix sliders, low-passed POKEY rolling rumble, ROM-verified SFX in [`public/assets/audio/sfx-bank.json`](public/assets/audio/sfx-bank.json), and a live **`.vgm` / `.vgz`** player.
+- **Full 3D Presentation**: BabylonJS 9.33.2 terrain, animated `GOAL` flags, spiral respawn/shatter fragments, height-projected arcade scrolling, 5 cameras (`Arcade`, `Follow`, `Overhead`, `Chase`, `Chase High` with raycast-gated wall occlusion), trackpad Pointer Lock, keyboard, and native **Gamepad API** support.
 
 ### Roadmap & Tracking
 
@@ -46,8 +55,8 @@ Open **`http://127.0.0.1:5173/remaster.html`** to play the standalone Remaster (
 - **`Space`** (or Gamepad A/B): skip opening flyover / **boost** for ramp jumps
 - **`C`**: cycle 3D camera (`Arcade` → `Follow` → `Overhead` → `Chase` → `Chase High`)
 - **`+` / `-`**: adjust zoom / FOV
-- **`R`**: restart level · **`M`**: mute/unmute audio · **`Esc`**: release pointer lock
-- **Toolbar**: **Level selector (`1 · Practice` / `2 · Beginner`)**, **Nervosité** slider (`0.40×`–`1.50×`), **Music** & **SFX** mix sliders, **1P / 2P** toggle, **Load `.VGM`/`.VGZ`** music loader
+- **`R`**: restart level · **`N`**: next level (`1 → 6`) · **`T`**: toggle dev timer freeze (`∞` on/off) · **`M`**: mute/unmute audio · **`Esc`**: release pointer lock
+- **Toolbar**: **Level selector (`1 · Practice` → `6 · Ultimate`)**, **Nervosité** slider (`0.40×`–`1.50×`), **Music** & **SFX** mix sliders, **1P / 2P** toggle, **Load `.VGM`/`.VGZ`** music loader
 
 ---
 

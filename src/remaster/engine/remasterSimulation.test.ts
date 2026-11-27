@@ -1430,4 +1430,176 @@ describe('createRemasterSimulation', () => {
     expect(snap.players[0]!.life).toBe('birdDead');
     expect(snap.events.some((e) => e.type === 'birdDeath')).toBe(true);
   });
+
+  it('runs Level 6 disappearing maze phases, acid amoeba dissolve, and Black Marble', () => {
+    const cells = Array.from({ length: 122 }, () =>
+      Array.from({ length: 122 }, () => [0, 0, 0, 0] as const),
+    );
+    const level: RemasterLevelV1 = {
+      format: 'remaster-level-v1',
+      id: 'level6',
+      name: 'Ultimate Race',
+      courseIndex: 6,
+      timerSeconds: 65,
+      direction: 1,
+      heightLayers: [
+        {
+          id: 'main-terrain',
+          columns: 122,
+          rows: 122,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      volumes: [],
+      surfaceZones: [],
+      enemies: [
+        {
+          id: 'level6-black-marble',
+          kind: 'blackMarble',
+          position: { x: 79.5 - 61, y: 0, z: 83.5 - 61 },
+          patrolRadius: 2.2,
+        },
+      ],
+      spawns: {
+        player1: { x: 11.5 - 61, y: 0, z: 16.5 - 61 },
+        player2: { x: 11.5 - 61, y: 0, z: 22.5 - 61 },
+      },
+      goal: { minX: 27, maxX: 31, minZ: 27, maxZ: 37, y: 0 },
+      killY: -10,
+    };
+    const phasesSeen: number[] = [];
+    const base = makeStubPhysics();
+    const physics = {
+      ...base,
+      setLevel6MazePhase(phase: 0 | 1 | 2 | 3) {
+        phasesSeen.push(phase);
+      },
+    };
+    const sim = createRemasterSimulation(level, physics, false, () => 0.5);
+    sim.skipOpening();
+
+    // Advance past 41 frames (0.6833 s) -> maze transitions from phase 0 to phase 1
+    let snap = sim.step(0.75, []);
+    expect(snap.level6MazePhase).toBe(1);
+    expect(phasesSeen).toContain(1);
+    expect(snap.amoebas).toHaveLength(4);
+    expect(snap.enemies).toHaveLength(1);
+
+    // Drop into the 2x2 golden square pit (tag 0x25) -> pipeEnter + shoots out of golden wedge tunnel
+    const pitY = ((16352 - 16384) * Math.sqrt(2 / 3)) / 8;
+    base.marbles[0] = {
+      position: { x: 22.5 - 61, y: pitY, z: 31.5 - 61 },
+      velocity: { x: 0, y: -2, z: 0 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.events.some((e) => e.type === 'pipeEnter')).toBe(true);
+    expect(snap.players[0]!.pipeHidden).toBe(true);
+    snap = sim.step(0.8, []);
+    expect(snap.players[0]!.pipeHidden).toBe(false);
+    expect(snap.players[0]!.position.x).toBeCloseTo(30.8 - 61, 1);
+
+    // Move onto a Level 6 acid amoeba -> triggers melting + acidDissolve event
+    const amoeba = snap.amoebas[0]!;
+    base.marbles[0] = {
+      position: { x: amoeba.cellX - 61, y: 0, z: amoeba.cellZ - 61 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.life).toBe('melting');
+    expect(snap.events.some((e) => e.type === 'acidDissolve')).toBe(true);
+
+    // Reset restores maze phase to 0
+    snap = sim.reset();
+    expect(snap.level6MazePhase).toBe(0);
+
+    // Timer freeze toggle (KeyT dev mode) pauses countdown without losing remaining time
+    sim.skipOpening();
+    const beforeFreeze = sim.snapshot.remainingTime;
+    sim.setTimerFrozen(true);
+    snap = sim.step(2.0, []);
+    expect(snap.remainingTime).toBe(beforeFreeze);
+    sim.setTimerFrozen(false);
+    snap = sim.step(1.0, []);
+    expect(snap.remainingTime).toBeLessThan(beforeFreeze);
+
+    // Falling from an upper plateau (y=0) and shattering on a lower plateau (y=-3.27)
+    // must keep lastSafe at the upper elevation (never overwrite lastSafe on impact!)
+    base.marbles[0] = {
+      position: { x: 11.5 - 61, y: 0, z: 16.5 - 61 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    const upperSafeY = snap.players[0]!.lastSafe.y;
+    base.marbles[0] = {
+      position: { x: 11.5 - 61, y: -1.5, z: 16.5 - 61 },
+      velocity: { x: 0, y: -8, z: 0 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    sim.step(1 / 60, []);
+    base.marbles[0] = {
+      position: { x: 11.5 - 61, y: -3.27, z: 16.5 - 61 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 14,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.life).toBe('shattered');
+    expect(snap.players[0]!.lastSafe.y).toBeCloseTo(upperSafeY, 2);
+
+    // Black Marble dropping onto a lower plateau (>= shatterDropWorldY) shatters
+    // immediately and is permanently eliminated (never stays alive below).
+    let enemySnap: PhysicsMarbleSnapshot = {
+      position: { x: 80 - 61, y: -3.27, z: 82 - 61 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    const enemyPhysics: RemasterPhysicsBackend = {
+      ...base,
+      applyEnemyForce: () => {},
+      teleportEnemy: (_idx, pos) => {
+        enemySnap = { ...enemySnap, position: { ...pos } };
+      },
+      readEnemy: () => enemySnap,
+    };
+    const enemySim = createRemasterSimulation(
+      level,
+      enemyPhysics,
+      false,
+      () => 0.25,
+    );
+    enemySim.skipOpening();
+    // Grounded on upper deck (y = -3.27)
+    enemySim.step(1 / 60, []);
+    // Airborne falling off edge
+    enemySnap = {
+      position: { x: 83 - 61, y: -4.8, z: 82 - 61 },
+      velocity: { x: 0, y: -9, z: 0 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    enemySim.step(1 / 60, []);
+    // Lands on lower maze floor (y = -6.95, drop = 3.68 >= shatterDropWorldY)
+    enemySnap = {
+      position: { x: 83 - 61, y: -6.95, z: 82 - 61 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    const shatterSnap = enemySim.step(1 / 60, []);
+    expect(shatterSnap.events.some((e) => e.type === 'shatter')).toBe(true);
+    expect(shatterSnap.enemies[0]?.shattered).toBe(true);
+    // After the brief shatter burst (0.65 s), the Black Marble is permanently gone
+    const goneSnap = enemySim.step(0.7, []);
+    expect(goneSnap.enemies).toHaveLength(0);
+  });
 });

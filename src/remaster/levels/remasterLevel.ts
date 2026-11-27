@@ -3,7 +3,10 @@ import {
   arcadeGroundHeight,
   practiceWorldPoint,
 } from '../../game/modern/practiceProjection';
-import type { PracticeTerrain } from '../../game/modern/practiceTerrain';
+import type {
+  Level6MazeCell,
+  PracticeTerrain,
+} from '../../game/modern/practiceTerrain';
 import type { TerrainCell } from '../../game/modern/terrainMesh';
 import {
   intermediateGoal,
@@ -12,12 +15,17 @@ import {
 import { level3Goal, waveRegion } from '../../rendering/createLevel3Materials';
 import { level4Goal } from '../../rendering/createLevel4Materials';
 import { level5Goal } from '../../rendering/level5DisplayTerrain';
+import { level6Goal } from '../../rendering/level6DisplayTerrain';
 import { LEVEL3_SPAWNS } from '../level3/level3RomData';
 import {
   LEVEL4_BLACK_MARBLE_SPAWN,
   LEVEL4_SPAWNS,
 } from '../level4/level4RomData';
 import { LEVEL5_SPAWNS } from '../level5/level5RomData';
+import {
+  LEVEL6_BLACK_MARBLE_SPAWN,
+  LEVEL6_SPAWNS,
+} from '../level6/level6RomData';
 
 export type RemasterSurfaceKind =
   'stone' | 'ice' | 'acid' | 'goal' | 'wave' | 'booster';
@@ -92,6 +100,7 @@ export interface RemasterLevelV1 {
   };
   readonly goal: GoalZone;
   readonly killY: number;
+  readonly mazePhases?: readonly (readonly Level6MazeCell[])[];
 }
 
 /** Bilinear ground height sample on a height layer, or null over a void. */
@@ -155,184 +164,222 @@ export function practiceTerrainToRemasterLevel(
   const isLevel3 = terrain.level === 'level3';
   const isLevel4 = terrain.level === 'level4';
   const isLevel5 = terrain.level === 'level5';
+  const isLevel6 = terrain.level === 'level6';
 
-  const p1 = isLevel5
+  const p1 = isLevel6
     ? (practiceWorldPoint(
-        LEVEL5_SPAWNS.player1Cell.x * arcadeCellUnits,
-        LEVEL5_SPAWNS.player1Cell.z * arcadeCellUnits,
-        LEVEL5_SPAWNS.player1Cell.height,
+        LEVEL6_SPAWNS.player1Cell.x * arcadeCellUnits,
+        LEVEL6_SPAWNS.player1Cell.z * arcadeCellUnits,
+        LEVEL6_SPAWNS.player1Cell.height,
         columns,
         rows,
         terrain.origin,
-      ) ?? { x: 55, y: -22, z: 54 })
-    : isLevel4
+      ) ?? { x: -49.5, y: 0, z: -44.5 })
+    : isLevel5
       ? (practiceWorldPoint(
-          LEVEL4_SPAWNS.player1Cell.x * arcadeCellUnits,
-          LEVEL4_SPAWNS.player1Cell.z * arcadeCellUnits,
-          LEVEL4_SPAWNS.player1Cell.height,
+          LEVEL5_SPAWNS.player1Cell.x * arcadeCellUnits,
+          LEVEL5_SPAWNS.player1Cell.z * arcadeCellUnits,
+          LEVEL5_SPAWNS.player1Cell.height,
           columns,
           rows,
           terrain.origin,
-        ) ?? { x: -54.5, y: 0, z: -41.5 })
-      : isLevel3
+        ) ?? { x: 55, y: -22, z: 54 })
+      : isLevel4
         ? (practiceWorldPoint(
-            LEVEL3_SPAWNS.player1Cell.x * arcadeCellUnits,
-            LEVEL3_SPAWNS.player1Cell.z * arcadeCellUnits,
-            LEVEL3_SPAWNS.player1Cell.height,
+            LEVEL4_SPAWNS.player1Cell.x * arcadeCellUnits,
+            LEVEL4_SPAWNS.player1Cell.z * arcadeCellUnits,
+            LEVEL4_SPAWNS.player1Cell.height,
             columns,
             rows,
             terrain.origin,
-          ) ?? { x: -36.5, y: 2.45, z: -49.5 })
-        : isLevel2
+          ) ?? { x: -54.5, y: 0, z: -41.5 })
+        : isLevel3
           ? (practiceWorldPoint(
-              17.5 * arcadeCellUnits,
-              14 * arcadeCellUnits,
-              16378,
+              LEVEL3_SPAWNS.player1Cell.x * arcadeCellUnits,
+              LEVEL3_SPAWNS.player1Cell.z * arcadeCellUnits,
+              LEVEL3_SPAWNS.player1Cell.height,
               columns,
               rows,
               terrain.origin,
-            ) ?? { x: -47.5, y: 0, z: -51 })
-          : (practiceWorldPoint(
-              140,
-              140,
-              arcadeGroundHeight,
-              columns,
-              rows,
-              terrain.origin,
-            ) ?? { x: -28, y: 0, z: -28 });
-  const p2 = isLevel5
+            ) ?? { x: -36.5, y: 2.45, z: -49.5 })
+          : isLevel2
+            ? (practiceWorldPoint(
+                17.5 * arcadeCellUnits,
+                14 * arcadeCellUnits,
+                16378,
+                columns,
+                rows,
+                terrain.origin,
+              ) ?? { x: -47.5, y: 0, z: -51 })
+            : (practiceWorldPoint(
+                140,
+                140,
+                arcadeGroundHeight,
+                columns,
+                rows,
+                terrain.origin,
+              ) ?? { x: -28, y: 0, z: -28 });
+  const p2 = isLevel6
     ? (practiceWorldPoint(
-        LEVEL5_SPAWNS.player2Cell.x * arcadeCellUnits,
-        LEVEL5_SPAWNS.player2Cell.z * arcadeCellUnits,
-        LEVEL5_SPAWNS.player2Cell.height,
+        LEVEL6_SPAWNS.player2Cell.x * arcadeCellUnits,
+        LEVEL6_SPAWNS.player2Cell.z * arcadeCellUnits,
+        LEVEL6_SPAWNS.player2Cell.height,
         columns,
         rows,
         terrain.origin,
-      ) ?? { x: 53, y: -22, z: 56 })
-    : isLevel4
+      ) ?? { x: -49.5, y: 0, z: -38.5 })
+    : isLevel5
       ? (practiceWorldPoint(
-          LEVEL4_SPAWNS.player2Cell.x * arcadeCellUnits,
-          LEVEL4_SPAWNS.player2Cell.z * arcadeCellUnits,
-          LEVEL4_SPAWNS.player2Cell.height,
+          LEVEL5_SPAWNS.player2Cell.x * arcadeCellUnits,
+          LEVEL5_SPAWNS.player2Cell.z * arcadeCellUnits,
+          LEVEL5_SPAWNS.player2Cell.height,
           columns,
           rows,
           terrain.origin,
-        ) ?? { x: -42.5, y: 0, z: -55.5 })
-      : isLevel3
+        ) ?? { x: 53, y: -22, z: 56 })
+      : isLevel4
         ? (practiceWorldPoint(
-            LEVEL3_SPAWNS.player2Cell.x * arcadeCellUnits,
-            LEVEL3_SPAWNS.player2Cell.z * arcadeCellUnits,
-            LEVEL3_SPAWNS.player2Cell.height,
+            LEVEL4_SPAWNS.player2Cell.x * arcadeCellUnits,
+            LEVEL4_SPAWNS.player2Cell.z * arcadeCellUnits,
+            LEVEL4_SPAWNS.player2Cell.height,
             columns,
             rows,
             terrain.origin,
-          ) ?? { x: -50.5, y: 2.45, z: -35.5 })
-        : isLevel2
+          ) ?? { x: -42.5, y: 0, z: -55.5 })
+        : isLevel3
           ? (practiceWorldPoint(
-              27.5 * arcadeCellUnits,
-              14 * arcadeCellUnits,
-              16378,
+              LEVEL3_SPAWNS.player2Cell.x * arcadeCellUnits,
+              LEVEL3_SPAWNS.player2Cell.z * arcadeCellUnits,
+              LEVEL3_SPAWNS.player2Cell.height,
               columns,
               rows,
               terrain.origin,
-            ) ?? { x: p1.x + 10, y: p1.y, z: p1.z })
-          : (practiceWorldPoint(
-              156,
-              124,
-              arcadeGroundHeight,
-              columns,
-              rows,
-              terrain.origin,
-            ) ?? { x: p1.x + 2, y: p1.y, z: p1.z - 2 });
+            ) ?? { x: -50.5, y: 2.45, z: -35.5 })
+          : isLevel2
+            ? (practiceWorldPoint(
+                27.5 * arcadeCellUnits,
+                14 * arcadeCellUnits,
+                16378,
+                columns,
+                rows,
+                terrain.origin,
+              ) ?? { x: p1.x + 10, y: p1.y, z: p1.z })
+            : (practiceWorldPoint(
+                156,
+                124,
+                arcadeGroundHeight,
+                columns,
+                rows,
+                terrain.origin,
+              ) ?? { x: p1.x + 2, y: p1.y, z: p1.z - 2 });
 
-  const goalMin = isLevel5
+  const goalMin = isLevel6
     ? (practiceWorldPoint(
-        level5Goal.x * arcadeCellUnits,
-        level5Goal.z * arcadeCellUnits,
-        16416,
+        level6Goal.x * arcadeCellUnits,
+        level6Goal.z * arcadeCellUnits,
+        16352,
         columns,
         rows,
         terrain.origin,
-      ) ?? { x: -45.5, y: 3.2, z: -46.5 })
-    : isLevel4
+      ) ?? { x: 27, y: -3.27, z: 27 })
+    : isLevel5
       ? (practiceWorldPoint(
-          level4Goal.x * arcadeCellUnits,
-          level4Goal.z * arcadeCellUnits,
-          16228,
+          level5Goal.x * arcadeCellUnits,
+          level5Goal.z * arcadeCellUnits,
+          16416,
           columns,
           rows,
           terrain.origin,
-        ) ?? { x: 48, y: -15.9, z: 39 })
-      : isLevel3
+        ) ?? { x: -45.5, y: 3.2, z: -46.5 })
+      : isLevel4
         ? (practiceWorldPoint(
-            level3Goal.x * arcadeCellUnits,
-            level3Goal.z * arcadeCellUnits,
-            16100,
+            level4Goal.x * arcadeCellUnits,
+            level4Goal.z * arcadeCellUnits,
+            16228,
             columns,
             rows,
             terrain.origin,
-          ) ?? { x: 33, y: -29, z: 42 })
-        : isLevel2
+          ) ?? { x: 48, y: -15.9, z: 39 })
+        : isLevel3
           ? (practiceWorldPoint(
-              intermediateGoal.x * arcadeCellUnits,
-              intermediateGoal.z * arcadeCellUnits,
-              arcadeGroundHeight,
+              level3Goal.x * arcadeCellUnits,
+              level3Goal.z * arcadeCellUnits,
+              16100,
               columns,
               rows,
               terrain.origin,
-            ) ?? { x: 45, y: 0, z: 44 })
-          : (practiceWorldPoint(
-              72 * arcadeCellUnits,
-              64 * arcadeCellUnits,
-              16348,
-              columns,
-              rows,
-              terrain.origin,
-            ) ?? { x: 26.5, y: -3.67, z: 18.5 });
-  const goalMax = isLevel5
+            ) ?? { x: 33, y: -29, z: 42 })
+          : isLevel2
+            ? (practiceWorldPoint(
+                intermediateGoal.x * arcadeCellUnits,
+                intermediateGoal.z * arcadeCellUnits,
+                arcadeGroundHeight,
+                columns,
+                rows,
+                terrain.origin,
+              ) ?? { x: 45, y: 0, z: 44 })
+            : (practiceWorldPoint(
+                72 * arcadeCellUnits,
+                64 * arcadeCellUnits,
+                16348,
+                columns,
+                rows,
+                terrain.origin,
+              ) ?? { x: 26.5, y: -3.67, z: 18.5 });
+  const goalMax = isLevel6
     ? (practiceWorldPoint(
-        (level5Goal.x + level5Goal.width) * arcadeCellUnits,
-        (level5Goal.z + level5Goal.length) * arcadeCellUnits,
-        16416,
+        (level6Goal.x + level6Goal.width) * arcadeCellUnits,
+        (level6Goal.z + level6Goal.length) * arcadeCellUnits,
+        16352,
         columns,
         rows,
         terrain.origin,
-      ) ?? { x: -41.5, y: 3.2, z: -36.5 })
-    : isLevel4
+      ) ?? { x: 31, y: -3.27, z: 37 })
+    : isLevel5
       ? (practiceWorldPoint(
-          (level4Goal.x + level4Goal.width) * arcadeCellUnits,
-          (level4Goal.z + level4Goal.length) * arcadeCellUnits,
-          16228,
+          (level5Goal.x + level5Goal.width) * arcadeCellUnits,
+          (level5Goal.z + level5Goal.length) * arcadeCellUnits,
+          16416,
           columns,
           rows,
           terrain.origin,
-        ) ?? { x: 52, y: -15.9, z: 49 })
-      : isLevel3
+        ) ?? { x: -41.5, y: 3.2, z: -36.5 })
+      : isLevel4
         ? (practiceWorldPoint(
-            (level3Goal.x + level3Goal.width) * arcadeCellUnits,
-            (level3Goal.z + level3Goal.length) * arcadeCellUnits,
-            16100,
+            (level4Goal.x + level4Goal.width) * arcadeCellUnits,
+            (level4Goal.z + level4Goal.length) * arcadeCellUnits,
+            16228,
             columns,
             rows,
             terrain.origin,
-          ) ?? { x: 37, y: -29, z: 52 })
-        : isLevel2
+          ) ?? { x: 52, y: -15.9, z: 49 })
+        : isLevel3
           ? (practiceWorldPoint(
-              (intermediateGoal.x + intermediateGoal.width) * arcadeCellUnits,
-              (intermediateGoal.z + intermediateGoal.length) * arcadeCellUnits,
-              arcadeGroundHeight,
+              (level3Goal.x + level3Goal.width) * arcadeCellUnits,
+              (level3Goal.z + level3Goal.length) * arcadeCellUnits,
+              16100,
               columns,
               rows,
               terrain.origin,
-            ) ?? { x: 49, y: 0, z: 54 })
-          : (practiceWorldPoint(
-              80 * arcadeCellUnits,
-              68 * arcadeCellUnits,
-              16348,
-              columns,
-              rows,
-              terrain.origin,
-            ) ?? { x: 34.5, y: -3.67, z: 22.5 });
+            ) ?? { x: 37, y: -29, z: 52 })
+          : isLevel2
+            ? (practiceWorldPoint(
+                (intermediateGoal.x + intermediateGoal.width) * arcadeCellUnits,
+                (intermediateGoal.z + intermediateGoal.length) *
+                  arcadeCellUnits,
+                arcadeGroundHeight,
+                columns,
+                rows,
+                terrain.origin,
+              ) ?? { x: 49, y: 0, z: 54 })
+            : (practiceWorldPoint(
+                80 * arcadeCellUnits,
+                68 * arcadeCellUnits,
+                16348,
+                columns,
+                rows,
+                terrain.origin,
+              ) ?? { x: 34.5, y: -3.67, z: 22.5 });
 
   const surfaceZones: SurfaceZone[] = [];
   const enemies: EnemySpawn[] = [];
@@ -501,6 +548,25 @@ export function practiceTerrainToRemasterLevel(
     }
   }
 
+  if (isLevel6) {
+    const bm = practiceWorldPoint(
+      LEVEL6_BLACK_MARBLE_SPAWN.x * arcadeCellUnits,
+      LEVEL6_BLACK_MARBLE_SPAWN.z * arcadeCellUnits,
+      LEVEL6_BLACK_MARBLE_SPAWN.height,
+      columns,
+      rows,
+      terrain.origin,
+    );
+    if (bm) {
+      enemies.push({
+        id: 'level6-black-marble',
+        kind: 'blackMarble',
+        position: bm,
+        patrolRadius: LEVEL6_BLACK_MARBLE_SPAWN.patrolRadius,
+      });
+    }
+  }
+
   let minHeight = Infinity;
   for (const row of terrain.cells) {
     for (const cell of row) {
@@ -515,17 +581,35 @@ export function practiceTerrainToRemasterLevel(
   return {
     format: 'remaster-level-v1',
     id: terrain.level ?? 'practice',
-    name: isLevel5
-      ? 'Silly Race'
-      : isLevel4
-        ? 'Aerial Race'
-        : isLevel3
-          ? 'Intermediate Race'
-          : isLevel2
-            ? 'Beginner Race'
-            : (terrain.level ?? 'Practice Race'),
-    courseIndex: isLevel5 ? 5 : isLevel4 ? 4 : isLevel3 ? 3 : isLevel2 ? 2 : 1,
-    timerSeconds: isLevel2 ? 75 : isLevel4 || isLevel5 ? 70 : 60,
+    name: isLevel6
+      ? 'Ultimate Race'
+      : isLevel5
+        ? 'Silly Race'
+        : isLevel4
+          ? 'Aerial Race'
+          : isLevel3
+            ? 'Intermediate Race'
+            : isLevel2
+              ? 'Beginner Race'
+              : (terrain.level ?? 'Practice Race'),
+    courseIndex: isLevel6
+      ? 6
+      : isLevel5
+        ? 5
+        : isLevel4
+          ? 4
+          : isLevel3
+            ? 3
+            : isLevel2
+              ? 2
+              : 1,
+    timerSeconds: isLevel2
+      ? 75
+      : isLevel4 || isLevel5
+        ? 70
+        : isLevel6
+          ? 65
+          : 60,
     direction: isLevel5 ? -1 : 1,
     heightLayers: [
       {
@@ -552,5 +636,6 @@ export function practiceTerrainToRemasterLevel(
       y: goalMin.y,
     },
     killY,
+    ...(terrain.mazePhases ? { mazePhases: terrain.mazePhases } : {}),
   };
 }

@@ -13,11 +13,15 @@ export function createPracticeRespawn(
   scene: Scene,
   name: string,
   red: boolean,
+  customMaterial?: StandardMaterial,
 ) {
-  const shell = new StandardMaterial(`${name}-fragment-shell`, scene);
-  shell.diffuseColor.set(red ? 0.55 : 0.04, 0.06, red ? 0.025 : 0.55);
-  shell.emissiveColor.set(red ? 0.32 : 0.03, 0.015, red ? 0.01 : 0.35);
-  shell.specularColor.set(0, 0, 0);
+  const shell =
+    customMaterial ?? new StandardMaterial(`${name}-fragment-shell`, scene);
+  if (!customMaterial) {
+    shell.diffuseColor.set(red ? 0.55 : 0.04, 0.06, red ? 0.025 : 0.55);
+    shell.emissiveColor.set(red ? 0.32 : 0.03, 0.015, red ? 0.01 : 0.35);
+    shell.specularColor.set(0, 0, 0);
+  }
   const fragments = Array.from({ length: fragmentCount }, (_, i) => {
     const fragment = CreatePolyhedron(
       `${name}-fragment-${i}`,

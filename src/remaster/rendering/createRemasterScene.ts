@@ -25,9 +25,11 @@ import {
   level4OpeningScroll,
   level5FinishScroll,
   level5OpeningScroll,
+  level6OpeningScroll,
   type PracticeTerrain,
 } from '../../game/modern/practiceTerrain';
 import type { RenderQuality } from '../../game/renderQuality';
+import { setArcadeTerrainPalette } from '../../rendering/arcadeTerrainPaint';
 import { createAcidDissolve } from '../../rendering/createAcidDissolve';
 import { createBirdDeath } from '../../rendering/createBirdDeath';
 import { createCameraOcclusion } from '../../rendering/createCameraOcclusion';
@@ -61,6 +63,7 @@ import {
 } from '../../rendering/createLevel4Materials';
 import { createLevel5Actors } from '../../rendering/createLevel5Actors';
 import { updateLevel5PipeAnimation } from '../../rendering/createLevel5Terrain';
+import { setLevel6MazePhase } from '../../rendering/createLevel6Terrain';
 import { level5FinishDepth } from '../../rendering/level5DisplayTerrain';
 import { sampleLayerHeight } from '../levels/remasterLevel';
 import { REMASTER_RULES } from '../engine/physicsConstants';
@@ -76,6 +79,7 @@ export function createRemasterScene(
   const isLevel3 = terrain.level === 'level3';
   const isLevel4 = terrain.level === 'level4';
   const isLevel5 = terrain.level === 'level5';
+  const isLevel6 = terrain.level === 'level6';
   const scene = createTerrainStudy(engine, undefined, terrain, true, actors);
   const updateLevel5Actors =
     isLevel5 && actors ? createLevel5Actors(scene, terrain, actors) : undefined;
@@ -136,7 +140,7 @@ export function createRemasterScene(
   const firstAward = createScoreAward(scene, 'remaster-award-1', false);
   const secondAward = createScoreAward(scene, 'remaster-award-2', true);
   const updateStartLift =
-    !isLevel2 && !isLevel3 && !isLevel4 && !isLevel5
+    !isLevel2 && !isLevel3 && !isLevel4 && !isLevel5 && !isLevel6
       ? createPracticeStartLift(scene, terrain)
       : undefined;
 
@@ -146,6 +150,12 @@ export function createRemasterScene(
   blackMat.specularColor.set(0.9, 0.92, 1.0);
   blackMat.specularPower = 64;
   const enemyMeshes = new Map<string, Mesh>();
+  const enemyShatter = createPracticeRespawn(
+    scene,
+    'remaster-enemy-shatter',
+    false,
+    blackMat,
+  );
   const wormVisuals = [0, 1, 2, 3].map((index) =>
     createWorm(scene, `remaster-worm-${index}`),
   );
@@ -166,22 +176,36 @@ export function createRemasterScene(
     scene.getMeshByName('practice-finish') ??
     scene.getMeshByName('intermediate-finish') ??
     scene.getMeshByName('level3-finish') ??
-    scene.getMeshByName('level4-finish');
+    scene.getMeshByName('level4-finish') ??
+    scene.getMeshByName('level6-finish');
   const goalIdle =
     finish?.material ??
-    createPracticeGoalMaterial(scene, 'idle', isLevel2 || isLevel3 || isLevel4);
+    createPracticeGoalMaterial(
+      scene,
+      'idle',
+      isLevel2 || isLevel3 || isLevel4 || isLevel6,
+    );
   const goalBlue =
     scene.getMaterialByName('practice-goal-blue') ??
-    createPracticeGoalMaterial(scene, 'blue', isLevel2 || isLevel3 || isLevel4);
+    createPracticeGoalMaterial(
+      scene,
+      'blue',
+      isLevel2 || isLevel3 || isLevel4 || isLevel6,
+    );
   const goalRed =
     scene.getMaterialByName('practice-goal-red') ??
-    createPracticeGoalMaterial(scene, 'red', isLevel2 || isLevel3 || isLevel4);
+    createPracticeGoalMaterial(
+      scene,
+      'red',
+      isLevel2 || isLevel3 || isLevel4 || isLevel6,
+    );
 
-  // Level 3 translucent gelatinous acid amoebas (7 pools, two-lobe pseudopod rigs).
-  const amoebaOuter = isLevel3
+  // Level 3 & Level 6 translucent gelatinous acid amoebas (7 pools on L3, 4 pools on L6).
+  const hasAmoebas = isLevel3 || isLevel6;
+  const amoebaOuter = hasAmoebas
     ? new StandardMaterial('remaster-amoeba-outer', scene)
     : undefined;
-  const amoebaCore = isLevel3
+  const amoebaCore = hasAmoebas
     ? new StandardMaterial('remaster-amoeba-core', scene)
     : undefined;
   if (amoebaOuter && amoebaCore) {
@@ -196,8 +220,8 @@ export function createRemasterScene(
     amoebaCore.alpha = 0.58;
     amoebaCore.disableDepthWrite = true;
   }
-  const amoebaVisuals = isLevel3
-    ? Array.from({ length: 7 }, (_, i) => {
+  const amoebaVisuals = hasAmoebas
+    ? Array.from({ length: isLevel3 ? 7 : 4 }, (_, i) => {
         const root = new TransformNode(`remaster-amoeba-${i}`, scene);
         const lead = CreateCylinder(
           `remaster-amoeba-lead-${i}`,
@@ -241,6 +265,27 @@ export function createRemasterScene(
   const marblePos = Vector3.Zero();
   const cameraForwardLocal = new Vector3(0, 0, 1);
 
+  // Pre-build 7 rotated Atari System 1 Playfield Bank 3 shimmer palettes (indices 56..63)
+  // for Level 6's animated warm light-brown / peach / gold plateaus (zero per-frame allocations).
+  const level6ShimmerPalettes: readonly (readonly number[])[] = isLevel6
+    ? (() => {
+        const ring = [
+          0xfda0, 0xff97, 0xff97, 0xffb3, 0xfec5, 0xffd0, 0xffb3,
+        ] as const;
+        return ring.map((_, rot) => {
+          // Leave indices 0..55 undefined so TerrainPalettePaint skips stone/cliff
+          // swatches and only cycles Level6ShimmerPaint's Playfield Bank 3 (56..63)!
+          const pal = new Array<number>(64);
+          pal[56] = 0xfc80; // warm gold seam joint
+          for (let k = 0; k < 7; k++) {
+            pal[57 + k] = ring[(k + rot) % 7]!;
+          }
+          return pal;
+        });
+      })()
+    : [];
+  let level6ShimmerElapsed = 0;
+
   let frameCounter = 0;
 
   function computeArcadeScroll(
@@ -252,24 +297,28 @@ export function createRemasterScene(
     const arcadeZ = (worldZ + rows / 2 + terrain.origin.z) * arcadeCellUnits;
     const arcadeH =
       arcadeGroundHeight + (worldY * arcadeCellUnits) / arcadeHeightScale;
-    const openScroll = isLevel5
-      ? level5OpeningScroll
-      : isLevel4
-        ? level4OpeningScroll
-        : isLevel3
-          ? level3OpeningScroll
-          : isLevel2
-            ? intermediateOpeningScroll
-            : practiceOpeningScroll;
-    const endScroll = isLevel5
-      ? level5FinishScroll
-      : isLevel4
-        ? -15120
-        : isLevel3
-          ? -15220
-          : isLevel2
-            ? -15120
-            : practiceFinishScroll;
+    const openScroll = isLevel6
+      ? level6OpeningScroll
+      : isLevel5
+        ? level5OpeningScroll
+        : isLevel4
+          ? level4OpeningScroll
+          : isLevel3
+            ? level3OpeningScroll
+            : isLevel2
+              ? intermediateOpeningScroll
+              : practiceOpeningScroll;
+    const endScroll = isLevel6
+      ? -15368
+      : isLevel5
+        ? level5FinishScroll
+        : isLevel4
+          ? -15120
+          : isLevel3
+            ? -15220
+            : isLevel2
+              ? -15120
+              : practiceFinishScroll;
     const minScroll = Math.min(openScroll, endScroll);
     const maxScroll = Math.max(openScroll, endScroll);
     // projectPracticePoint accounts for both isometric (x+z)/2 and terrain height drop.
@@ -357,6 +406,17 @@ export function createRemasterScene(
       }
       if (isLevel3) {
         setLevel3WaveProfile(scene, snapshot.waveProfile);
+      }
+      if (isLevel6 && snapshot.level6MazePhase !== undefined) {
+        setLevel6MazePhase(scene, snapshot.level6MazePhase);
+      }
+      if (isLevel6 && level6ShimmerPalettes.length > 0) {
+        level6ShimmerElapsed += dtSeconds;
+        const idx =
+          Math.floor(level6ShimmerElapsed * 10) % level6ShimmerPalettes.length;
+        setArcadeTerrainPalette(scene, level6ShimmerPalettes[idx]);
+      }
+      if (hasAmoebas) {
         for (let i = 0; i < amoebaVisuals.length; i++) {
           const vis = amoebaVisuals[i]!;
           const a = snapshot.amoebas[i];
@@ -524,7 +584,12 @@ export function createRemasterScene(
 
       // Sync Black Marble AI enemies (hide any eliminated enemy that fell off the course).
       const activeEnemyIds = new Set<string>();
+      let shatteredEnemy: (typeof snapshot.enemies)[number] | undefined;
       for (const enemy of snapshot.enemies) {
+        if (enemy.shattered) {
+          shatteredEnemy = enemy;
+          continue;
+        }
         activeEnemyIds.add(enemy.id);
         let mesh = enemyMeshes.get(enemy.id);
         if (!mesh) {
@@ -546,6 +611,16 @@ export function createRemasterScene(
       for (const [id, mesh] of enemyMeshes) {
         if (!activeEnemyIds.has(id)) mesh.setEnabled(false);
       }
+      if (shatteredEnemy && shatteredEnemy.shatterTimer !== undefined) {
+        const progress = Math.max(
+          0,
+          Math.min(1, 1 - shatteredEnemy.shatterTimer / 0.65),
+        );
+        const ticks = Math.max(4, Math.min(45, Math.round(4 + progress * 41)));
+        enemyShatter(shatteredEnemy.position, ticks);
+      } else {
+        enemyShatter(null);
+      }
 
       if (finish) {
         finish.material =
@@ -565,15 +640,17 @@ export function createRemasterScene(
             (p1.position.x + p1.position.z) * dir
             ? p2
             : p1;
-        const openScroll = isLevel5
-          ? level5OpeningScroll
-          : isLevel4
-            ? level4OpeningScroll
-            : isLevel3
-              ? level3OpeningScroll
-              : isLevel2
-                ? intermediateOpeningScroll
-                : practiceOpeningScroll;
+        const openScroll = isLevel6
+          ? level6OpeningScroll
+          : isLevel5
+            ? level5OpeningScroll
+            : isLevel4
+              ? level4OpeningScroll
+              : isLevel3
+                ? level3OpeningScroll
+                : isLevel2
+                  ? intermediateOpeningScroll
+                  : practiceOpeningScroll;
         // Freeze camera scroll at lastSafe while falling so the marble visibly
         // plummets off the bottom edge of the screen (matches original arcade).
         const camAnchor =
@@ -589,18 +666,23 @@ export function createRemasterScene(
           height: arcadeGroundHeight,
           scroll,
           frame: frameCounter,
-          ...(isLevel5
+          ...(isLevel6
             ? {
-                level: 'level5' as const,
-                level5Actors: snapshot.level5Actors,
+                level: 'level6' as const,
+                level6MazePhase: snapshot.level6MazePhase ?? 0,
               }
-            : isLevel4
-              ? { level: 'level4' as const }
-              : isLevel3
-                ? { level: 'level3' as const }
-                : isLevel2
-                  ? { level: 'intermediate' as const }
-                  : {}),
+            : isLevel5
+              ? {
+                  level: 'level5' as const,
+                  level5Actors: snapshot.level5Actors,
+                }
+              : isLevel4
+                ? { level: 'level4' as const }
+                : isLevel3
+                  ? { level: 'level3' as const }
+                  : isLevel2
+                    ? { level: 'intermediate' as const }
+                    : {}),
           ...(snapshot.phase === 'opening'
             ? { opening: snapshot.openingProgress }
             : {}),

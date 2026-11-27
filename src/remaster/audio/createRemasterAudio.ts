@@ -74,6 +74,8 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
   let level3ThemeVgm: ParsedVgm | null = null;
   let level4ThemeVgm: ParsedVgm | null = null;
   let level5ThemeVgm: ParsedVgm | null = null;
+  let level6ThemeVgm: ParsedVgm | null = null;
+  let congratulationsVgm: ParsedVgm | null = null;
   let goalFanfareVgm: ParsedVgm | null = null;
   let goalFanfareP2Vgm: ParsedVgm | null = null;
   let gameOverVgm: ParsedVgm | null = null;
@@ -186,6 +188,8 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       level3Track,
       level4Track,
       level5Track,
+      level6Track,
+      congratulationsTrack,
       goalTrack,
       goalP2Track,
       gameOverTrack,
@@ -212,6 +216,16 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
         : !import.meta.env.DEV
           ? fetchFirstVgm([`${prefix}assets/audio/level5-silly.vgz`])
           : Promise.resolve(null),
+      localVgms.has('level6-ultimate.vgz')
+        ? fetchFirstVgm(['/__local-roms/level6-ultimate.vgz'])
+        : !import.meta.env.DEV
+          ? fetchFirstVgm([`${prefix}assets/audio/level6-ultimate.vgz`])
+          : Promise.resolve(null),
+      localVgms.has('congratulations.vgz')
+        ? fetchFirstVgm(['/__local-roms/congratulations.vgz'])
+        : !import.meta.env.DEV
+          ? fetchFirstVgm([`${prefix}assets/audio/congratulations.vgz`])
+          : Promise.resolve(null),
       fetchFirstVgm(resolveTrackUrls('goal-fanfare')),
       localVgms.has('goal-fanfare-p2.vgz')
         ? fetchFirstVgm(['/__local-roms/goal-fanfare-p2.vgz'])
@@ -236,6 +250,8 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     level3ThemeVgm = level3Track;
     level4ThemeVgm = level4Track;
     level5ThemeVgm = level5Track;
+    level6ThemeVgm = level6Track;
+    congratulationsVgm = congratulationsTrack;
     goalFanfareVgm = goalTrack;
     goalFanfareP2Vgm = goalP2Track;
     gameOverVgm = gameOverTrack;
@@ -337,15 +353,17 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     playLevelTheme(courseIndex = currentCourse) {
       currentCourse = courseIndex;
       const track =
-        courseIndex === 5 && level5ThemeVgm
-          ? level5ThemeVgm
-          : courseIndex === 4 && level4ThemeVgm
-            ? level4ThemeVgm
-            : courseIndex === 3 && level3ThemeVgm
-              ? level3ThemeVgm
-              : courseIndex === 2 && level2ThemeVgm
-                ? level2ThemeVgm
-                : levelThemeVgm;
+        courseIndex === 6 && level6ThemeVgm
+          ? level6ThemeVgm
+          : courseIndex === 5 && level5ThemeVgm
+            ? level5ThemeVgm
+            : courseIndex === 4 && level4ThemeVgm
+              ? level4ThemeVgm
+              : courseIndex === 3 && level3ThemeVgm
+                ? level3ThemeVgm
+                : courseIndex === 2 && level2ThemeVgm
+                  ? level2ThemeVgm
+                  : levelThemeVgm;
       playTrack(customVgm ?? track);
     },
 
@@ -587,9 +605,11 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
           }
         } else if (ev.type === 'goal') {
           const fanfare =
-            ev.player === 2 && goalFanfareP2Vgm
-              ? goalFanfareP2Vgm
-              : goalFanfareVgm;
+            currentCourse === 6 && congratulationsVgm
+              ? congratulationsVgm
+              : ev.player === 2 && goalFanfareP2Vgm
+                ? goalFanfareP2Vgm
+                : goalFanfareVgm;
           if (fanfare) {
             playTrack(fanfare);
           }

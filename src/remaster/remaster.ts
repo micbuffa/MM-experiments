@@ -21,6 +21,7 @@ import { intermediateDisplayTerrain } from '../rendering/intermediateLandmarks';
 import { level3DisplayTerrain } from '../rendering/createLevel3Materials';
 import { level4DisplayTerrain } from '../rendering/createLevel4Materials';
 import { level5DisplayTerrain } from '../rendering/level5DisplayTerrain';
+import { level6DisplayTerrain } from '../rendering/level6DisplayTerrain';
 import { createRemasterAudio } from './audio/createRemasterAudio';
 import { REMASTER_PHYSICS } from './engine/physicsConstants';
 import {
@@ -47,21 +48,23 @@ const CAMERA_LABELS: Record<PracticeCameraPreset, string> = {
   chaseHigh: 'Chase High',
 };
 
-type RemasterCourseIndex = 1 | 2 | 3 | 4 | 5;
+type RemasterCourseIndex = 1 | 2 | 3 | 4 | 5 | 6;
 
 async function loadCourseTerrain(
   courseIndex: RemasterCourseIndex,
 ): Promise<PracticeTerrain> {
   const filename =
-    courseIndex === 5
-      ? 'level5-terrain.json'
-      : courseIndex === 4
-        ? 'level4-terrain.json'
-        : courseIndex === 3
-          ? 'level3-terrain.json'
-          : courseIndex === 2
-            ? 'intermediate-terrain-pipes.json'
-            : 'practice-complete-terrain.json';
+    courseIndex === 6
+      ? 'level6-terrain.json'
+      : courseIndex === 5
+        ? 'level5-terrain.json'
+        : courseIndex === 4
+          ? 'level4-terrain.json'
+          : courseIndex === 3
+            ? 'level3-terrain.json'
+            : courseIndex === 2
+              ? 'intermediate-terrain-pipes.json'
+              : 'practice-complete-terrain.json';
   const candidates = [
     `/__local-roms/${filename}`,
     `${import.meta.env.BASE_URL}beta-data/${filename}`,
@@ -141,6 +144,7 @@ async function bootRemaster() {
 
   let currentCourse: RemasterCourseIndex = 1;
   let twoPlayers = false;
+  let timerFrozen = true;
   let controls: RemasterPlayerControls = { ...DEFAULT_REMASTER_CONTROLS };
   let cameraPreset: PracticeCameraPreset = 'arcade';
   let fov = practiceLens.initial;
@@ -160,7 +164,12 @@ async function bootRemaster() {
                     ...rawTerrain,
                     cells: level5DisplayTerrain(rawTerrain.cells),
                   }
-                : rawTerrain;
+                : rawTerrain.level === 'level6'
+                  ? {
+                      ...rawTerrain,
+                      cells: level6DisplayTerrain(rawTerrain.cells),
+                    }
+                  : rawTerrain;
     return practiceTerrainToRemasterLevel(displayTerrain);
   }
 
@@ -179,6 +188,7 @@ async function bootRemaster() {
   statusEl.textContent = 'LOADING HAVOK…';
   let physics = await createHavokBackend(view.scene, level, twoPlayers);
   let sim = createRemasterSimulation(level, physics, twoPlayers);
+  sim.setTimerFrozen(timerFrozen);
 
   const heldKeys = new Set<string>();
   let mouseDx = 0;
@@ -227,6 +237,7 @@ async function bootRemaster() {
     view.camera.setFov(fov);
     physics = await createHavokBackend(view.scene, level, twoPlayers);
     sim = createRemasterSimulation(level, physics, twoPlayers);
+    sim.setTimerFrozen(timerFrozen);
     accumulator = 0;
     audio.playLevelTheme(currentCourse);
     updateToolbarLabels();
@@ -236,6 +247,7 @@ async function bootRemaster() {
     physics.dispose();
     physics = await createHavokBackend(view.scene, level, twoPlayers);
     sim = createRemasterSimulation(level, physics, twoPlayers);
+    sim.setTimerFrozen(timerFrozen);
     accumulator = 0;
     audio.playLevelTheme(currentCourse);
     updateToolbarLabels();
@@ -342,9 +354,10 @@ async function bootRemaster() {
       scoreP2El.textContent = `${p2.score} · ${Math.ceil(p2.remainingTime)}s`;
     }
     const secs = Math.ceil(p1?.remainingTime ?? snap.remainingTime);
+    const frozenSuffix = timerFrozen ? ' ∞' : '';
     timerEl.textContent = twoPlayers
-      ? `P1 ${secs}s · P2 ${Math.ceil(p2?.remainingTime ?? 0)}s`
-      : String(secs);
+      ? `P1 ${secs}s · P2 ${Math.ceil(p2?.remainingTime ?? 0)}s${frozenSuffix}`
+      : `${secs}${frozenSuffix}`;
     timerEl.classList.toggle(
       'low-time',
       Math.min(secs, p2 ? Math.ceil(p2.remainingTime) : secs) <= 10 &&
@@ -360,7 +373,10 @@ async function bootRemaster() {
     } else if (snap.phase === 'finished') {
       statusEl.textContent = 'GOAL!';
       bannerEl.hidden = false;
-      bannerTitle.textContent = `GOAL! SCORE ${p1?.score ?? 0}`;
+      bannerTitle.textContent =
+        currentCourse === 6
+          ? `CONGRATULATIONS! SCORE ${p1?.score ?? 0}`
+          : `GOAL! SCORE ${p1?.score ?? 0}`;
       bannerSub.textContent =
         currentCourse === 1
           ? 'Press N for Level 2 (Beginner Race) or R to replay'
@@ -370,7 +386,9 @@ async function bootRemaster() {
               ? 'Press N for Level 4 (Aerial Race) or R to replay'
               : currentCourse === 4
                 ? 'Press N for Level 5 (Silly Race) or R to replay'
-                : 'Press R to race again';
+                : currentCourse === 5
+                  ? 'Press N for Level 6 (Ultimate Race) or R to replay'
+                  : 'All 6 courses completed! Press R to replay';
     } else if (snap.phase === 'gameOver') {
       statusEl.textContent = 'TIME UP';
       bannerEl.hidden = false;
@@ -478,12 +496,16 @@ async function bootRemaster() {
       } else if (event.code === 'KeyR') {
         sim.reset();
         audio.playLevelTheme(currentCourse);
-      } else if (event.code === 'KeyN' && currentCourse < 5) {
+      } else if (event.code === 'KeyN' && currentCourse < 6) {
         void loadLevel((currentCourse + 1) as RemasterCourseIndex);
       } else if (event.code === 'KeyM') {
         audioMuted = !audioMuted;
         audio.setMuted(audioMuted);
         updateToolbarLabels();
+      } else if (event.code === 'KeyT') {
+        timerFrozen = !timerFrozen;
+        sim.setTimerFrozen(timerFrozen);
+        updateHud();
       }
     },
     { signal },
@@ -502,15 +524,17 @@ async function bootRemaster() {
     () => {
       unlockAudio();
       const target: RemasterCourseIndex =
-        levelSelect.value === '5'
-          ? 5
-          : levelSelect.value === '4'
-            ? 4
-            : levelSelect.value === '3'
-              ? 3
-              : levelSelect.value === '2'
-                ? 2
-                : 1;
+        levelSelect.value === '6'
+          ? 6
+          : levelSelect.value === '5'
+            ? 5
+            : levelSelect.value === '4'
+              ? 4
+              : levelSelect.value === '3'
+                ? 3
+                : levelSelect.value === '2'
+                  ? 2
+                  : 1;
       if (target !== currentCourse) void loadLevel(target);
     },
     { signal },

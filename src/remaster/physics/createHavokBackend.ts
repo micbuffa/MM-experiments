@@ -16,7 +16,9 @@ import {
 } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
+import { PhysicsBody } from '@babylonjs/core/Physics/v2/physicsBody';
 import { PhysicsMaterialCombineMode } from '@babylonjs/core/Physics/v2/physicsMaterial';
+import { PhysicsShapeMesh } from '@babylonjs/core/Physics/v2/physicsShape';
 import type { Scene } from '@babylonjs/core/scene';
 import { REMASTER_PHYSICS } from '../engine/physicsConstants';
 import { isIceAtWorld } from '../engine/romSurfaceZones';
@@ -35,6 +37,11 @@ import {
   type RemasterSurfaceKind,
   type Vec3,
 } from '../levels/remasterLevel';
+import {
+  level6DisplayTerrain,
+  level6PhaseGrid,
+} from '../../rendering/level6DisplayTerrain';
+import { sampleLevel6SurfaceMode } from '../level6/level6Mechanics';
 import { buildLayerCollisionMesh } from './buildCollisionMesh';
 
 export interface HavokRemasterBackend extends RemasterPhysicsBackend {
@@ -54,10 +61,66 @@ export async function createHavokBackend(
 
   const ownedMeshes: Mesh[] = [];
   const ownedAggregates: PhysicsAggregate[] = [];
+  const ownedBodies: PhysicsBody[] = [];
+  const ownedShapes: PhysicsShapeMesh[] = [];
+  let level6MazeFloorBody: PhysicsBody | undefined;
+  let level6MazeCliffBody: PhysicsBody | undefined;
+  const level6MazeFloorShapes: (PhysicsShapeMesh | null)[] = [];
+  const level6MazeCliffShapes: (PhysicsShapeMesh | null)[] = [];
+  const level6MazePhaseLayers: (typeof level.heightLayers)[number][] = [];
+  let activeLevel6Phase: 0 | 1 | 2 | 3 = 0;
 
   // 1. Build separate welded static collision meshes for floor (0 bounce) and cliffs (wall bounce).
   for (const layer of level.heightLayers) {
-    const { floor, cliffs } = buildLayerCollisionMesh(layer, level.killY - 4);
+    const hasLevel6Phases =
+      level.courseIndex === 6 &&
+      level.mazePhases !== undefined &&
+      level.mazePhases.length === 4;
+    // Partition Level 6 cleanly into static pre-maze terrain and the self-contained
+    // disappearing-block maze region (x >= 76 && z >= 78) so EVERY transition between
+    // static landings (e.g. x=102..106, z=104..109) and dynamic ramps/bridges
+    // (e.g. gable ramp x=94..101, z=104..106) is 100% welded with zero phantom seam cliffs
+    // and zero invisible holes.
+    const isInLevel6MazeRegion = (x: number, z: number): boolean =>
+      hasLevel6Phases && x >= 76 && z >= 78;
+    const walkwayBaseY = ((16352 - 16384) * Math.sqrt(2 / 3)) / 8;
+    const baseLayer =
+      level.courseIndex === 6
+        ? {
+            ...layer,
+            cells: layer.cells.map((row, z) =>
+              row.map((cell, x) => {
+                if (isInLevel6MazeRegion(x, z)) return null;
+                if (!cell) return null;
+                // Soften collision-only amplitude of the 2 narrow-walkway 3-face angle bumps
+                // (x=67..68, z=59..62 and x=59..62, z=69..70) to 45% around walkwayBaseY so
+                // the double angle-change bridges remain fair without throwing the marble sideways.
+                const onAngleBump =
+                  (x >= 67 && x <= 68 && z >= 59 && z <= 62) ||
+                  (x >= 59 && x <= 62 && z >= 69 && z <= 70);
+                if (!onAngleBump) return cell;
+                return [
+                  cell[0] === null
+                    ? null
+                    : walkwayBaseY + (cell[0] - walkwayBaseY) * 0.45,
+                  cell[1] === null
+                    ? null
+                    : walkwayBaseY + (cell[1] - walkwayBaseY) * 0.45,
+                  cell[2] === null
+                    ? null
+                    : walkwayBaseY + (cell[2] - walkwayBaseY) * 0.45,
+                  cell[3] === null
+                    ? null
+                    : walkwayBaseY + (cell[3] - walkwayBaseY) * 0.45,
+                ] as const;
+              }),
+            ),
+          }
+        : layer;
+    const { floor, cliffs } = buildLayerCollisionMesh(
+      baseLayer,
+      level.killY - 4,
+    );
     const surfaceProps = REMASTER_PHYSICS.surfaces[layer.defaultSurface];
 
     const addStaticPart = (
@@ -66,8 +129,9 @@ export async function createHavokBackend(
       friction: number,
       restitution: number,
       restitutionCombine: PhysicsMaterialCombineMode,
-    ) => {
-      if (part.indices.length === 0) return;
+      membershipMask = 1,
+    ): PhysicsAggregate | undefined => {
+      if (part.indices.length === 0) return undefined;
       const mesh = new Mesh(name, scene);
       const data = new VertexData();
       data.positions = part.positions;
@@ -89,8 +153,10 @@ export async function createHavokBackend(
         restitution,
         restitutionCombine,
       };
+      aggregate.shape.filterMembershipMask = membershipMask;
       ownedMeshes.push(mesh);
       ownedAggregates.push(aggregate);
+      return aggregate;
     };
 
     // Floor uses MULTIPLY combine (highest Havok priority): 0 * marbleRestitution = 0
@@ -208,6 +274,102 @@ export async function createHavokBackend(
       REMASTER_PHYSICS.wallRestitution,
       PhysicsMaterialCombineMode.MAXIMUM,
     );
+
+    // Level 6 (Ultimate Race): pre-build 4 PhysicsShapeMesh pairs and swap them via
+    // body.shape = shapes[phase] on a single STATIC floor body + STATIC cliff body.
+    // Guaranteed immediate Havok broadphase update with zero per-frame preStep cost!
+    if (hasLevel6Phases && level.mazePhases) {
+      const makePhaseShape = (
+        name: string,
+        part: {
+          readonly positions: Float32Array;
+          readonly indices: Uint32Array;
+        },
+        friction: number,
+        restitution: number,
+        restitutionCombine: PhysicsMaterialCombineMode,
+      ): PhysicsShapeMesh | null => {
+        if (part.indices.length === 0) return null;
+        const mesh = new Mesh(name, scene);
+        const data = new VertexData();
+        data.positions = part.positions;
+        data.indices = part.indices;
+        const normals: number[] = [];
+        VertexData.ComputeNormals(part.positions, part.indices, normals);
+        data.normals = normals;
+        data.applyToMesh(mesh, false);
+        mesh.isVisible = false;
+        mesh.isPickable = false;
+        ownedMeshes.push(mesh);
+        const shape = new PhysicsShapeMesh(mesh, scene);
+        shape.material = { friction, restitution, restitutionCombine };
+        ownedShapes.push(shape);
+        return shape;
+      };
+      for (let p = 0; p < 4; p++) {
+        const fullPhase = level6DisplayTerrain(
+          level6PhaseGrid(layer.cells, level.mazePhases[p]!),
+        );
+        level6MazePhaseLayers.push({ ...layer, cells: fullPhase });
+        const mazeRegionLayer = {
+          ...layer,
+          cells: fullPhase.map((row, z) =>
+            row.map((cell, x) => (isInLevel6MazeRegion(x, z) ? cell : null)),
+          ),
+        };
+        const phaseCollision = buildLayerCollisionMesh(
+          mazeRegionLayer,
+          level.killY - 4,
+        );
+        level6MazeFloorShapes.push(
+          makePhaseShape(
+            `remaster-l6-maze-floor-${p}`,
+            phaseCollision.floor,
+            surfaceProps.friction,
+            0,
+            PhysicsMaterialCombineMode.MULTIPLY,
+          ),
+        );
+        level6MazeCliffShapes.push(
+          makePhaseShape(
+            `remaster-l6-maze-cliffs-${p}`,
+            phaseCollision.cliffs,
+            0.0,
+            REMASTER_PHYSICS.wallRestitution,
+            PhysicsMaterialCombineMode.MAXIMUM,
+          ),
+        );
+      }
+      const floorAnchor = new Mesh('remaster-l6-maze-floor-body', scene);
+      floorAnchor.isVisible = false;
+      floorAnchor.isPickable = false;
+      ownedMeshes.push(floorAnchor);
+      level6MazeFloorBody = new PhysicsBody(
+        floorAnchor,
+        PhysicsMotionType.STATIC,
+        false,
+        scene,
+      );
+      if (level6MazeFloorShapes[0]) {
+        level6MazeFloorBody.shape = level6MazeFloorShapes[0];
+      }
+      ownedBodies.push(level6MazeFloorBody);
+
+      const cliffAnchor = new Mesh('remaster-l6-maze-cliffs-body', scene);
+      cliffAnchor.isVisible = false;
+      cliffAnchor.isPickable = false;
+      ownedMeshes.push(cliffAnchor);
+      level6MazeCliffBody = new PhysicsBody(
+        cliffAnchor,
+        PhysicsMotionType.STATIC,
+        false,
+        scene,
+      );
+      if (level6MazeCliffShapes[0]) {
+        level6MazeCliffBody.shape = level6MazeCliffShapes[0];
+      }
+      ownedBodies.push(level6MazeCliffBody);
+    }
   }
 
   // 2. Build Hamsterball-ready 3D volume colliders.
@@ -282,6 +444,30 @@ export async function createHavokBackend(
         scene,
       );
       // Track aggregate only (visual landmark meshes are owned by the scene).
+      ownedAggregates.push(aggregate);
+    }
+  }
+  // 2c. Attach static Havok colliders to standalone Level 6 hexagonal pyramids on the cyan ice diamond.
+  if (level.courseIndex === 6) {
+    for (const mesh of scene.meshes) {
+      if (
+        !mesh.name.startsWith('level6-pyramid-') ||
+        mesh.getTotalVertices() === 0 ||
+        mesh.getTotalIndices() === 0
+      ) {
+        continue;
+      }
+      mesh.computeWorldMatrix(true);
+      const aggregate = new PhysicsAggregate(
+        mesh,
+        PhysicsShapeType.MESH,
+        {
+          mass: 0,
+          friction: 0.1,
+          restitution: REMASTER_PHYSICS.wallRestitution,
+        },
+        scene,
+      );
       ownedAggregates.push(aggregate);
     }
   }
@@ -476,28 +662,34 @@ export async function createHavokBackend(
           : 1;
 
       // Project uphill push force along the local terrain tangent so steep ramps
-      // (~39° side-jump launchers) don't wedge the marble into the slope.
+      // (~39° side-jump launchers & Level 6 dynamic gable ramps) don't wedge the marble.
       let fy = 0;
       let uphillScale = 1;
-      if (forceMag > 0.01 && mainLayer) {
+      const activeHeightLayer =
+        level6MazePhaseLayers[activeLevel6Phase] ?? mainLayer;
+      if (forceMag > 0.01 && activeHeightLayer) {
         const px = m.mesh.position.x;
         const pz = m.mesh.position.z;
-        const h0 = sampleLayerHeight(mainLayer, px, pz);
+        const h0 = sampleLayerHeight(activeHeightLayer, px, pz);
         const bottomY = m.mesh.position.y - radius;
         if (h0 !== null && Math.abs(bottomY - h0) < 0.45) {
           const dirX = fx / forceMag;
           const dirZ = fz / forceMag;
           const hAhead = sampleLayerHeight(
-            mainLayer,
+            activeHeightLayer,
             px + dirX * 0.35,
             pz + dirZ * 0.35,
           );
           if (hAhead !== null) {
             const slope = (hAhead - h0) / 0.35;
-            const maxClimbSlope = level.direction === -1 ? 1.8 : 0.95;
+            const maxClimbSlope =
+              level.direction === -1 || level.courseIndex === 6 ? 1.8 : 0.95;
             if (slope > 0.08 && slope < maxClimbSlope) {
               // Apply force tangent to climbable ramps (not vertical walls or well rims).
-              uphillScale = 1 + Math.min(0.85, slope * 0.65);
+              uphillScale =
+                level.courseIndex === 6
+                  ? 1 + Math.min(1.45, slope * 1.15)
+                  : 1 + Math.min(0.85, slope * 0.65);
               fy =
                 forceMag * scale * uphillScale * Math.min(maxClimbSlope, slope);
             }
@@ -559,6 +751,19 @@ export async function createHavokBackend(
         restitution: REMASTER_PHYSICS.marbleRestitution,
         restitutionCombine: PhysicsMaterialCombineMode.MAXIMUM,
       };
+    },
+
+    setLevel6MazePhase(phase: 0 | 1 | 2 | 3) {
+      if (disposed || level.courseIndex !== 6) return;
+      activeLevel6Phase = phase;
+      const floorShape = level6MazeFloorShapes[phase];
+      if (level6MazeFloorBody && floorShape) {
+        level6MazeFloorBody.shape = floorShape;
+      }
+      const cliffShape = level6MazeCliffShapes[phase];
+      if (level6MazeCliffBody && cliffShape) {
+        level6MazeCliffBody.shape = cliffShape;
+      }
     },
 
     step(dt: number) {
@@ -660,8 +865,14 @@ export async function createHavokBackend(
         } else {
           m.lastWallImpact = 0;
         }
-        const groundH = mainLayer
-          ? sampleLayerHeight(mainLayer, m.mesh.position.x, m.mesh.position.z)
+        const activeHeightLayer =
+          level6MazePhaseLayers[activeLevel6Phase] ?? mainLayer;
+        const groundH = activeHeightLayer
+          ? sampleLayerHeight(
+              activeHeightLayer,
+              m.mesh.position.x,
+              m.mesh.position.z,
+            )
           : null;
         const bottomY = m.mesh.position.y - radius;
         const grounded =
@@ -684,6 +895,40 @@ export async function createHavokBackend(
           surfaceLinearDamping(romSurface, grounded),
         );
         m.aggregate.body.setAngularDamping(surfaceAngularDamping(romSurface));
+        // Level 6 (Ultimate Race) authentic 68010 ROM surface friction modes (0x12744..0x127EA):
+        // - 'sand'    (0x2d, 0x2e): 4x drag (heavy amber sand slows the marble strongly).
+        // - 'ribbed'  (0x2f..0x31): anisotropic washboard (5x drag across X grooves, 1x along Z).
+        // - 'shimmer' (0x38..0x3a): negative drag speed += f/4 (lively hyper-slick peach plateaus).
+        if (
+          level.courseIndex === 6 &&
+          mainLayer &&
+          grounded &&
+          !onIce &&
+          m.aggregate.body.getMotionType() === PhysicsMotionType.DYNAMIC
+        ) {
+          const cellX =
+            m.mesh.position.x + mainLayer.origin.x + mainLayer.columns / 2;
+          const cellZ =
+            m.mesh.position.z + mainLayer.origin.z + mainLayer.rows / 2;
+          const mode = sampleLevel6SurfaceMode(cellX, cellZ);
+          if (mode === 'sand') {
+            m.aggregate.body.setLinearDamping(1.55);
+          } else if (mode === 'ribbed') {
+            // Anisotropic: strong drag across metallic ribs (X), normal along grooves (Z).
+            const xDamp = Math.exp(-3.6 * dt);
+            tmpVel.x *= xDamp;
+            m.aggregate.body.setLinearVelocity(tmpVel);
+          } else if (mode === 'shimmer') {
+            m.aggregate.body.setLinearDamping(0.06);
+            const hSpeed = Math.hypot(tmpVel.x, tmpVel.z);
+            if (hSpeed > 0.35 && hSpeed < 14.5) {
+              const boost = Math.min(14.5, hSpeed + 0.95 * dt) / hSpeed;
+              tmpVel.x *= boost;
+              tmpVel.z *= boost;
+              m.aggregate.body.setLinearVelocity(tmpVel);
+            }
+          }
+        }
         // Cap downward fall speed (matches 68010 terminal velocity) so jumps keep crisp
         // -30 gravity arcs while deep falls stay calm and readable.
         if (!grounded && tmpVel.y < -REMASTER_PHYSICS.maxFallSpeed) {
@@ -695,19 +940,19 @@ export async function createHavokBackend(
           tmpVel.y = 0;
           m.aggregate.body.setLinearVelocity(tmpVel);
         }
-        // Level 5 (Silly Race): keep the marble glued to the floor when cresting uphill ramps onto
-        // flat tiles (matches original 68010 ROM height-tracking instead of ski-jumping into the air),
+        // Level 5 (Silly Race) & Level 6 (Ultimate Race): keep the marble glued to the floor
+        // when cresting ramps (like Level 6's steep white start mound) onto flat tiles,
         // while NEVER clamping vy when approaching or climbing an uphill ramp (slopeVyAhead > 0.05)!
         if (
-          level.direction === -1 &&
-          mainLayer &&
+          (level.direction === -1 || level.courseIndex === 6) &&
+          activeHeightLayer &&
           groundH !== null &&
           bottomY - groundH > -0.15 &&
           bottomY - groundH < 0.45 &&
           m.aggregate.body.getMotionType() === PhysicsMotionType.DYNAMIC
         ) {
           const slopeVyAhead = sampleCellSlopeVy(
-            mainLayer,
+            activeHeightLayer,
             m.mesh.position.x + tmpVel.x * 0.05,
             m.mesh.position.z + tmpVel.z * 0.05,
             tmpVel.x,
@@ -734,8 +979,14 @@ export async function createHavokBackend(
       }
       m.aggregate.body.getLinearVelocityToRef(tmpVel);
       const bottomY = m.mesh.position.y - radius;
-      const groundH = mainLayer
-        ? sampleLayerHeight(mainLayer, m.mesh.position.x, m.mesh.position.z)
+      const activeHeightLayer =
+        level6MazePhaseLayers[activeLevel6Phase] ?? mainLayer;
+      const groundH = activeHeightLayer
+        ? sampleLayerHeight(
+            activeHeightLayer,
+            m.mesh.position.x,
+            m.mesh.position.z,
+          )
         : null;
       const grounded = groundH !== null && Math.abs(bottomY - groundH) < 0.35;
       return {
@@ -873,6 +1124,16 @@ export async function createHavokBackend(
       e.aggregate.body.setAngularVelocity(Vector3.ZeroReadOnly);
     },
 
+    setEnemyKinematic(enemyIndex: number, kinematic: boolean) {
+      const e = enemyBodies[enemyIndex];
+      if (!e || disposed) return;
+      e.aggregate.body.setMotionType(
+        kinematic ? PhysicsMotionType.ANIMATED : PhysicsMotionType.DYNAMIC,
+      );
+      e.aggregate.body.setLinearVelocity(Vector3.ZeroReadOnly);
+      e.aggregate.body.setAngularVelocity(Vector3.ZeroReadOnly);
+    },
+
     readEnemy(enemyIndex: number): PhysicsMarbleSnapshot {
       const e = enemyBodies[enemyIndex];
       if (!e || disposed) {
@@ -885,8 +1146,14 @@ export async function createHavokBackend(
       }
       e.aggregate.body.getLinearVelocityToRef(tmpVel);
       const bottomY = e.mesh.position.y - radius;
-      const groundH = mainLayer
-        ? sampleLayerHeight(mainLayer, e.mesh.position.x, e.mesh.position.z)
+      const activeHeightLayer =
+        level6MazePhaseLayers[activeLevel6Phase] ?? mainLayer;
+      const groundH = activeHeightLayer
+        ? sampleLayerHeight(
+            activeHeightLayer,
+            e.mesh.position.x,
+            e.mesh.position.z,
+          )
         : null;
       const grounded = groundH !== null && Math.abs(bottomY - groundH) < 0.35;
       return {
@@ -901,6 +1168,8 @@ export async function createHavokBackend(
       if (disposed) return;
       disposed = true;
       for (const agg of ownedAggregates) agg.dispose();
+      for (const body of ownedBodies) body.dispose();
+      for (const shape of ownedShapes) shape.dispose();
       for (const mesh of ownedMeshes) mesh.dispose();
       scene.disablePhysicsEngine();
     },

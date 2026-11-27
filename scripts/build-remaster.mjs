@@ -41,6 +41,10 @@ copyFileSync(
   resolve(root, 'local-roms/level5-terrain.json'),
   resolve(dataDir, 'level5-terrain.json'),
 );
+copyFileSync(
+  resolve(root, 'local-roms/level6-terrain.json'),
+  resolve(dataDir, 'level6-terrain.json'),
+);
 const rollingActorsSrc = resolve(root, 'local-roms/rolling-actors.json');
 if (existsSync(rollingActorsSrc)) {
   copyFileSync(rollingActorsSrc, resolve(dataDir, 'rolling-actors.json'));
@@ -59,6 +63,8 @@ const vgmMap = [
   ['06 Level 3.vgz', 'level3-intermediate.vgz'],
   ['07 Level 4-1.vgz', 'level4-aerial.vgz'],
   ['09 Level 5.vgz', 'level5-silly.vgz'],
+  ['10 Level 6.vgz', 'level6-ultimate.vgz'],
+  ['11 Congratulations.vgz', 'congratulations.vgz'],
   ['13 Game Over.vgz', 'game-over.vgz'],
   ['sfx/sfx-wall-bounce.vgm', 'sfx-wall-bounce.vgm'],
   ['sfx/sfx-marble-clack.vgm', 'sfx-marble-clack.vgm'],

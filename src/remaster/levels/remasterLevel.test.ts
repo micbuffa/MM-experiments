@@ -172,4 +172,29 @@ describe('remasterLevel', () => {
     expect(level.spawns.player2.x).toBeCloseTo(123.5 - 70.5, 1);
     expect(level.spawns.player2.z).toBeCloseTo(126.5 - 70.5, 1);
   });
+
+  it('converts Level 6 (Ultimate Race) terrain with Black Marble, ROM spawns, and maze phases', () => {
+    const cells = Array.from({ length: 122 }, () =>
+      Array.from({ length: 122 }, () => [0, 0, 0, 0] as const),
+    );
+    const terrain: PracticeTerrain = {
+      cells,
+      origin: { x: 0, z: 0 },
+      lastScroll: -15368,
+      level: 'level6',
+      mazePhases: [[], [], [], []],
+    };
+    const level = practiceTerrainToRemasterLevel(terrain);
+    expect(level.courseIndex).toBe(6);
+    expect(level.name).toBe('Ultimate Race');
+    expect(level.direction).toBe(1);
+    expect(level.timerSeconds).toBe(65);
+    expect(level.enemies).toHaveLength(1);
+    expect(level.enemies[0]!.id).toBe('level6-black-marble');
+    expect(level.mazePhases).toHaveLength(4);
+    expect(level.spawns.player1.x).toBeCloseTo(11.5 - 61, 1);
+    expect(level.spawns.player1.z).toBeCloseTo(16.5 - 61, 1);
+    expect(level.spawns.player2.x).toBeCloseTo(11.5 - 61, 1);
+    expect(level.spawns.player2.z).toBeCloseTo(22.5 - 61, 1);
+  });
 });

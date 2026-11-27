@@ -11,7 +11,10 @@ import {
   arcadeGroundHeight,
   arcadeHeightScale,
 } from '../../game/modern/practiceProjection';
-import { level3OpeningScroll } from '../../game/modern/practiceTerrain';
+import {
+  level3OpeningScroll,
+  level6OpeningScroll,
+} from '../../game/modern/practiceTerrain';
 import { bridgeState } from '../level2/bridgeCycle';
 import {
   decideBridgeCrossing,
@@ -94,6 +97,18 @@ import {
   LEVEL5_RED_Y_PIPE,
 } from '../level5/level5RomData';
 import { LEVEL4_BLACK_MARBLE, LEVEL4_CATAPULT } from '../level4/level4RomData';
+import {
+  computeLevel6MazePhase,
+  createLevel6Amoebas,
+  findNearestLevel6Respawn,
+  isInsideLevel6SquarePit,
+  isLevel6DynamicMazeCell,
+} from '../level6/level6Mechanics';
+import {
+  LEVEL6_BLACK_MARBLE,
+  LEVEL6_SQUARE_PIT_TELEPORT,
+  LEVEL6_WORM_SPAWNS,
+} from '../level6/level6RomData';
 
 export type RemasterPhase = 'opening' | 'playing' | 'finished' | 'gameOver';
 export type StartLiftPhase = 1 | 2 | 3 | 4 | 5;
@@ -144,6 +159,7 @@ export interface RemasterPhysicsBackend {
   setMarbleSurface?(playerIndex: 0 | 1, surface: RemasterSurfaceKind): void;
   applyEnemyForce?(enemyIndex: number, fx: number, fz: number): void;
   teleportEnemy?(enemyIndex: number, position: Vec3): void;
+  setEnemyKinematic?(enemyIndex: number, kinematic: boolean): void;
   readEnemy?(enemyIndex: number): PhysicsMarbleSnapshot;
   resolveBilliardCollision?(
     playerIndex: 0 | 1,
@@ -151,6 +167,7 @@ export interface RemasterPhysicsBackend {
     restitution?: number,
   ): number;
   resolvePlayerBilliardCollision?(restitution?: number): number;
+  setLevel6MazePhase?(phase: 0 | 1 | 2 | 3): void;
   step(dt: number): void;
   readMarble(playerIndex: 0 | 1): PhysicsMarbleSnapshot;
 }
@@ -233,6 +250,8 @@ export interface RemasterEnemyState {
   readonly id: string;
   readonly kind: 'blackMarble';
   readonly position: Vec3;
+  readonly shattered?: boolean;
+  readonly shatterTimer?: number;
 }
 
 export type RemasterWormState = WormPose;
@@ -251,6 +270,7 @@ export interface RemasterSnapshot {
   readonly waveProfile: readonly number[] | undefined;
   readonly level4: Level4MechanismSnapshot | undefined;
   readonly level5Actors: readonly Level5Actor[];
+  readonly level6MazePhase?: 0 | 1 | 2 | 3;
   readonly bridgeStep: number;
   readonly goalOwner: 1 | 2 | undefined;
   readonly events: readonly RemasterEvent[];
@@ -310,6 +330,9 @@ interface MutableEnemy {
   patrolAngle: number;
   hitCooldown: number;
   eliminated: boolean;
+  shatterTimer: number;
+  airbornePeakY: number;
+  wasGrounded: boolean;
   lastHitBy: 0 | 1 | undefined;
   lastHitTimer: number;
   controllerSpec: EnemyMarbleSpec | undefined;
@@ -332,6 +355,7 @@ export function createRemasterSimulation(
   let startLiftTimer = -1;
   let pvpClackCooldown = 0;
   let remainingTime = level.timerSeconds;
+  let timerFrozen = false;
   let lastWholeSecond = Math.ceil(level.timerSeconds);
   let goalOwner: 1 | 2 | undefined;
 
@@ -402,11 +426,15 @@ export function createRemasterSimulation(
         level.courseIndex === 2 && e.id === 'level2-black-marble';
       const isLevel4Deck =
         level.courseIndex === 4 && e.id === 'level4-black-marble';
+      const isLevel6Deck =
+        level.courseIndex === 6 && e.id === 'level6-black-marble';
       const controllerSpec = isLevel2Ramp
         ? LEVEL2_BLACK_MARBLE
         : isLevel4Deck
           ? LEVEL4_BLACK_MARBLE
-          : undefined;
+          : isLevel6Deck
+            ? LEVEL6_BLACK_MARBLE
+            : undefined;
       return {
         id: e.id,
         kind: e.kind,
@@ -415,13 +443,16 @@ export function createRemasterSimulation(
           ? { x: pos.x - 16, z: pos.z - 4 }
           : { x: pos.x, z: pos.z },
         climbing: isLevel2Ramp,
-        reachedPlateau: isLevel4Deck,
+        reachedPlateau: isLevel4Deck || isLevel6Deck,
         position: { ...pos },
         velocity: { x: 0, z: 0 },
         patrolRadius: e.patrolRadius,
         patrolAngle: 0,
         hitCooldown: 0,
         eliminated: false,
+        shatterTimer: 0,
+        airbornePeakY: pos.y,
+        wasGrounded: true,
         lastHitBy: undefined,
         lastHitTimer: 0,
         controllerSpec,
@@ -437,12 +468,19 @@ export function createRemasterSimulation(
     if (level.courseIndex === 3) {
       return createWormWorld({ spawns: LEVEL3_WORM_SPAWNS });
     }
+    if (level.courseIndex === 6) {
+      return createWormWorld({ spawns: LEVEL6_WORM_SPAWNS });
+    }
     return undefined;
   }
 
   let wormWorld: WormWorld | undefined = makeWormWorld();
   let amoebas: Level3AmoebaState[] =
-    level.courseIndex === 3 ? createLevel3Amoebas() : [];
+    level.courseIndex === 3
+      ? createLevel3Amoebas()
+      : level.courseIndex === 6
+        ? createLevel6Amoebas()
+        : [];
   let catapultAnimElapsed = -1;
   let level4PistonsTriggered = false;
   let level4PistonElapsed = 0;
@@ -450,6 +488,7 @@ export function createRemasterSimulation(
   let level4HammerPattern = Math.floor(random() * 4) & 3;
   let level5State: Level5ActorsState | undefined =
     level.courseIndex === 5 ? createLevel5ActorsState(random) : undefined;
+  let level6MazePhase: 0 | 1 | 2 | 3 = 0;
 
   const players: MutablePlayer[] = twoPlayers
     ? [makePlayer(1, level.spawns.player1), makePlayer(2, level.spawns.player2)]
@@ -463,6 +502,7 @@ export function createRemasterSimulation(
       physics.teleportMarble(idx, p.position);
     }
     for (let i = 0; i < enemies.length; i++) {
+      physics.setEnemyKinematic?.(i, false);
       physics.teleportEnemy?.(i, enemies[i]!.home);
     }
   }
@@ -525,6 +565,9 @@ export function createRemasterSimulation(
           id: e.id,
           kind: e.kind,
           position: { ...e.position },
+          ...(e.shatterTimer > 0
+            ? { shattered: true, shatterTimer: e.shatterTimer }
+            : {}),
         })),
       worms: wormSnapshots(),
       amoebas: amoebas.map((a) => ({
@@ -565,6 +608,7 @@ export function createRemasterSimulation(
             })()
           : undefined,
       level5Actors: level5State ? readLevel5ActorsSnapshot(level5State) : [],
+      ...(level.courseIndex === 6 ? { level6MazePhase } : {}),
       goalOwner,
       events,
     };
@@ -868,7 +912,11 @@ export function createRemasterSimulation(
     const leaderArcade = worldToArcade(wormAnchor);
     const targetRow = scrollRow(
       arcadeScrollForPoint(leaderArcade.x, leaderArcade.z, leaderArcade.height),
-      level.courseIndex === 3 ? level3OpeningScroll : undefined,
+      level.courseIndex === 3
+        ? level3OpeningScroll
+        : level.courseIndex === 6
+          ? level6OpeningScroll
+          : undefined,
     );
     // Advance lastWormViewRow by ±1 ONLY once wormWorld.viewRow has processed the
     // previous 30 Hz tick, so 60 Hz frames never skip a worm spawn band's minRow (5 or 6).
@@ -1452,6 +1500,102 @@ export function createRemasterSimulation(
     }
   }
 
+  function updateLevel6Mechanics(dt: number, events: RemasterEvent[]) {
+    if (level.courseIndex !== 6 || !mainLayer) return;
+    const nextPhase = computeLevel6MazePhase(playElapsed);
+    if (nextPhase !== level6MazePhase) {
+      level6MazePhase = nextPhase;
+      physics.setLevel6MazePhase?.(level6MazePhase);
+    }
+    const frame = {
+      originX: mainLayer.origin.x,
+      originZ: mainLayer.origin.z,
+      columns: mainLayer.columns,
+      rows: mainLayer.rows,
+    };
+    amoebas = stepLevel3Amoebas(amoebas, dt);
+    for (let i = 0; i < players.length; i++) {
+      const player = players[i]!;
+      const idx = i as 0 | 1;
+      if (player.level5PipeActive) {
+        // Reuses pipe traversal state for the 2x2 golden square pit -> golden wedge tunnel (ROM 0x2a87a).
+        player.pipeElapsed += dt;
+        const t = Math.min(
+          1,
+          player.pipeElapsed / LEVEL6_SQUARE_PIT_TELEPORT.durationSeconds,
+        );
+        if (player.pipeEntryPos && player.pipeExitPos) {
+          player.position = {
+            x:
+              player.pipeEntryPos.x +
+              (player.pipeExitPos.x - player.pipeEntryPos.x) * t,
+            y:
+              player.pipeEntryPos.y +
+              (player.pipeExitPos.y - player.pipeEntryPos.y) * t,
+            z:
+              player.pipeEntryPos.z +
+              (player.pipeExitPos.z - player.pipeEntryPos.z) * t,
+          };
+        }
+        if (player.pipeElapsed >= LEVEL6_SQUARE_PIT_TELEPORT.durationSeconds) {
+          const exitPos = player.pipeExitPos ?? player.position;
+          player.level5PipeActive = false;
+          player.pipeEntryPos = undefined;
+          player.pipeExitPos = undefined;
+          player.position = { ...exitPos };
+          player.lastSafe = { ...exitPos };
+          player.airbornePeakY = exitPos.y;
+          player.wasGrounded = true;
+          physics.setMarbleKinematic(idx, false);
+          physics.teleportMarble(idx, exitPos);
+          physics.setMarbleVelocity?.(
+            idx,
+            LEVEL6_SQUARE_PIT_TELEPORT.exitVelocityWorld,
+          );
+        }
+        continue;
+      }
+      if (player.life !== 'active') continue;
+      const point = romWorldToArcade(player.position, frame);
+      const cellX = point.x / arcadeCellUnits;
+      const cellZ = point.z / arcadeCellUnits;
+      // 1. 2x2 golden square pit (tag 0x25, ROM 0x2a87a) -> shoots out of one of the 2 golden wedge tunnels!
+      if (isInsideLevel6SquarePit(cellX, cellZ, point.height)) {
+        const chosen =
+          LEVEL6_SQUARE_PIT_TELEPORT.exits[random() < 0.5 ? 0 : 1]!;
+        const exitBase = romArcadeToWorld(
+          {
+            x: chosen.x * arcadeCellUnits,
+            z: chosen.z * arcadeCellUnits,
+            height: chosen.height,
+          },
+          frame,
+        );
+        const exitH = sampleLayerHeight(mainLayer, exitBase.x, exitBase.z);
+        const finalExit: Vec3 = { ...exitBase, y: exitH ?? exitBase.y };
+        player.pipeEntryPos = { ...player.position };
+        player.pipeExitPos = finalExit;
+        player.velocity = { x: 0, y: 0, z: 0 };
+        player.airbornePeakY = finalExit.y;
+        player.wasGrounded = true;
+        player.level5PipeActive = true;
+        player.pipeElapsed = 0;
+        physics.setMarbleKinematic(idx, true);
+        physics.teleportMarble(idx, finalExit);
+        events.push({ type: 'pipeEnter', player: player.id });
+        continue;
+      }
+      // 2. Acid amoeba contact -> dissolve (ROM state 9 + SFX 0x5e)
+      if (player.grounded && touchesLevel3Amoeba(amoebas, cellX, cellZ)) {
+        player.life = 'melting';
+        player.stateTimer = 1.15;
+        player.velocity = { x: 0, y: 0, z: 0 };
+        physics.setMarbleKinematic(idx, true);
+        events.push({ type: 'acidDissolve', player: player.id });
+      }
+    }
+  }
+
   return {
     skipOpening() {
       if (phase !== 'opening') return;
@@ -1476,7 +1620,12 @@ export function createRemasterSimulation(
       enemies = makeEnemies();
       lastWormViewRow = undefined;
       wormWorld = makeWormWorld();
-      amoebas = level.courseIndex === 3 ? createLevel3Amoebas() : [];
+      amoebas =
+        level.courseIndex === 3
+          ? createLevel3Amoebas()
+          : level.courseIndex === 6
+            ? createLevel6Amoebas()
+            : [];
       catapultAnimElapsed = -1;
       level4PistonsTriggered = false;
       level4PistonElapsed = 0;
@@ -1484,8 +1633,14 @@ export function createRemasterSimulation(
       level4HammerPattern = Math.floor(random() * 4) & 3;
       level5State =
         level.courseIndex === 5 ? createLevel5ActorsState(random) : undefined;
+      level6MazePhase = 0;
+      physics.setLevel6MazePhase?.(0);
       placePlayersAtSpawn();
       return snapshot([]);
+    },
+
+    setTimerFrozen(frozen: boolean) {
+      timerFrozen = frozen;
     },
 
     step(dt: number, inputs: readonly PlayerInput[]): RemasterSnapshot {
@@ -1561,7 +1716,7 @@ export function createRemasterSimulation(
 
       // Advance per-player countdown timers and status notices.
       for (const p of players) {
-        if (p.life !== 'goal') {
+        if (p.life !== 'goal' && !timerFrozen) {
           p.remainingTime = Math.max(0, p.remainingTime - dt);
         }
         if (p.catchUpTimer > 0) {
@@ -1847,6 +2002,7 @@ export function createRemasterSimulation(
       updateLevel3Mechanics(dt, events);
       updateLevel4Mechanics(dt, events);
       updateLevel5Mechanics(dt, events);
+      updateLevel6Mechanics(dt, events);
 
       for (let i = 0; i < players.length; i++) {
         const p = players[i]!;
@@ -1968,9 +2124,12 @@ export function createRemasterSimulation(
         p.wasGrounded = p.grounded;
 
         // Save safe grounded checkpoint ONLY on controllable, non-ice, non-acid solid stone
-        // with a 0.5-cell flat solid margin (matches 68010: never respawn stuck on ice or void lips).
+        // with a 0.5-cell flat solid margin — NEVER on a shattering or hard-drop landing frame
+        // so respawns always happen at the exact elevation where the fall started!
         if (
           body.grounded &&
+          !(justLanded && dropY >= REMASTER_RULES.dizzyDropWorldY) &&
+          body.impactSpeed < REMASTER_PHYSICS.shatterImpactSpeed &&
           mainLayer &&
           !p.onRomIce &&
           !p.bridgeSupported &&
@@ -2016,6 +2175,10 @@ export function createRemasterSimulation(
                 0.05);
           const safeMargin =
             currCellFlat &&
+            !(
+              level.courseIndex === 6 &&
+              isLevel6DynamicMazeCell(cellXIdx, cellZIdx)
+            ) &&
             groundH !== null &&
             hE !== null &&
             hW !== null &&
@@ -2029,7 +2192,28 @@ export function createRemasterSimulation(
             Math.abs(hW - groundH) < flatTol &&
             Math.abs(hS - groundH) < flatTol &&
             Math.abs(hN - groundH) < flatTol;
-          if (safeMargin && groundH !== null) {
+          if (level.courseIndex === 6 && groundH !== null) {
+            // Level 6: snap lastSafe strictly to the nearest authentic 68010 ROM checkpoint
+            // (table 0x1f98c) at the exact same elevation as the marble (zero corner/wrong-tier respawns).
+            const cp = findNearestLevel6Respawn(
+              bx + mainLayer.origin.x + mainLayer.columns / 2,
+              bz + mainLayer.origin.z + mainLayer.rows / 2,
+              groundH,
+              (cx, cz) =>
+                sampleLayerHeight(
+                  mainLayer,
+                  cx - mainLayer.origin.x - mainLayer.columns / 2,
+                  cz - mainLayer.origin.z - mainLayer.rows / 2,
+                ),
+            );
+            if (cp) {
+              p.lastSafe = {
+                x: cp.cellX - mainLayer.origin.x - mainLayer.columns / 2,
+                y: cp.y + 0.05,
+                z: cp.cellZ - mainLayer.origin.z - mainLayer.rows / 2,
+              };
+            }
+          } else if (safeMargin && groundH !== null) {
             p.lastSafe = {
               x: bx,
               y: groundH + 0.05,
@@ -2165,6 +2349,13 @@ export function createRemasterSimulation(
       for (let ei = 0; ei < enemies.length; ei++) {
         const enemy = enemies[ei]!;
         if (enemy.eliminated) continue;
+        if (enemy.shatterTimer > 0) {
+          enemy.shatterTimer = Math.max(0, enemy.shatterTimer - dt);
+          if (enemy.shatterTimer <= 0) {
+            enemy.eliminated = true;
+          }
+          continue;
+        }
         if (enemy.hitCooldown > 0) {
           enemy.hitCooldown = Math.max(0, enemy.hitCooldown - dt);
         }
@@ -2368,6 +2559,49 @@ export function createRemasterSimulation(
           const snap = physics.readEnemy(ei);
           enemy.position = { ...snap.position };
           enemy.velocity = { x: snap.velocity.x, z: snap.velocity.z };
+
+          // Track airborne peak height so a Black Marble falling onto a lower plateau
+          // shatters and dies immediately (matching original 68010 behavior).
+          const enemyJustLanded = !enemy.wasGrounded && snap.grounded;
+          const enemyDropY = Math.max(0, enemy.airbornePeakY - snap.position.y);
+          if (!snap.grounded) {
+            enemy.airbornePeakY = Math.max(
+              enemy.airbornePeakY,
+              snap.position.y,
+            );
+          } else {
+            if (
+              (enemyJustLanded &&
+                enemyDropY >= REMASTER_RULES.shatterDropWorldY) ||
+              snap.impactSpeed >= REMASTER_PHYSICS.shatterImpactSpeed
+            ) {
+              if (enemy.lastHitTimer > 0 && enemy.lastHitBy !== undefined) {
+                const victor = players[enemy.lastHitBy];
+                if (victor) {
+                  victor.score += 1000;
+                  victor.scoreAward = { points: 1000, timer: 1.6 };
+                }
+              }
+              const creditPlayer =
+                enemy.lastHitBy !== undefined
+                  ? (players[enemy.lastHitBy]?.id ?? 1)
+                  : 1;
+              enemy.shatterTimer = 0.65;
+              enemy.velocity = { x: 0, z: 0 };
+              enemy.wasGrounded = true;
+              physics.setEnemyKinematic?.(ei, true);
+              physics.teleportEnemy?.(ei, {
+                x: 0,
+                y: level.killY - 20,
+                z: 0,
+              });
+              events.push({ type: 'shatter', player: creditPlayer });
+              continue;
+            }
+            enemy.airbornePeakY = snap.position.y;
+          }
+          enemy.wasGrounded = snap.grounded;
+
           // Once bumped off by a player, a Black Marble NEVER respawns and awards +1000.
           // If it somehow slipped off without being touched (lastHitTimer <= 0), restore it at home.
           if (enemy.position.y < level.killY) {
@@ -2379,9 +2613,12 @@ export function createRemasterSimulation(
               }
               enemy.eliminated = true;
               enemy.velocity = { x: 0, z: 0 };
+              physics.setEnemyKinematic?.(ei, true);
             } else {
               enemy.position = { ...enemy.home };
               enemy.velocity = { x: 0, z: 0 };
+              enemy.airbornePeakY = enemy.home.y;
+              enemy.wasGrounded = true;
               physics.teleportEnemy?.(ei, enemy.home);
             }
             continue;

@@ -134,3 +134,26 @@ test('remaster.html loads Level 5 (Silly Race) uphill with miniature enemies and
 
   expect(errors).toEqual([]);
 });
+
+test('remaster.html loads Level 6 (Ultimate Race) with disappearing maze, worms, amoebas, and Black Marble', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (err) => errors.push(String(err)));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(msg.text());
+  });
+
+  await page.goto('/remaster.html');
+  await page.locator('#level-select').selectOption('6');
+  await expect(page.locator('#remaster-canvas')).toBeVisible();
+  await expect
+    .poll(() => page.locator('#hud-status').textContent(), { timeout: 15_000 })
+    .toBe('FLYOVER');
+
+  await page.keyboard.press('Space');
+  await expect(page.locator('#hud-status')).toHaveText('PLAYING');
+  await page.waitForTimeout(250);
+
+  expect(errors).toEqual([]);
+});

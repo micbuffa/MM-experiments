@@ -99,4 +99,56 @@ describe('remasterLevel', () => {
     expect(level.spawns.player2.x).toBeCloseTo(27.5 - 65, 1);
     expect(level.spawns.player2.z).toBeCloseTo(14 - 65, 1);
   });
+
+  it('converts Level 3 (Intermediate Race) terrain with wave surface zone and ROM tower spawns', () => {
+    const cells = Array.from({ length: 118 }, () =>
+      Array.from({ length: 118 }, () => [0, 0, 0, 0] as const),
+    );
+    const terrain: PracticeTerrain = {
+      cells,
+      origin: { x: 0, z: 0 },
+      lastScroll: -15336,
+      level: 'level3',
+    };
+    const level = practiceTerrainToRemasterLevel(terrain);
+    expect(level.courseIndex).toBe(3);
+    expect(level.name).toBe('Intermediate Race');
+    expect(level.timerSeconds).toBe(60);
+    expect(level.enemies).toHaveLength(0);
+    expect(level.surfaceZones).toHaveLength(1);
+    const wave = level.surfaceZones[0]!;
+    expect(
+      sampleSurfaceAt(
+        level,
+        (wave.minX + wave.maxX) / 2,
+        (wave.minZ + wave.maxZ) / 2,
+      ),
+    ).toBe('wave');
+    expect(level.spawns.player1.x).toBeCloseTo(22.5 - 59, 1);
+    expect(level.spawns.player1.z).toBeCloseTo(9.5 - 59, 1);
+    expect(level.spawns.player2.x).toBeCloseTo(8.5 - 59, 1);
+    expect(level.spawns.player2.z).toBeCloseTo(23.5 - 59, 1);
+  });
+
+  it('converts Level 4 (Aerial Race) terrain with Black Marble and ROM beam spawns', () => {
+    const cells = Array.from({ length: 130 }, () =>
+      Array.from({ length: 130 }, () => [0, 0, 0, 0] as const),
+    );
+    const terrain: PracticeTerrain = {
+      cells,
+      origin: { x: 0, z: 0 },
+      lastScroll: -15200,
+      level: 'level4',
+    };
+    const level = practiceTerrainToRemasterLevel(terrain);
+    expect(level.courseIndex).toBe(4);
+    expect(level.name).toBe('Aerial Race');
+    expect(level.timerSeconds).toBe(70);
+    expect(level.enemies).toHaveLength(1);
+    expect(level.enemies[0]!.id).toBe('level4-black-marble');
+    expect(level.spawns.player1.x).toBeCloseTo(10.5 - 65, 1);
+    expect(level.spawns.player1.z).toBeCloseTo(23.5 - 65, 1);
+    expect(level.spawns.player2.x).toBeCloseTo(22.5 - 65, 1);
+    expect(level.spawns.player2.z).toBeCloseTo(9.5 - 65, 1);
+  });
 });

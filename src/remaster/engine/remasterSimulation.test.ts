@@ -358,11 +358,12 @@ describe('createRemasterSimulation', () => {
     sim.step(1 / 60, []);
     expect(enemyForces.length).toBeGreaterThan(0);
 
-    // Simulate player knocking Black Marble below killY
+    // Simulate player knocking Black Marble below killY -> +1000 and permanent elimination (no respawn)
     const beforeFall = teleportCount;
     enemyPos = { x: -4.2, y: level.killY - 1, z: -4.2 };
     const after = sim.step(1 / 60, []);
-    expect(teleportCount).toBe(beforeFall + 1);
+    expect(teleportCount).toBe(beforeFall);
+    expect(after.enemies).toHaveLength(0);
     expect(after.players[0]!.score).toBeGreaterThanOrEqual(1000);
     expect(after.players[0]!.scoreAward?.points).toBe(1000);
   });
@@ -948,5 +949,382 @@ describe('createRemasterSimulation', () => {
     snap = sim.step(0.6, []);
     expect(snap.players[0]!.pipeHidden).toBe(false);
     expect(snap.players[0]!.score).toBeGreaterThanOrEqual(2000);
+  });
+
+  it('runs Level 3 acid amoeba dissolve, turquoise wave surfing, and copper pipe traversal', () => {
+    const waveY = ((16148 - 16384) * Math.sqrt(2 / 3)) / 8;
+    const cells = Array.from({ length: 118 }, () =>
+      Array.from({ length: 118 }, () => [waveY, waveY, waveY, waveY] as const),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 3,
+      heightLayers: [
+        {
+          id: 'main',
+          columns: 118,
+          rows: 118,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      spawns: {
+        player1: { x: 22.5 - 59, y: waveY, z: 9.5 - 59 },
+        player2: { x: 8.5 - 59, y: waveY, z: 23.5 - 59 },
+      },
+      killY: -40,
+    };
+    const base = makeStubPhysics();
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      setMarbleVelocity(idx, vel) {
+        base.marbles[idx] = { ...base.marbles[idx], velocity: { ...vel } };
+      },
+    };
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    // 0. Level 3 spawns its 2 ROM green worms (0x225ba) as scroll passes row 1
+    base.marbles[0] = {
+      position: { x: 40 - 59, y: waveY, z: 36 - 59 },
+      velocity: { x: 1, y: 0, z: 1 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    let snap = sim.step(1 / 30, []);
+    for (let i = 0; i < 6; i++) snap = sim.step(1 / 30, []);
+    expect(snap.worms.filter((w) => w.active).length).toBe(2);
+
+    // 1. Wave support & 22-tile waveProfile
+    base.marbles[0] = {
+      position: { x: 82.5 - 59, y: waveY, z: 82.5 - 59 },
+      velocity: { x: 0, y: 0, z: 2 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.waveProfile).toHaveLength(22);
+    expect(snap.amoebas).toHaveLength(7);
+
+    // Leave wave cleanly
+    base.marbles[0] = {
+      position: { x: 50 - 59, y: waveY, z: 50 - 59 },
+      velocity: { x: 0, y: 0, z: 2 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    sim.step(1 / 60, []);
+
+    // 2. Copper funnel pipe mouth -> enter -> smooth 1.05 s traversal -> +4000 pts
+    const mouthY = ((0x3fa4 - 16384) * Math.sqrt(2 / 3)) / 8;
+    base.marbles[0] = {
+      position: { x: 77.5 - 59, y: mouthY, z: 80.5 - 59 },
+      velocity: { x: 4, y: -2, z: 4 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.velocity.x).toBe(0);
+
+    const enterY = ((0x3f90 - 16384) * Math.sqrt(2 / 3)) / 8;
+    base.marbles[0] = {
+      position: { x: 77.5 - 59, y: enterY, z: 80.5 - 59 },
+      velocity: { x: 0, y: -4, z: 0 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.events.some((e) => e.type === 'pipeEnter')).toBe(true);
+    expect(snap.players[0]!.pipeHidden).toBe(true);
+    snap = sim.step(0.5, []);
+    expect(snap.players[0]!.pipeHidden).toBe(true);
+    snap = sim.step(0.6, []);
+    expect(snap.players[0]!.pipeHidden).toBe(false);
+    expect(snap.players[0]!.score).toBeGreaterThanOrEqual(4000);
+
+    // 3. Touching an acid amoeba triggers acidDissolve -> melting -> respawn
+    const a0 = snap.amoebas[0]!;
+    base.marbles[0] = {
+      position: { x: a0.cellX - 59, y: waveY, z: a0.cellZ - 59 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.life).toBe('melting');
+    expect(snap.events.some((e) => e.type === 'acidDissolve')).toBe(true);
+    snap = sim.step(1.2, []);
+    expect(snap.players[0]!.life).toBe('respawning');
+    expect(snap.events.some((e) => e.type === 'respawn')).toBe(true);
+  });
+
+  it('runs Level 4 vacuums, catapult launch, raised piston/hammer knockback, and suction respawn', () => {
+    const cells = Array.from({ length: 130 }, () =>
+      Array.from({ length: 130 }, () => [0, 0, 0, 0] as const),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 4,
+      heightLayers: [
+        {
+          id: 'main',
+          columns: 130,
+          rows: 130,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      spawns: {
+        player1: { x: 10.5 - 65, y: 0, z: 23.5 - 65 },
+        player2: { x: 22.5 - 65, y: 0, z: 9.5 - 65 },
+      },
+      killY: -40,
+    };
+    const base = makeStubPhysics();
+    const appliedForces: { fx: number; fz: number }[] = [];
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      applyPlayerForce(_idx, fx, fz) {
+        appliedForces.push({ fx, fz });
+      },
+      setMarbleVelocity(idx, vel) {
+        base.marbles[idx] = { ...base.marbles[idx], velocity: { ...vel } };
+      },
+    };
+    const sim = createRemasterSimulation(level, physics);
+    sim.skipOpening();
+
+    // 0. Pistons stay completely idle until a player reaches ROM zone 4/5 (x>=60, z>=50)
+    base.marbles[0] = {
+      position: { x: 10.5 - 65, y: 0, z: 23.5 - 65 },
+      velocity: { x: 8, y: 0, z: 0 },
+      grounded: false,
+      impactSpeed: 0,
+    };
+    let snap = sim.step(1 / 60, []);
+    expect(snap.level4?.pistons).toHaveLength(0);
+    // Touchdown preserves horizontal jump momentum even if Havok friction tries to brake it
+    base.marbles[0] = {
+      position: { x: 32 - 65, y: 0, z: 23.5 - 65 },
+      velocity: { x: 3, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.velocity.x).toBeCloseTo(8, 1);
+
+    // 0b. Level 4 frictionless start beams keep the marble centered straight on the rail and cap speed at 10.8 cells/s
+    base.marbles[0] = {
+      position: { x: 15 - 65, y: 0, z: 23.2 - 65 },
+      velocity: { x: 18, y: 0, z: 1.5 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.velocity.x).toBeCloseTo(10.8, 1);
+    expect(snap.players[0]!.velocity.z).toBe(0);
+    expect(snap.players[0]!.position.z).toBeCloseTo(23.5 - 65, 2);
+
+    // P2 beam (x=22, z=9..26) centers X and zeroes lateral vx
+    base.marbles[0] = {
+      position: { x: 22.2 - 65, y: 0, z: 15 - 65 },
+      velocity: { x: 1.2, y: 0, z: 14 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.velocity.x).toBe(0);
+    expect(snap.players[0]!.velocity.z).toBeCloseTo(10.8, 1);
+    expect(snap.players[0]!.position.x).toBeCloseTo(22.5 - 65, 2);
+
+    // 1. Catapult at (63, 70) also enters zone 4/5 (triggering pistons), settles in cup for 0.26 s, then fires lofty lob
+    base.marbles[0] = {
+      position: { x: 63 - 65, y: 0, z: 70 - 65 },
+      velocity: { x: 1, y: 0, z: 1 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(0.1, []);
+    expect(snap.events.some((e) => e.type === 'catapult')).toBe(false);
+    expect(snap.level4?.pistons.length).toBeGreaterThan(0);
+    snap = sim.step(0.2, []);
+    expect(snap.events.some((e) => e.type === 'catapult')).toBe(true);
+    expect(snap.level4?.catapultFrame).toBeDefined();
+    expect(snap.players[0]!.velocity.y).toBeGreaterThan(24);
+    expect(snap.players[0]!.velocity.z).toBeLessThan(-10);
+
+    // Advance past catapult animation & into active hammer/vacuum window (t ~ 2.4 s)
+    base.marbles[0] = {
+      position: { x: 10 - 65, y: 0, z: 10 - 65 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    for (let i = 0; i < 48; i++) snap = sim.step(0.05, []);
+    expect(snap.level4?.vacuumExtensions).toHaveLength(6);
+    expect(snap.level4?.hammerFrames).toHaveLength(4);
+
+    // 2. Active vacuum 0 (39.5, 36.8) pulls nearby marble, then captures at mouth
+    base.marbles[0] = {
+      position: { x: 39.5 - 65, y: 0, z: 39.2 - 65 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    appliedForces.length = 0;
+    sim.step(1 / 60, []);
+    expect(appliedForces.some((f) => f.fz < -2)).toBe(true);
+
+    base.marbles[0] = {
+      position: { x: 39.5 - 65, y: 0, z: 37.0 - 65 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.life).toBe('suctioned');
+    expect(snap.players[0]!.suctionVacuumIndex).toBe(0);
+    expect(snap.events.some((e) => e.type === 'suction')).toBe(true);
+    snap = sim.step(1.0, []);
+    expect(snap.players[0]!.life).toBe('respawning');
+    // Respawning finishes -> active with 1.6 s post-respawn vacuum immunity
+    snap = sim.step(REMASTER_RULES.respawnInvulnSeconds + 0.05, []);
+    expect(snap.players[0]!.life).toBe('active');
+    // Even if placed right next to an active vacuum during the grace window, it is NOT sucked in
+    base.marbles[0] = {
+      position: { x: 39.5 - 65, y: 0, z: 37.0 - 65 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(0.1, []);
+    expect(snap.players[0]!.life).toBe('active');
+  });
+
+  it('keeps Level 4 Black Marble on its plateau with void-edge guard and never eliminates it on self-fall', () => {
+    // Plateau only on x in [61..73], z in [50..54]; void elsewhere
+    const cells = Array.from({ length: 130 }, (_, z) =>
+      Array.from({ length: 130 }, (_, x) =>
+        x >= 61 && x <= 73 && z >= 50 && z <= 54
+          ? ([0, 0, 0, 0] as const)
+          : null,
+      ),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 4,
+      heightLayers: [
+        {
+          id: 'main',
+          columns: 130,
+          rows: 130,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      spawns: {
+        player1: { x: 65 - 65, y: 0, z: 52 - 65 },
+        player2: { x: 66 - 65, y: 0, z: 52 - 65 },
+      },
+      enemies: [
+        {
+          id: 'level4-black-marble',
+          kind: 'blackMarble',
+          position: { x: 64.5 - 65, y: 0, z: 51.5 - 65 },
+          patrolRadius: 1.8,
+        },
+      ],
+      killY: -10,
+    };
+    const base = makeStubPhysics();
+    let enemyPos = { x: 64.5 - 65, y: 0, z: 50.2 - 65 };
+    let lastEnemyForce = { x: 0, z: 0 };
+    let teleportCount = 0;
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      applyEnemyForce(_i, fx, fz) {
+        lastEnemyForce = { x: fx, z: fz };
+      },
+      teleportEnemy(_i, pos) {
+        teleportCount += 1;
+        enemyPos = { ...pos };
+      },
+      readEnemy() {
+        return {
+          position: { ...enemyPos },
+          velocity: { x: 0, y: 0, z: -2 },
+          grounded: true,
+          impactSpeed: 0,
+        };
+      },
+    };
+    const sim = createRemasterSimulation(level, physics, false, () => 0.5);
+    sim.skipOpening();
+
+    // 1. Unbumped near the z=50 void edge: first step reads enemyPos into enemy.position,
+    // second step triggers the void-edge guard and pulls strongly inward (+Z toward 51.5).
+    enemyPos = { x: 64.5 - 65, y: 0, z: 50.2 - 65 };
+    base.marbles[0] = {
+      position: { x: 70 - 65, y: 0, z: 52 - 65 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    sim.step(1 / 60, []);
+    sim.step(1 / 60, []);
+    expect(lastEnemyForce.z).toBeGreaterThan(20);
+
+    // 2. If unbumped enemy somehow drops below killY, it is restored to home (NOT eliminated!)
+    enemyPos = { x: 64.5 - 65, y: -15, z: 48 - 65 };
+    const snap = sim.step(1 / 60, []);
+    expect(snap.enemies).toHaveLength(1);
+    expect(teleportCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('inflicts subtle bump + 2.0 s dizzy when struck by a Level 4 wooden hammer', () => {
+    const cells = Array.from({ length: 130 }, () =>
+      Array.from({ length: 130 }, () => [0, 0, 0, 0] as const),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 4,
+      heightLayers: [
+        {
+          id: 'main',
+          columns: 130,
+          rows: 130,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      killY: -40,
+    };
+    const base = makeStubPhysics();
+    const physics: RemasterPhysicsBackend = {
+      ...base,
+      setMarbleVelocity(idx, vel) {
+        base.marbles[idx] = { ...base.marbles[idx], velocity: { ...vel } };
+      },
+    };
+    // random() = 0 -> hammer pattern 0 (all 4 swing immediately; at t = 0.6 s -> frame 9)
+    const sim = createRemasterSimulation(level, physics, false, () => 0);
+    sim.skipOpening();
+    sim.step(0.6, []);
+
+    base.marbles[0] = {
+      position: { x: 104.2 - 65, y: 0, z: 102.5 - 65 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    const snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.dizzyTimer).toBeCloseTo(2.0, 2);
+    expect(snap.events.some((e) => e.type === 'dizzy')).toBe(true);
+    expect(snap.events.some((e) => e.type === 'marbleClack')).toBe(true);
+    expect(Math.abs(snap.players[0]!.velocity.x)).toBeLessThanOrEqual(5.5);
   });
 });

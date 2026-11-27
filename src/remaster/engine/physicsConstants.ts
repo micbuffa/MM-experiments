@@ -55,8 +55,8 @@ export const REMASTER_RULES = {
   dizzyDurationSeconds: 50 / 30,
   /** Reduced steering acceleration multiplier while dizzy. */
   dizzySpeedFactor: 0.4,
-  /** Drop height in world Y units (> 3 arcade cells = 3 * 0.8165 = 2.45) that shatters the marble. */
-  shatterDropWorldY: 2.45,
+  /** Drop height in world Y units (~3.8 arcade cells) that shatters the marble without false-shattering steep ramps. */
+  shatterDropWorldY: 3.15,
   /** Drop height in world Y units (~1.4..3 arcade cells) that makes the marble dizzy on landing. */
   dizzyDropWorldY: 1.15,
   progressPointsPerCell: 10,

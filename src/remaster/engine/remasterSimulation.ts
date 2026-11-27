@@ -11,6 +11,7 @@ import {
   arcadeGroundHeight,
   arcadeHeightScale,
 } from '../../game/modern/practiceProjection';
+import { level3OpeningScroll } from '../../game/modern/practiceTerrain';
 import { bridgeState } from '../level2/bridgeCycle';
 import {
   decideBridgeCrossing,
@@ -36,8 +37,10 @@ import {
 import {
   LEVEL2_BLACK_MARBLE,
   LEVEL2_ZONE_BOUNDARIES,
+  type EnemyMarbleSpec,
 } from '../level2/blackMarbleRom';
 import { cellOf, nextZone } from '../level2/enemyZones';
+import { LEVEL3_WORM_SPAWNS } from '../level2/greenWorms/wormRomData';
 import {
   arcadeScrollForPoint,
   createWormWorld,
@@ -52,12 +55,43 @@ import {
 import { REMASTER_PHYSICS, REMASTER_RULES } from './physicsConstants';
 import { isIceAtWorld } from './romSurfaceZones';
 import { resolveSurfaceRules, surfaceTransition } from './surfaceRules';
+import {
+  createLevel3Amoebas,
+  probeLevel3CopperPipe,
+  sampleLevel3WaveAt,
+  sampleLevel3WaveProfile,
+  stepLevel3Amoebas,
+  touchesLevel3Amoeba,
+  type Level3AmoebaSnapshot,
+  type Level3AmoebaState,
+} from '../level3/level3Mechanics';
+import { LEVEL3_COPPER_PIPE } from '../level3/level3RomData';
+import {
+  evaluateLevel4HammerStrike,
+  evaluateLevel4Hammers,
+  evaluateLevel4PistonBump,
+  evaluateLevel4Pistons,
+  evaluateLevel4VacuumPull,
+  evaluateLevel4Vacuums,
+  isInLevel4PistonTriggerZone,
+  isInsideLevel4CatapultCup,
+  isNearLevel4Vacuum,
+  resolveLevel4HammerSeparation,
+  type Level4MechanismSnapshot,
+} from '../level4/level4Mechanics';
+import { LEVEL4_BLACK_MARBLE, LEVEL4_CATAPULT } from '../level4/level4RomData';
 
 export type RemasterPhase = 'opening' | 'playing' | 'finished' | 'gameOver';
 export type StartLiftPhase = 1 | 2 | 3 | 4 | 5;
 
 export type MarbleLifeState =
-  'active' | 'shattered' | 'falling' | 'respawning' | 'goal';
+  | 'active'
+  | 'shattered'
+  | 'melting'
+  | 'suctioned'
+  | 'falling'
+  | 'respawning'
+  | 'goal';
 
 export interface PlayerInput {
   /** Normalized horizontal command in world XZ plane (-1..1). */
@@ -136,6 +170,9 @@ export type RemasterEvent =
   | { readonly type: 'pipeEnter'; readonly player: 1 | 2 }
   | { readonly type: 'iceEnter'; readonly player: 1 | 2 }
   | { readonly type: 'iceLeave'; readonly player: 1 | 2 }
+  | { readonly type: 'acidDissolve'; readonly player: 1 | 2 }
+  | { readonly type: 'suction'; readonly player: 1 | 2 }
+  | { readonly type: 'catapult'; readonly player: 1 | 2 }
   | {
       readonly type: 'catchUp';
       readonly player: 1 | 2;
@@ -167,6 +204,7 @@ export interface RemasterPlayerState {
   readonly maxProgress: number;
   readonly pipeHidden: boolean;
   readonly wormSwallowed: boolean;
+  readonly suctionVacuumIndex: number | undefined;
 }
 
 export interface RemasterEnemyState {
@@ -187,6 +225,9 @@ export interface RemasterSnapshot {
   readonly players: readonly RemasterPlayerState[];
   readonly enemies: readonly RemasterEnemyState[];
   readonly worms: readonly RemasterWormState[];
+  readonly amoebas: readonly Level3AmoebaSnapshot[];
+  readonly waveProfile: readonly number[] | undefined;
+  readonly level4: Level4MechanismSnapshot | undefined;
   readonly bridgeStep: number;
   readonly goalOwner: 1 | 2 | undefined;
   readonly events: readonly RemasterEvent[];
@@ -211,8 +252,11 @@ interface MutablePlayer {
   pipeElapsed: number;
   pipeEntryPos: Vec3 | undefined;
   pipeExitPos: Vec3 | undefined;
+  level3PipeActive: boolean;
   bridgeSupported: boolean;
+  waveSupported: boolean;
   airbornePeakY: number;
+  airborneHorizVel: { x: number; z: number } | undefined;
   wasGrounded: boolean;
   airborneFallPlayed: boolean;
   onRomIce: boolean;
@@ -220,6 +264,11 @@ interface MutablePlayer {
   zone: number;
   prevCell: { x: number; z: number };
   wormSwallowed: boolean;
+  suctionVacuumIndex: number | undefined;
+  respawnGraceTimer: number;
+  catapultDwell: number;
+  catapultCooldown: number;
+  hazardBumpCooldown: number;
 }
 
 interface MutableEnemy {
@@ -234,6 +283,10 @@ interface MutableEnemy {
   patrolRadius: number;
   patrolAngle: number;
   hitCooldown: number;
+  eliminated: boolean;
+  lastHitBy: 0 | 1 | undefined;
+  lastHitTimer: number;
+  controllerSpec: EnemyMarbleSpec | undefined;
   controllerState: EnemyMarbleState | undefined;
 }
 
@@ -241,6 +294,7 @@ export function createRemasterSimulation(
   level: RemasterLevelV1,
   physics: RemasterPhysicsBackend,
   twoPlayers = false,
+  random: () => number = Math.random,
 ) {
   const mainLayer = level.heightLayers[0];
   const START_LIFT_IDLE_DELAY = 2.2;
@@ -283,8 +337,11 @@ export function createRemasterSimulation(
       pipeElapsed: 0,
       pipeEntryPos: undefined,
       pipeExitPos: undefined,
+      level3PipeActive: false,
       bridgeSupported: false,
+      waveSupported: false,
       airbornePeakY: pos.y,
+      airborneHorizVel: undefined,
       wasGrounded: true,
       airborneFallPlayed: false,
       onRomIce: false,
@@ -295,6 +352,11 @@ export function createRemasterSimulation(
         z: pos.z + (mainLayer?.origin.z ?? 0) + (mainLayer?.rows ?? 0) / 2,
       }),
       wormSwallowed: false,
+      suctionVacuumIndex: undefined,
+      respawnGraceTimer: 0,
+      catapultDwell: 0,
+      catapultCooldown: 0,
+      hazardBumpCooldown: 0,
     };
   }
 
@@ -309,6 +371,13 @@ export function createRemasterSimulation(
       // upper wells plateau (x - 16, z - 4) before switching to patrol/chase.
       const isLevel2Ramp =
         level.courseIndex === 2 && e.id === 'level2-black-marble';
+      const isLevel4Deck =
+        level.courseIndex === 4 && e.id === 'level4-black-marble';
+      const controllerSpec = isLevel2Ramp
+        ? LEVEL2_BLACK_MARBLE
+        : isLevel4Deck
+          ? LEVEL4_BLACK_MARBLE
+          : undefined;
       return {
         id: e.id,
         kind: e.kind,
@@ -317,21 +386,39 @@ export function createRemasterSimulation(
           ? { x: pos.x - 16, z: pos.z - 4 }
           : { x: pos.x, z: pos.z },
         climbing: isLevel2Ramp,
-        reachedPlateau: false,
+        reachedPlateau: isLevel4Deck,
         position: { ...pos },
         velocity: { x: 0, z: 0 },
         patrolRadius: e.patrolRadius,
         patrolAngle: 0,
         hitCooldown: 0,
-        controllerState: isLevel2Ramp ? createEnemyMarbleState() : undefined,
+        eliminated: false,
+        lastHitBy: undefined,
+        lastHitTimer: 0,
+        controllerSpec,
+        controllerState: controllerSpec ? createEnemyMarbleState() : undefined,
       };
     });
   }
 
   let enemies: MutableEnemy[] = makeEnemies();
   let lastWormViewRow: number | undefined;
-  const wormWorld: WormWorld | undefined =
-    level.courseIndex === 2 ? createWormWorld() : undefined;
+  function makeWormWorld(): WormWorld | undefined {
+    if (level.courseIndex === 2) return createWormWorld();
+    if (level.courseIndex === 3) {
+      return createWormWorld({ spawns: LEVEL3_WORM_SPAWNS });
+    }
+    return undefined;
+  }
+
+  let wormWorld: WormWorld | undefined = makeWormWorld();
+  let amoebas: Level3AmoebaState[] =
+    level.courseIndex === 3 ? createLevel3Amoebas() : [];
+  let catapultAnimElapsed = -1;
+  let level4PistonsTriggered = false;
+  let level4PistonElapsed = 0;
+  let level4PistonPattern = 0;
+  let level4HammerPattern = Math.floor(random() * 4) & 3;
 
   const players: MutablePlayer[] = twoPlayers
     ? [makePlayer(1, level.spawns.player1), makePlayer(2, level.spawns.player2)]
@@ -393,15 +480,55 @@ export function createRemasterSimulation(
         scoreAward: p.scoreAward ? { ...p.scoreAward } : undefined,
         lastSafe: { ...p.lastSafe },
         maxProgress: p.maxProgress,
-        pipeHidden: p.pipeTraversal !== undefined,
+        pipeHidden: p.pipeTraversal !== undefined || p.level3PipeActive,
         wormSwallowed: p.wormSwallowed,
+        suctionVacuumIndex: p.suctionVacuumIndex,
       })),
-      enemies: enemies.map((e) => ({
-        id: e.id,
-        kind: e.kind,
-        position: { ...e.position },
-      })),
+      enemies: enemies
+        .filter((e) => !e.eliminated)
+        .map((e) => ({
+          id: e.id,
+          kind: e.kind,
+          position: { ...e.position },
+        })),
       worms: wormSnapshots(),
+      amoebas: amoebas.map((a) => ({
+        id: a.id,
+        cellX: a.cellX,
+        cellZ: a.cellZ,
+        heading: a.heading,
+        stridePhase: a.stridePhase,
+      })),
+      waveProfile:
+        level.courseIndex === 3
+          ? sampleLevel3WaveProfile(playElapsed)
+          : undefined,
+      level4:
+        level.courseIndex === 4
+          ? (() => {
+              const vac = evaluateLevel4Vacuums(playElapsed);
+              const catFrame =
+                catapultAnimElapsed >= 0 &&
+                catapultAnimElapsed < LEVEL4_CATAPULT.animationDurationSeconds
+                  ? Math.min(19, Math.floor(catapultAnimElapsed * 30))
+                  : undefined;
+              return {
+                vacuumExtensions: vac.extensions,
+                vacuumMouthFrames: vac.mouthFrames,
+                pistons: level4PistonsTriggered
+                  ? evaluateLevel4Pistons(
+                      level4PistonElapsed,
+                      level4PistonPattern,
+                    )
+                  : [],
+                catapultFrame: catFrame,
+                hammerFrames: evaluateLevel4Hammers(
+                  playElapsed,
+                  level4HammerPattern,
+                ),
+              };
+            })()
+          : undefined,
       goalOwner,
       events,
     };
@@ -623,6 +750,7 @@ export function createRemasterSimulation(
             freeEdgeWorldZ - REMASTER_PHYSICS.marbleRadius - 0.02;
           player.velocity.z = -nudgeSpeed;
           player.velocity.y = 0;
+          player.airborneHorizVel = undefined;
           physics.setMarblePosition?.(idx, player.position);
           physics.setMarbleVelocity?.(idx, player.velocity);
           continue;
@@ -704,11 +832,12 @@ export function createRemasterSimulation(
     const leaderArcade = worldToArcade(wormAnchor);
     const targetRow = scrollRow(
       arcadeScrollForPoint(leaderArcade.x, leaderArcade.z, leaderArcade.height),
+      level.courseIndex === 3 ? level3OpeningScroll : undefined,
     );
     // Advance lastWormViewRow by ±1 ONLY once wormWorld.viewRow has processed the
     // previous 30 Hz tick, so 60 Hz frames never skip a worm spawn band's minRow (5 or 6).
     if (lastWormViewRow === undefined) {
-      lastWormViewRow = targetRow;
+      lastWormViewRow = wormWorld.viewRow;
     } else if (wormWorld.viewRow === lastWormViewRow) {
       if (targetRow > lastWormViewRow) lastWormViewRow += 1;
       else if (targetRow < lastWormViewRow) lastWormViewRow -= 1;
@@ -744,7 +873,7 @@ export function createRemasterSimulation(
     });
     const wormEvents = stepWorms(wormWorld, wormPlayers, viewRow, dt, {
       groundHeight: (x, z) => wormGroundHeight(x, z),
-      levelIndex: 1,
+      levelIndex: level.courseIndex - 1,
     });
 
     // Apply worm contact, swallow, and marbleEaten outcomes back to players and Havok.
@@ -827,6 +956,292 @@ export function createRemasterSimulation(
     });
   }
 
+  function updateLevel3Mechanics(dt: number, events: RemasterEvent[]) {
+    if (level.courseIndex !== 3 || !mainLayer) return;
+    amoebas = stepLevel3Amoebas(amoebas, dt);
+    const frame = {
+      originX: mainLayer.origin.x,
+      originZ: mainLayer.origin.z,
+      columns: mainLayer.columns,
+      rows: mainLayer.rows,
+    };
+
+    for (let i = 0; i < players.length; i++) {
+      const player = players[i]!;
+      const idx = i as 0 | 1;
+
+      if (player.level3PipeActive) {
+        player.pipeElapsed += dt;
+        const pipeDuration = 1.05;
+        if (player.pipeElapsed < pipeDuration) {
+          if (player.pipeEntryPos && player.pipeExitPos) {
+            const rawT = Math.min(1, player.pipeElapsed / pipeDuration);
+            const t = rawT * rawT * (3 - 2 * rawT);
+            player.position = {
+              x:
+                player.pipeEntryPos.x +
+                (player.pipeExitPos.x - player.pipeEntryPos.x) * t,
+              y:
+                player.pipeEntryPos.y +
+                (player.pipeExitPos.y - player.pipeEntryPos.y) * t,
+              z:
+                player.pipeEntryPos.z +
+                (player.pipeExitPos.z - player.pipeEntryPos.z) * t,
+            };
+          }
+          physics.setMarbleKinematic(idx, true);
+          continue;
+        }
+        const exitPos = player.pipeExitPos ?? player.position;
+        player.position = { ...exitPos };
+        player.level3PipeActive = false;
+        player.pipeElapsed = 0;
+        player.pipeEntryPos = undefined;
+        player.pipeExitPos = undefined;
+        player.airbornePeakY = exitPos.y;
+        player.grounded = true;
+        player.wasGrounded = true;
+        player.velocity = {
+          x: LEVEL3_COPPER_PIPE.exitVelocityWorld.x,
+          y: 0,
+          z: LEVEL3_COPPER_PIPE.exitVelocityWorld.z,
+        };
+        player.score += LEVEL3_COPPER_PIPE.exitScore;
+        player.scoreAward = {
+          points: LEVEL3_COPPER_PIPE.exitScore,
+          timer: 2,
+        };
+        physics.teleportMarble(idx, player.position);
+        physics.setMarbleKinematic(idx, false);
+        physics.setMarbleVelocity?.(idx, player.velocity);
+        continue;
+      }
+
+      if (player.life !== 'active') continue;
+      const point = romWorldToArcade(player.position, frame);
+      const cellX = point.x / arcadeCellUnits;
+      const cellZ = point.z / arcadeCellUnits;
+
+      // 1. Copper vertical funnel pipe (ROM 0x2a5e6)
+      const pipeProbe = probeLevel3CopperPipe(point.x, point.z, point.height);
+      if (pipeProbe === 'mouth') {
+        player.velocity.x = 0;
+        player.velocity.z = 0;
+        physics.setMarbleVelocity?.(idx, player.velocity);
+        continue;
+      }
+      if (pipeProbe === 'enter') {
+        const exitBase = romArcadeToWorld(
+          {
+            x: LEVEL3_COPPER_PIPE.exitCell.x * arcadeCellUnits,
+            z: LEVEL3_COPPER_PIPE.exitCell.z * arcadeCellUnits,
+            height: arcadeGroundHeight,
+          },
+          frame,
+        );
+        const exitH = sampleLayerHeight(mainLayer, exitBase.x, exitBase.z);
+        const finalExit: Vec3 = { ...exitBase, y: exitH ?? exitBase.y };
+        player.pipeEntryPos = { ...player.position };
+        player.pipeExitPos = finalExit;
+        player.velocity = { x: 0, y: 0, z: 0 };
+        player.airbornePeakY = finalExit.y;
+        player.wasGrounded = true;
+        player.level3PipeActive = true;
+        player.pipeElapsed = 0;
+        physics.setMarbleKinematic(idx, true);
+        physics.teleportMarble(idx, finalExit);
+        events.push({ type: 'pipeEnter', player: player.id });
+        continue;
+      }
+
+      // 2. Animated turquoise wave support & traveling-crest slope surfing
+      const wave = sampleLevel3WaveAt(cellX, cellZ, playElapsed);
+      if (
+        wave.onWave &&
+        (player.waveSupported ||
+          (player.position.y <= wave.surfaceY + 0.45 &&
+            player.position.y >= wave.surfaceY - 2.2))
+      ) {
+        player.waveSupported = true;
+        player.position.y = wave.surfaceY;
+        player.velocity.z -=
+          wave.slopeZ * Math.abs(REMASTER_PHYSICS.gravityY) * 0.55 * dt;
+        player.velocity.y = 0;
+        player.grounded = true;
+        physics.setMarblePosition(idx, player.position);
+        physics.setMarbleVelocity?.(idx, player.velocity);
+        continue;
+      } else if (player.waveSupported) {
+        player.waveSupported = false;
+        player.velocity.y = 0;
+        physics.setMarbleVelocity?.(idx, player.velocity);
+      }
+
+      // 3. Acid amoeba contact -> dissolve (ROM state 9 + SFX 0x5e)
+      if (player.grounded && touchesLevel3Amoeba(amoebas, cellX, cellZ)) {
+        player.life = 'melting';
+        player.stateTimer = 1.15;
+        player.velocity = { x: 0, y: 0, z: 0 };
+        physics.setMarbleKinematic(idx, true);
+        events.push({ type: 'acidDissolve', player: player.id });
+      }
+    }
+  }
+
+  function updateLevel4Mechanics(dt: number, events: RemasterEvent[]) {
+    if (level.courseIndex !== 4 || !mainLayer) return;
+    if (catapultAnimElapsed >= 0) {
+      catapultAnimElapsed += dt;
+      if (catapultAnimElapsed >= LEVEL4_CATAPULT.animationDurationSeconds) {
+        catapultAnimElapsed = -1;
+      }
+    }
+    const vac = evaluateLevel4Vacuums(playElapsed);
+    if (level4PistonsTriggered) {
+      level4PistonElapsed += dt;
+    }
+    const pistons = level4PistonsTriggered
+      ? evaluateLevel4Pistons(level4PistonElapsed, level4PistonPattern)
+      : [];
+    const hammers = evaluateLevel4Hammers(playElapsed, level4HammerPattern);
+
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i]!;
+      const idx = i as 0 | 1;
+      if (p.catapultCooldown > 0) {
+        p.catapultCooldown = Math.max(0, p.catapultCooldown - dt);
+      }
+      if (p.hazardBumpCooldown > 0) {
+        p.hazardBumpCooldown = Math.max(0, p.hazardBumpCooldown - dt);
+      }
+      if (p.life !== 'active') continue;
+
+      const cellX = p.position.x + mainLayer.origin.x + mainLayer.columns / 2;
+      const cellZ = p.position.z + mainLayer.origin.z + mainLayer.rows / 2;
+
+      // ROM 0x186ac (0x400760) + 0x1871a: latch pistons active and roll Bank-2 pattern (0..3).
+      if (
+        !level4PistonsTriggered &&
+        isInLevel4PistonTriggerZone(cellX, cellZ)
+      ) {
+        level4PistonsTriggered = true;
+        level4PistonElapsed = 0;
+        level4PistonPattern = Math.floor(random() * 4) & 3;
+      }
+
+      // 1. Vacuum cleaner radial suction & capture (disabled during post-respawn grace window)
+      if (p.respawnGraceTimer <= 0) {
+        const pull = evaluateLevel4VacuumPull(cellX, cellZ, vac.extensions);
+        if (pull.capturedBy !== undefined) {
+          p.life = 'suctioned';
+          p.suctionVacuumIndex = pull.capturedBy;
+          p.stateTimer = 0.95;
+          p.velocity = { x: 0, y: 0, z: 0 };
+          physics.setMarbleKinematic(idx, true);
+          events.push({ type: 'suction', player: p.id });
+          continue;
+        }
+        if (Math.abs(pull.forceX) > 0.01 || Math.abs(pull.forceZ) > 0.01) {
+          physics.applyPlayerForce(idx, pull.forceX, pull.forceZ);
+        }
+      }
+
+      // 2. Red catapult at (63, 70): outer guide funnel pulls the marble into the cup,
+      // then seats it cleanly for settleDwellSeconds before firing a high lofty lob.
+      const distToCup = Math.hypot(
+        cellX - LEVEL4_CATAPULT.cupX,
+        cellZ - LEVEL4_CATAPULT.cupZ,
+      );
+      if (
+        p.grounded &&
+        p.catapultCooldown <= 0 &&
+        isInsideLevel4CatapultCup(cellX, cellZ)
+      ) {
+        p.catapultDwell += dt;
+        const cupWorldX =
+          LEVEL4_CATAPULT.cupX - mainLayer.origin.x - mainLayer.columns / 2;
+        const cupWorldZ =
+          LEVEL4_CATAPULT.cupZ - mainLayer.origin.z - mainLayer.rows / 2;
+        p.position.x = cupWorldX;
+        p.position.z = cupWorldZ;
+        physics.setMarblePosition(idx, p.position);
+        if (p.catapultDwell < LEVEL4_CATAPULT.settleDwellSeconds) {
+          p.velocity = { x: 0, y: 0, z: 0 };
+          physics.setMarbleVelocity?.(idx, p.velocity);
+          continue;
+        }
+        p.catapultDwell = 0;
+        p.catapultCooldown = LEVEL4_CATAPULT.cooldownSeconds;
+        catapultAnimElapsed = 0;
+        p.velocity = { ...LEVEL4_CATAPULT.launchVelocityWorld };
+        p.airbornePeakY = p.position.y;
+        p.airborneHorizVel = { x: p.velocity.x, z: p.velocity.z };
+        p.grounded = false;
+        p.wasGrounded = false;
+        physics.setMarbleVelocity?.(idx, p.velocity);
+        events.push({ type: 'catapult', player: p.id });
+        continue;
+      } else if (
+        p.grounded &&
+        p.catapultCooldown <= 0 &&
+        distToCup <= LEVEL4_CATAPULT.guideRadiusCells &&
+        distToCup > 0.01
+      ) {
+        p.catapultDwell = 0;
+        const gx = (LEVEL4_CATAPULT.cupX - cellX) / distToCup;
+        const gz = (LEVEL4_CATAPULT.cupZ - cellZ) / distToCup;
+        physics.applyPlayerForce(idx, gx * 28, gz * 28);
+      } else {
+        p.catapultDwell = 0;
+      }
+
+      // 3. Raised pistons & swinging hammers (ROM 0x2a9a2: hammer inflicts subtle bump + 2.0 s dizzy)
+      if (p.grounded && p.hazardBumpCooldown <= 0) {
+        const pistonBump = evaluateLevel4PistonBump(cellX, cellZ, pistons);
+        if (pistonBump) {
+          p.hazardBumpCooldown = 0.35;
+          p.velocity.x = pistonBump.x;
+          p.velocity.z = pistonBump.z;
+          physics.setMarbleVelocity?.(idx, p.velocity);
+          events.push({ type: 'wallBounce', player: p.id, intensity: 0.9 });
+        } else {
+          const hammerHit = evaluateLevel4HammerStrike(cellX, cellZ, hammers);
+          if (hammerHit) {
+            p.hazardBumpCooldown = 0.45;
+            p.velocity.x = hammerHit.x;
+            p.velocity.z = hammerHit.z;
+            physics.setMarbleVelocity?.(idx, p.velocity);
+            if (p.dizzyTimer <= 0) {
+              events.push({ type: 'dizzy', player: p.id });
+            }
+            p.dizzyTimer = Math.max(p.dizzyTimer, hammerHit.dizzySeconds);
+            events.push({
+              type: 'marbleClack',
+              player: p.id,
+              intensity: 0.65,
+            });
+          }
+        }
+      }
+
+      // 3b. ROM 0x2ab7a solid hammer separation: never let the marble clip through a visible hammer head.
+      if (p.grounded) {
+        const sep = resolveLevel4HammerSeparation(cellX, cellZ, hammers);
+        if (sep) {
+          p.position.x = sep.cellX - mainLayer.origin.x - mainLayer.columns / 2;
+          p.position.z = sep.cellZ - mainLayer.origin.z - mainLayer.rows / 2;
+          physics.setMarblePosition(idx, p.position);
+          const vn = p.velocity.x * sep.normalX + p.velocity.z * sep.normalZ;
+          if (vn < 0) {
+            p.velocity.x -= vn * sep.normalX;
+            p.velocity.z -= vn * sep.normalZ;
+            physics.setMarbleVelocity?.(idx, p.velocity);
+          }
+        }
+      }
+    }
+  }
+
   return {
     skipOpening() {
       if (phase !== 'opening') return;
@@ -850,6 +1265,13 @@ export function createRemasterSimulation(
       if (twoPlayers) players[1] = makePlayer(2, level.spawns.player2);
       enemies = makeEnemies();
       lastWormViewRow = undefined;
+      wormWorld = makeWormWorld();
+      amoebas = level.courseIndex === 3 ? createLevel3Amoebas() : [];
+      catapultAnimElapsed = -1;
+      level4PistonsTriggered = false;
+      level4PistonElapsed = 0;
+      level4PistonPattern = 0;
+      level4HammerPattern = Math.floor(random() * 4) & 3;
       placePlayersAtSpawn();
       return snapshot([]);
     },
@@ -909,6 +1331,8 @@ export function createRemasterSimulation(
                   28 * liftStrength,
                   6 * liftStrength,
                 );
+              } else if (level.courseIndex === 4 && i === 0) {
+                physics.applyPlayerForce(i as 0 | 1, 26 * liftStrength, 0);
               } else {
                 physics.applyPlayerForce(i as 0 | 1, 0, 26 * liftStrength);
               }
@@ -927,6 +1351,9 @@ export function createRemasterSimulation(
         }
         if (p.dizzyTimer > 0) {
           p.dizzyTimer = Math.max(0, p.dizzyTimer - dt);
+        }
+        if (p.respawnGraceTimer > 0) {
+          p.respawnGraceTimer = Math.max(0, p.respawnGraceTimer - dt);
         }
         if (p.scoreAward) {
           p.scoreAward.timer = Math.max(0, p.scoreAward.timer - dt);
@@ -1041,7 +1468,12 @@ export function createRemasterSimulation(
         const p = players[i]!;
         const idx = i as 0 | 1;
 
-        if (p.life === 'shattered' || p.life === 'falling') {
+        if (
+          p.life === 'shattered' ||
+          p.life === 'melting' ||
+          p.life === 'suctioned' ||
+          p.life === 'falling'
+        ) {
           allAtGoal = false;
           if (p.life === 'falling') {
             // Keep tracking the falling marble under gravity until it exits below the viewport.
@@ -1059,6 +1491,7 @@ export function createRemasterSimulation(
             p.wasGrounded = true;
             p.onRomIce = false;
             p.iceGlideVel = undefined;
+            p.suctionVacuumIndex = undefined;
             physics.setMarbleKinematic(idx, true);
             physics.teleportMarble(idx, p.lastSafe);
             events.push({ type: 'respawn', player: p.id });
@@ -1071,6 +1504,7 @@ export function createRemasterSimulation(
           p.stateTimer -= dt;
           if (p.stateTimer <= 0) {
             p.life = 'active';
+            p.respawnGraceTimer = 1.6;
             physics.setMarbleKinematic(idx, false);
           }
           continue;
@@ -1112,10 +1546,15 @@ export function createRemasterSimulation(
           p.iceGlideVel = undefined;
           events.push({ type: 'iceLeave', player: p.id });
         }
-        // Keep constant horizontal glide speed & direction across the ice zone
-        // (ignoring concave bowl slope gravity) so the marble never oscillates
-        // or stalls in the Level 2 ice basin, while wall bounces redirect it.
-        if (nowOnIce && p.grounded && p.iceGlideVel) {
+        // Keep constant horizontal glide speed & direction ONLY on Level 2's concave ice basin
+        // (so the bowl never traps or oscillates the marble, while Level 4's frictionless
+        // start beams accelerate freely downhill under gravity!).
+        if (
+          level.courseIndex === 2 &&
+          nowOnIce &&
+          p.grounded &&
+          p.iceGlideVel
+        ) {
           if (body.wallImpactSpeed && body.wallImpactSpeed > 0.5) {
             const postSpeed = Math.hypot(p.velocity.x, p.velocity.z);
             if (postSpeed > 0.5) {
@@ -1130,26 +1569,76 @@ export function createRemasterSimulation(
             physics.setMarbleVelocity?.(idx, p.velocity);
           }
         }
+        // Keep Level 4's 1-cell-wide frictionless start beams dead straight along their rail
+        // (eliminating Havok triangle-seam lateral drift) and cap downhill speed to 10.8 cells/s.
+        if (level.courseIndex === 4 && nowOnIce && p.grounded && mainLayer) {
+          const cellX =
+            p.position.x + mainLayer.origin.x + mainLayer.columns / 2;
+          const cellZ = p.position.z + mainLayer.origin.z + mainLayer.rows / 2;
+          const onBeamX = Math.floor(cellZ) === 23 && Math.floor(cellX) !== 22;
+          const onBeamZ = Math.floor(cellX) === 22 && Math.floor(cellZ) !== 23;
+          let changed = false;
+          if (onBeamX) {
+            const centerWorldZ = 23.5 - mainLayer.origin.z - mainLayer.rows / 2;
+            if (Math.abs(p.position.z - centerWorldZ) > 0.01) {
+              p.position.z = centerWorldZ;
+              physics.setMarblePosition(idx, p.position);
+            }
+            if (Math.abs(p.velocity.z) > 0.001) {
+              p.velocity.z = 0;
+              changed = true;
+            }
+          } else if (onBeamZ) {
+            const centerWorldX =
+              22.5 - mainLayer.origin.x - mainLayer.columns / 2;
+            if (Math.abs(p.position.x - centerWorldX) > 0.01) {
+              p.position.x = centerWorldX;
+              physics.setMarblePosition(idx, p.position);
+            }
+            if (Math.abs(p.velocity.x) > 0.001) {
+              p.velocity.x = 0;
+              changed = true;
+            }
+          }
+          const beamSpeed = Math.hypot(p.velocity.x, p.velocity.z);
+          const maxBeamSpeed = 10.8;
+          if (beamSpeed > maxBeamSpeed) {
+            const s = maxBeamSpeed / beamSpeed;
+            p.velocity.x *= s;
+            p.velocity.z *= s;
+            changed = true;
+          }
+          if (changed) {
+            physics.setMarbleVelocity?.(idx, p.velocity);
+          }
+        }
         p.surface = nowOnIce
           ? 'ice'
           : sampleSurfaceAt(level, body.position.x, body.position.z);
         physics.setMarbleSurface?.(idx, p.surface);
       }
 
-      // Resolve Level 2 animated drawbridge and pipe entries BEFORE void-fall checks
-      // so marbles dropping down the vertical blue drop-pipe mouth are captured instead of killed.
+      // Resolve Level 2 animated drawbridge, pipes & Level 3 mechanics BEFORE void-fall checks
+      // so marbles dropping down vertical pipe mouths or riding the wave are handled cleanly.
       updateBridgeCrossing(dt, events);
       updatePipeTraversals(dt, events);
+      updateLevel3Mechanics(dt, events);
+      updateLevel4Mechanics(dt, events);
 
       for (let i = 0; i < players.length; i++) {
         const p = players[i]!;
         const idx = i as 0 | 1;
         if (
           p.life === 'shattered' ||
+          p.life === 'melting' ||
+          p.life === 'suctioned' ||
           p.life === 'falling' ||
           p.life === 'respawning' ||
-          p.life === 'goal'
+          p.life === 'goal' ||
+          p.pipeTraversal !== undefined ||
+          p.level3PipeActive
         ) {
+          if (p.life !== 'goal') allAtGoal = false;
           continue;
         }
         const body = physics.readMarble(idx);
@@ -1177,19 +1666,28 @@ export function createRemasterSimulation(
           p.score += gained * REMASTER_RULES.progressPointsPerCell;
         }
 
-        // Detect Level 2 pipe mouths early so neither airborne fall whistle nor void-fall fires inside a pipe.
+        // Detect Level 2 & Level 3 pipe mouths early so neither airborne fall whistle nor void-fall fires inside a pipe.
+        const pipeFrame = mainLayer
+          ? {
+              originX: mainLayer.origin.x,
+              originZ: mainLayer.origin.z,
+              columns: mainLayer.columns,
+              rows: mainLayer.rows,
+            }
+          : undefined;
         const inPipeMouth =
-          level.courseIndex === 2 &&
-          mainLayer !== undefined &&
-          (p.pipeTraversal !== undefined ||
-            probePipeEntry(
-              romWorldToArcade(p.position, {
-                originX: mainLayer.origin.x,
-                originZ: mainLayer.origin.z,
-                columns: mainLayer.columns,
-                rows: mainLayer.rows,
-              }),
-            ).kind !== 'none');
+          (level.courseIndex === 2 &&
+            pipeFrame !== undefined &&
+            (p.pipeTraversal !== undefined ||
+              probePipeEntry(romWorldToArcade(p.position, pipeFrame)).kind !==
+                'none')) ||
+          (level.courseIndex === 3 &&
+            pipeFrame !== undefined &&
+            (p.level3PipeActive ||
+              (() => {
+                const pt = romWorldToArcade(p.position, pipeFrame);
+                return probeLevel3CopperPipe(pt.x, pt.z, pt.height) !== 'none';
+              })()));
 
         // Track airborne peak height so drops > 3 cells shatter and drops < 3 cells dizzy.
         const justLanded = !p.wasGrounded && p.grounded;
@@ -1201,6 +1699,7 @@ export function createRemasterSimulation(
           currentGround === null ? Infinity : p.position.y - currentGround;
         if (!p.grounded) {
           p.airbornePeakY = Math.max(p.airbornePeakY, p.position.y);
+          p.airborneHorizVel = { x: p.velocity.x, z: p.velocity.z };
           // ROM 0x12482: trigger fall whistle (0x45) immediately at take-off when ground
           // drops > 8 arcade units (~0.75 world units) below the marble so its 233 ms
           // YM2151 attack ramps up before shatter or dizzy landing.
@@ -1214,6 +1713,30 @@ export function createRemasterSimulation(
             events.push({ type: 'fall', player: p.id });
           }
         } else {
+          // Preserve horizontal jump momentum across touchdown (matches 68010 where
+          // vertical landing never applies a Coulomb friction brake to horizontal velocity,
+          // so jumps off the Level 4 suspension bridge require active counter-spin to stop).
+          if (
+            justLanded &&
+            p.airborneHorizVel &&
+            !p.bridgeSupported &&
+            !(body.wallImpactSpeed && body.wallImpactSpeed > 0) &&
+            p.velocity.x * p.airborneHorizVel.x +
+              p.velocity.z * p.airborneHorizVel.z >=
+              0
+          ) {
+            const prevSpeed = Math.hypot(
+              p.airborneHorizVel.x,
+              p.airborneHorizVel.z,
+            );
+            const currSpeed = Math.hypot(p.velocity.x, p.velocity.z);
+            if (prevSpeed > 1.5 && currSpeed < prevSpeed * 0.92) {
+              p.velocity.x = p.airborneHorizVel.x;
+              p.velocity.z = p.airborneHorizVel.z;
+              physics.setMarbleVelocity?.(idx, p.velocity);
+            }
+          }
+          p.airborneHorizVel = undefined;
           p.airbornePeakY = p.position.y;
           p.airborneFallPlayed = false;
         }
@@ -1226,7 +1749,20 @@ export function createRemasterSimulation(
           mainLayer &&
           !p.onRomIce &&
           !p.bridgeSupported &&
-          p.surface === 'stone'
+          !p.waveSupported &&
+          p.surface === 'stone' &&
+          (level.courseIndex !== 3 ||
+            !touchesLevel3Amoeba(
+              amoebas,
+              body.position.x + mainLayer.origin.x + mainLayer.columns / 2,
+              body.position.z + mainLayer.origin.z + mainLayer.rows / 2,
+              1.8,
+            )) &&
+          (level.courseIndex !== 4 ||
+            !isNearLevel4Vacuum(
+              body.position.x + mainLayer.origin.x + mainLayer.columns / 2,
+              body.position.z + mainLayer.origin.z + mainLayer.rows / 2,
+            ))
         ) {
           const bx = body.position.x;
           const bz = body.position.z;
@@ -1260,8 +1796,9 @@ export function createRemasterSimulation(
 
         // Shatter on > 3-cell drop or excessive vertical impact; dizzy on ~1.4..3-cell drop.
         const hardShatter =
-          body.impactSpeed >= REMASTER_PHYSICS.shatterImpactSpeed ||
-          (justLanded && dropY > REMASTER_RULES.shatterDropWorldY);
+          p.catapultCooldown <= 0 &&
+          (body.impactSpeed >= REMASTER_PHYSICS.shatterImpactSpeed ||
+            (justLanded && dropY > REMASTER_RULES.shatterDropWorldY));
         const dizzyLanding =
           body.impactSpeed >= 7.5 ||
           (justLanded && dropY >= REMASTER_RULES.dizzyDropWorldY);
@@ -1299,12 +1836,14 @@ export function createRemasterSimulation(
         // or below killY. Keep marble dynamic so it visibly falls off the bottom of the screen.
         const droppedOverVoid =
           !p.bridgeSupported &&
+          !p.waveSupported &&
           !inPipeMouth &&
           currentGround === null &&
           p.position.y < p.lastSafe.y - 2.4 &&
           p.velocity.y < -4.0;
         if (
           !p.bridgeSupported &&
+          !p.waveSupported &&
           !inPipeMouth &&
           (p.position.y < level.killY || droppedOverVoid)
         ) {
@@ -1381,8 +1920,13 @@ export function createRemasterSimulation(
       // Phase B (patrol/chase): patrol the plateau and intercept nearby players.
       for (let ei = 0; ei < enemies.length; ei++) {
         const enemy = enemies[ei]!;
+        if (enemy.eliminated) continue;
         if (enemy.hitCooldown > 0) {
           enemy.hitCooldown = Math.max(0, enemy.hitCooldown - dt);
+        }
+        if (enemy.lastHitTimer > 0) {
+          enemy.lastHitTimer = Math.max(0, enemy.lastHitTimer - dt);
+          if (enemy.lastHitTimer <= 0) enemy.lastHitBy = undefined;
         }
 
         let targetX: number;
@@ -1406,7 +1950,7 @@ export function createRemasterSimulation(
 
         let controllerForce: { x: number; z: number } | undefined;
         let selfCell: { x: number; z: number } | undefined;
-        if (enemy.controllerState) {
+        if (enemy.controllerState && enemy.controllerSpec) {
           const columns = mainLayer?.columns ?? 0;
           const rows = mainLayer?.rows ?? 0;
           const origin = mainLayer?.origin ?? { x: 0, z: 0 };
@@ -1415,7 +1959,7 @@ export function createRemasterSimulation(
             z: position.z + origin.z + rows / 2,
           });
           selfCell = worldToCell(enemy.position);
-          if (selfCell.x <= 27) {
+          if (enemy.id === 'level2-black-marble' && selfCell.x <= 27) {
             enemy.reachedPlateau = true;
           }
           const playerViews: EnemyPlayerView[] = players.map((player) => {
@@ -1430,7 +1974,7 @@ export function createRemasterSimulation(
             };
           });
           const controller = stepEnemyMarble(
-            LEVEL2_BLACK_MARBLE,
+            enemy.controllerSpec,
             enemy.controllerState,
             {
               x: selfCell.x,
@@ -1447,9 +1991,13 @@ export function createRemasterSimulation(
           targetX = controller.steeringTarget.x - origin.x - columns / 2;
           targetZ = controller.steeringTarget.z - origin.z - rows / 2;
 
-          // Safety clamp: once on the upper plateau, the Black Marble NEVER descends
+          // Safety clamp: once on the Level 2 upper plateau, the Black Marble NEVER descends
           // past halfway down the ramp (cell x >= 32.0); it turns back up immediately.
-          if (enemy.reachedPlateau && selfCell.x >= 32.0) {
+          if (
+            enemy.id === 'level2-black-marble' &&
+            enemy.reachedPlateau &&
+            selfCell.x >= 32.0
+          ) {
             targetX = 24 - origin.x - columns / 2;
             targetZ = 35.5 - origin.z - rows / 2;
             controllerForce = { x: -24, z: (35.5 - selfCell.z) * 10 };
@@ -1466,7 +2014,7 @@ export function createRemasterSimulation(
               enemy.hitCooldown <= 0 &&
               bestDist < 3.2 &&
               bestDist > 0.5 &&
-              selfCell.x < 31.0
+              (enemy.id !== 'level2-black-marble' || selfCell.x < 31.0)
             ) {
               const lx =
                 (nearestPlayer.position.x - enemy.position.x) / bestDist;
@@ -1512,7 +2060,56 @@ export function createRemasterSimulation(
         const dist = Math.hypot(dx, dz);
 
         if (physics.applyEnemyForce && physics.readEnemy) {
-          if (dist > 0.25) {
+          // Solid-terrain void-edge guard: when unbumped by a player (lastHitTimer <= 0)
+          // and standing on solid terrain, a Black Marble MUST NEVER wander off a void edge.
+          let edgeRecoveryForce: { x: number; z: number } | undefined;
+          if (
+            mainLayer &&
+            enemy.lastHitTimer <= 0 &&
+            sampleLayerHeight(mainLayer, enemy.position.x, enemy.position.z) !==
+              null
+          ) {
+            const predX = enemy.position.x + enemy.velocity.x * 0.28;
+            const predZ = enemy.position.z + enemy.velocity.z * 0.28;
+            const nearVoid =
+              sampleLayerHeight(mainLayer, predX, predZ) === null ||
+              sampleLayerHeight(
+                mainLayer,
+                enemy.position.x + 0.95,
+                enemy.position.z,
+              ) === null ||
+              sampleLayerHeight(
+                mainLayer,
+                enemy.position.x - 0.95,
+                enemy.position.z,
+              ) === null ||
+              sampleLayerHeight(
+                mainLayer,
+                enemy.position.x,
+                enemy.position.z + 0.95,
+              ) === null ||
+              sampleLayerHeight(
+                mainLayer,
+                enemy.position.x,
+                enemy.position.z - 0.95,
+              ) === null;
+            if (nearVoid) {
+              const ix = enemy.patrolCenter.x - enemy.position.x;
+              const iz = enemy.patrolCenter.z - enemy.position.z;
+              const ilen = Math.max(0.01, Math.hypot(ix, iz));
+              edgeRecoveryForce = {
+                x: (ix / ilen) * 34 - enemy.velocity.x * 4,
+                z: (iz / ilen) * 34 - enemy.velocity.z * 4,
+              };
+            }
+          }
+          if (edgeRecoveryForce) {
+            physics.applyEnemyForce(
+              ei,
+              edgeRecoveryForce.x,
+              edgeRecoveryForce.z,
+            );
+          } else if (dist > 0.25) {
             if (controllerForce) {
               physics.applyEnemyForce(ei, controllerForce.x, controllerForce.z);
             } else {
@@ -1527,22 +2124,22 @@ export function createRemasterSimulation(
           const snap = physics.readEnemy(ei);
           enemy.position = { ...snap.position };
           enemy.velocity = { x: snap.velocity.x, z: snap.velocity.z };
-          // If knocked into the abyss, award +1000 arcade bonus and respawn at home.
+          // Once bumped off by a player, a Black Marble NEVER respawns and awards +1000.
+          // If it somehow slipped off without being touched (lastHitTimer <= 0), restore it at home.
           if (enemy.position.y < level.killY) {
-            const victor = nearestPlayer ?? players[0];
-            if (victor) {
-              victor.score += 1000;
-              victor.scoreAward = { points: 1000, timer: 1.6 };
+            if (enemy.lastHitTimer > 0 && enemy.lastHitBy !== undefined) {
+              const victor = players[enemy.lastHitBy];
+              if (victor) {
+                victor.score += 1000;
+                victor.scoreAward = { points: 1000, timer: 1.6 };
+              }
+              enemy.eliminated = true;
+              enemy.velocity = { x: 0, z: 0 };
+            } else {
+              enemy.position = { ...enemy.home };
+              enemy.velocity = { x: 0, z: 0 };
+              physics.teleportEnemy?.(ei, enemy.home);
             }
-            enemy.position = { ...enemy.home };
-            enemy.velocity = { x: 0, z: 0 };
-            enemy.climbing =
-              level.courseIndex === 2 && enemy.id === 'level2-black-marble';
-            enemy.reachedPlateau = false;
-            enemy.controllerState = enemy.controllerState
-              ? createEnemyMarbleState()
-              : undefined;
-            physics.teleportEnemy?.(ei, enemy.home);
             continue;
           }
         } else {
@@ -1585,9 +2182,9 @@ export function createRemasterSimulation(
             contactDist < REMASTER_PHYSICS.marbleRadius * 2.25) &&
           enemy.hitCooldown <= 0
         ) {
-          if (enemy.controllerState && selfCell) {
+          if (enemy.controllerState && enemy.controllerSpec && selfCell) {
             enemy.controllerState = bumpEnemyMarble(
-              LEVEL2_BLACK_MARBLE,
+              enemy.controllerSpec,
               enemy.controllerState,
               selfCell,
             );
@@ -1615,6 +2212,8 @@ export function createRemasterSimulation(
             );
           }
           enemy.hitCooldown = 1.1;
+          enemy.lastHitBy = nearestIdx;
+          enemy.lastHitTimer = 5.0;
           if (relSpeed > 9.5) {
             if (nearestPlayer.dizzyTimer <= 0) {
               events.push({ type: 'dizzy', player: nearestPlayer.id });

@@ -1,5 +1,55 @@
 # Handoff
 
+## Remaster Level 4 ROM piston state machine, Black Marble void-edge guard & vacuum respawn safety — November 27, 2026
+
+- **Exact 68010 ROM Level 4 piston state machine (`0x18476..0x18550`, `0x186ac..0x187c0`)** in `src/remaster/level4/level4RomData.ts` & `level4Mechanics.ts`:
+  - Implemented the exact 30 Hz tick countdown (`LEVEL4_PISTON_INIT_DELAYS_BANKS_0_1` from `0x242c6`/`0x242de`, `100`-tick reload from `0x242f6`, 4 random Bank-2 patterns `0x243e6[rand % 4]` rolled via `0x1871a` on zone 4/5 trigger, and 13-tick `0x21342` pop-up sequence = `0.10 s` rise, `0.233 s` hold, `0.10 s` drop).
+- **Black Marble never falls off by itself** in `src/remaster/level4/level4RomData.ts` & `src/remaster/engine/remasterSimulation.ts`:
+  - Added `LEVEL4_BLACK_MARBLE` (ROM graph `0x2280a`, 7 nodes) wired into `stepEnemyMarble()` / `bumpEnemyMarble()`.
+  - Added a universal solid-terrain void-edge guard for all unbumped Black Marbles (`enemy.lastHitTimer <= 0`): probes `0.95` cells around and `0.28 s` ahead, pulls strongly inward toward `patrolCenter` near any void lip, and restores at `home` if it ever falls without a player bump (while bumped Black Marbles fall off, award `+1000`, and stay permanently eliminated).
+- **Vacuum respawn safety** in `src/remaster/level4/level4Mechanics.ts` & `src/remaster/engine/remasterSimulation.ts`:
+  - Added `isNearLevel4Vacuum()` (`radius = 4.8` cells) to prevent `lastSafe` checkpoints from ever being saved inside a vacuum's hazard zone even while retracted.
+  - Added a `1.6 s` post-respawn vacuum immunity timer (`respawnGraceTimer`) when transitioning `'respawning' -> 'active'` so players always have time to regain control.
+- **Level 4 start beams & full braking authority** in `src/remaster/engine/remasterSimulation.ts` & `src/remaster/physics/createHavokBackend.ts`:
+  - Centered P1 (`z = 23`) and P2 (`x = 22`) frictionless start beams on their rail axis (zero lateral Havok triangle-seam drift), fixed P1 `startLiftTimer` direction (`+X`), capped downhill beam speed to `10.8` cells/s, and removed speed-limit throttling on braking / counter-spin (`fx * vx + fz * vz < 0`).
+- **Exact 68010 ROM Level 4 hammers (`0x1d40c..0x1d742`, `0x1ded8`, `0x22346`, `0x2a9a2..0x2ab74`)** in `src/remaster/level4/level4RomData.ts`, `level4Mechanics.ts` & `remasterSimulation.ts`:
+  - Implemented all 4 random ROM timing patterns (`rand(4)` at `0x12e50`, 30 Hz ticks, 15 frames × 2 ticks/frame = `1.0 s` swing), exact per-frame ROM hitboxes (`0x22346`, protruding up to `1.0` cell), and subtle radial bump (`5.2` cells/s) + **`2.0 s` dizzy (`60` ticks = `0x3c`) + SFX `0x39`**.
+- **Validation**:
+  - `npm run format && npm run check`: **OK** (124 test files / 816 Vitest tests, ≥ 90% V8 coverage, lint, typecheck, Vite build).
+  - `npx playwright test tests/browser/remaster.spec.ts --reporter=list`: **4/4 OK**.
+- **Next action**: human playtest by Michel on `http://127.0.0.1:5173/remaster.html` (`4 · Aerial`) to validate the 30 Hz ROM pistons, Black Marble presence at the catapult deck, and vacuum respawn comfort.
+
+## Remaster Level 4 (Aerial Race) ROM decode, simulation & 3D integration — November 27, 2026
+
+- **Decoded Level 4 directly from 68010 ROM (`roms/marble.zip`, course descriptor `0x2d648`)**:
+  - **Spawns & GOAL**: P1 at `(10.5, 23.5, 16384)`, P2 at `(22.5, 9.5, 16384)` on the crossing frictionless start beams (ROM tags `0x17`/`0x18`, already handled by `romSurfaceZones.ts`), `GOAL` at `level4Goal` (`113..117, 104..114`, `h = 16228`), `timerSeconds: 70`, `level4OpeningScroll = -16152`.
+  - **1 Black Marble (`0x22746`, `graph = 0x2280a`)**: spawns at `(67.5, 53.5, 16300)` patrolling `(62..67, 49..53)` above the piston corridor (0 worms, 0 acid).
+  - **6 Yellow Vacuum Cleaners (`0x1d7d0..0x1d83e`)**: cyclic extension (`0..1`) + active mouth tremor synced to `setLevel4VacuumExtensions()`, radial suction pull within `4.6` cells, capture into `suctioned` (`0.95 s`, driving `createMarbleSuction()` VFX + `suction` SFX) followed by respawn.
+  - **36 Chrome Pistons (`0x24406 / 0x2442a / 0x2444e`)**: 3 banks of 3×4 pistons (`69..71 × 55..58`, `69..71 × 63..66`, `76..78 × 74..77`) synced to `setLevel4Pistons()` with knockback on raised pistons (`step >= 3`).
+  - **Red Catapult (`0x1db6a`, handler `0x29e22`)**: cup at `(63, 70)` launching the marble up and back along `-Z` (`vy = 16.8, vz = -12.0`) with shatter immunity during the arc and 20-frame arm animation synced to `setLevel4CatapultFrame()`.
+  - **4 Wooden Swinging Hammers (`x = 105`, `z ∈ {102.5, 104.5, 106.5, 108.5}`)**: 15-frame ROM swing sequence synced to `setLevel4HammerFrames()` with sideways strike knockback.
+  - **Music & UI**: wired `07 Level 4-1.vgz` (`level4-aerial.vgz`) in `createRemasterAudio.ts` & `build-remaster.mjs`, added **`4 · Aerial`** to `remaster.html` & `remaster.ts` (`KeyN` advances `1 → 2 → 3 → 4`).
+- **New modules**: `src/remaster/level4/level4RomData.ts`, `src/remaster/level4/level4Mechanics.ts`, `src/remaster/level4/level4Mechanics.test.ts` (added to `vite.config.ts` ≥ 90% V8 coverage scope).
+- **Validation**:
+  - `npm run format && npm run check`: **OK** (124 test files / 813 Vitest tests, ≥ 90% V8 coverage, lint, typecheck, Vite build).
+  - `npx playwright test tests/browser/remaster.spec.ts --reporter=list`: **4/4 OK** (Levels 1–4 in Chromium WebGL + Havok with zero console errors).
+- **Next action**: human playtest by Michel on `http://127.0.0.1:5173/remaster.html` (`4 · Aerial`) to verify the start beams, vacuums, Black Marble, pistons, catapult launch arc, hammers, and camera scrolling.
+
+## Remaster Level 3 (Intermediate Race) ROM decode, simulation & 3D integration — November 27, 2026
+
+- **Decoded Level 3 directly from 68010 ROM (`roms/marble.zip`, course descriptor `0x2cd9e`)**:
+  - **Spawns & GOAL**: P1 at `(22.5, 9.5, 16408)`, P2 at `(8.5, 23.5, 16408)` (opening twin towers), `GOAL` at `level3Goal` (`92..95, 101..110`, height `16100`), `timerSeconds: 60`, 0 Black Marbles, **2 Green Worms** (`0x225ba` / `LEVEL3_WORM_SPAWNS` patrolling `(44, 33..37)` and `(32..36, 43..45)` with `level3OpeningScroll` and `lastWormViewRow` starting at `wormWorld.viewRow`).
+  - **7 Acid Amoeba pools (`0x23daa` + `0x23d62`)**: 1 upper-terrace 4-point loop (`0x23e22`) + 6 staggered lower-terrace pools patrolling the exact 18-point closed loop (`0x23e36..0x23fb2`).
+  - **Acid dissolve (`0x1768c..0x176a2`)**: ROM animation state `9` (`melting`, `1.15 s` driven through `createAcidDissolve()` 3D fizz/shrink VFX) + exported POKEY **SFX `0x5e`** (`sfx-acid-dissolve.vgm`), followed by safe respawn at `lastSafe` (excluding wave & amoeba radius).
+  - **Copper vertical funnel pipe (`0x1ddbc`/`0x1ddd4`, handler `0x2a5e6`)**: enter window `cellX 75..78, cellZ 78..82`, `ignoreAtOrBelow 0x3f80`, `rimFrom 0x3fb0`, `mouthFrom 0x3fa0`, exit `(77.5, 74.5)` with `-Z` roll-out velocity, `1.05 s` smooth interpolation, `0x35` pipe SFX, and `+4000` score.
+  - **Animated turquoise wave (`0x1d0a0`, `waveRegion 81..84 × 76..97`)**: 22-tile traveling crest profile synced to `setLevel3WaveProfile()` with dynamic surface lift and longitudinal traveling-wave slope acceleration.
+  - **Music & UI**: wired `06 Level 3.vgz` (`level3-intermediate.vgz`) in `createRemasterAudio.ts` & `build-remaster.mjs`, added **`3 · Intermediate`** to `remaster.html` & `remaster.ts` (`KeyN` advances `1 → 2 → 3`).
+- **New modules**: `src/remaster/level3/level3RomData.ts`, `src/remaster/level3/level3Mechanics.ts`, `src/remaster/level3/level3Mechanics.test.ts` (added to `vite.config.ts` ≥ 90% V8 coverage scope).
+- **Validation**:
+  - `npm run format && npm run check`: **OK** (123 test files / 807 Vitest tests, ≥ 90% V8 coverage, lint, typecheck, Vite build).
+  - `npx playwright test tests/browser/remaster.spec.ts --reporter=list`: **3/3 OK** (Level 1, Level 2, and Level 3 in Chromium WebGL + Havok with zero console errors).
+- **Next action**: human playtest by Michel on `http://127.0.0.1:5173/remaster.html` (`3 · Intermediate`) to tune wave surfing push, copper pipe entry/exit feel, acid amoeba speed/hitbox, and Level 3 camera scrolling.
+
 ## Remaster constant-velocity ice glide, uncut shatter→broom SFX & merge to `Remaster` — November 26, 2026
 
 - **Eliminated Level 2 ice-basin oscillation (`src/remaster/engine/remasterSimulation.ts`, `remasterSimulation.test.ts`)**:

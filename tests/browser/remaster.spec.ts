@@ -65,3 +65,49 @@ test('remaster.html loads Level 2 with the green-worm presentation', async ({
 
   expect(errors).toEqual([]);
 });
+
+test('remaster.html loads Level 3 with wave, copper pipe, worms, and acid amoebas', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (err) => errors.push(String(err)));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(msg.text());
+  });
+
+  await page.goto('/remaster.html');
+  await page.locator('#level-select').selectOption('3');
+  await expect(page.locator('#remaster-canvas')).toBeVisible();
+  await expect
+    .poll(() => page.locator('#hud-status').textContent(), { timeout: 15_000 })
+    .toBe('FLYOVER');
+
+  await page.keyboard.press('Space');
+  await expect(page.locator('#hud-status')).toHaveText('PLAYING');
+  await page.waitForTimeout(250);
+
+  expect(errors).toEqual([]);
+});
+
+test('remaster.html loads Level 4 with vacuums, pistons, catapult, and hammers', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (err) => errors.push(String(err)));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(msg.text());
+  });
+
+  await page.goto('/remaster.html');
+  await page.locator('#level-select').selectOption('4');
+  await expect(page.locator('#remaster-canvas')).toBeVisible();
+  await expect
+    .poll(() => page.locator('#hud-status').textContent(), { timeout: 15_000 })
+    .toBe('FLYOVER');
+
+  await page.keyboard.press('Space');
+  await expect(page.locator('#hud-status')).toHaveText('PLAYING');
+  await page.waitForTimeout(250);
+
+  expect(errors).toEqual([]);
+});

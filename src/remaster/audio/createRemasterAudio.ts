@@ -71,6 +71,8 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
   let currentCourse = 1;
   let levelThemeVgm: ParsedVgm | null = null;
   let level2ThemeVgm: ParsedVgm | null = null;
+  let level3ThemeVgm: ParsedVgm | null = null;
+  let level4ThemeVgm: ParsedVgm | null = null;
   let goalFanfareVgm: ParsedVgm | null = null;
   let goalFanfareP2Vgm: ParsedVgm | null = null;
   let gameOverVgm: ParsedVgm | null = null;
@@ -180,6 +182,8 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       bankRes,
       levelTrack,
       level2Track,
+      level3Track,
+      level4Track,
       goalTrack,
       goalP2Track,
       gameOverTrack,
@@ -190,6 +194,16 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
         ? fetchFirstVgm(['/__local-roms/level2-beginner.vgz'])
         : !import.meta.env.DEV
           ? fetchFirstVgm([`${prefix}assets/audio/level2-beginner.vgz`])
+          : Promise.resolve(null),
+      localVgms.has('level3-intermediate.vgz')
+        ? fetchFirstVgm(['/__local-roms/level3-intermediate.vgz'])
+        : !import.meta.env.DEV
+          ? fetchFirstVgm([`${prefix}assets/audio/level3-intermediate.vgz`])
+          : Promise.resolve(null),
+      localVgms.has('level4-aerial.vgz')
+        ? fetchFirstVgm(['/__local-roms/level4-aerial.vgz'])
+        : !import.meta.env.DEV
+          ? fetchFirstVgm([`${prefix}assets/audio/level4-aerial.vgz`])
           : Promise.resolve(null),
       fetchFirstVgm(resolveTrackUrls('goal-fanfare')),
       localVgms.has('goal-fanfare-p2.vgz')
@@ -212,6 +226,8 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     }
     levelThemeVgm = levelTrack;
     level2ThemeVgm = level2Track;
+    level3ThemeVgm = level3Track;
+    level4ThemeVgm = level4Track;
     goalFanfareVgm = goalTrack;
     goalFanfareP2Vgm = goalP2Track;
     gameOverVgm = gameOverTrack;
@@ -232,6 +248,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       'sfx-pipe.vgm',
       'sfx-ice-enter.vgm',
       'sfx-ice-leave.vgm',
+      'sfx-acid-dissolve.vgm',
       'sfx-countdown.vgm',
     ];
     const mappedNames = sfxBank.romSfx
@@ -312,7 +329,13 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     playLevelTheme(courseIndex = currentCourse) {
       currentCourse = courseIndex;
       const track =
-        courseIndex === 2 && level2ThemeVgm ? level2ThemeVgm : levelThemeVgm;
+        courseIndex === 4 && level4ThemeVgm
+          ? level4ThemeVgm
+          : courseIndex === 3 && level3ThemeVgm
+            ? level3ThemeVgm
+            : courseIndex === 2 && level2ThemeVgm
+              ? level2ThemeVgm
+              : levelThemeVgm;
       playTrack(customVgm ?? track);
     },
 
@@ -410,6 +433,24 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
           }
         } else if (ev.type === 'iceLeave') {
           playTriggerSfx('iceLeave', 'sfx-ice-leave.vgm');
+        } else if (ev.type === 'acidDissolve' || ev.type === 'suction') {
+          if (!playTriggerSfx('acidDissolve', 'sfx-acid-dissolve.vgm')) {
+            post({
+              type: 'batch',
+              ops: [
+                [1, 0x02, 18],
+                [1, 0x03, 0x89],
+              ],
+            });
+            window.clearTimeout(shatterTimeout);
+            shatterTimeout = window.setTimeout(() => {
+              post({ type: 'pokey', reg: 0x03, val: 0x00 });
+            }, 650);
+          }
+        } else if (ev.type === 'catapult') {
+          if (!playTriggerSfx('pipeEnter', 'sfx-pipe.vgm')) {
+            triggerNote(cfg.respawn.channel, 74, 180);
+          }
         } else if (ev.type === 'shatter') {
           if (playTriggerSfx('shatter', 'sfx-shatter.vgm')) {
             const broomFile =

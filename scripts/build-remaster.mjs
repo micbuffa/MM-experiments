@@ -29,6 +29,18 @@ copyFileSync(
   resolve(root, 'local-roms/intermediate-terrain-pipes.json'),
   resolve(dataDir, 'intermediate-terrain-pipes.json'),
 );
+copyFileSync(
+  resolve(root, 'local-roms/level3-terrain.json'),
+  resolve(dataDir, 'level3-terrain.json'),
+);
+copyFileSync(
+  resolve(root, 'local-roms/level4-terrain.json'),
+  resolve(dataDir, 'level4-terrain.json'),
+);
+const rollingActorsSrc = resolve(root, 'local-roms/rolling-actors.json');
+if (existsSync(rollingActorsSrc)) {
+  copyFileSync(rollingActorsSrc, resolve(dataDir, 'rolling-actors.json'));
+}
 
 // Bundle local reference VGM tracks into dist-remaster/assets/audio/ when present
 // so Peter Salomonsen can test them directly on the live /remaster/ preview.
@@ -40,6 +52,8 @@ const vgmMap = [
   ['03 Player 1 Goal In.vgz', 'goal-fanfare.vgz'],
   ['04 Player 2 Goal In.vgz', 'goal-fanfare-p2.vgz'],
   ['05 Level 2.vgz', 'level2-beginner.vgz'],
+  ['06 Level 3.vgz', 'level3-intermediate.vgz'],
+  ['07 Level 4-1.vgz', 'level4-aerial.vgz'],
   ['13 Game Over.vgz', 'game-over.vgz'],
   ['sfx/sfx-wall-bounce.vgm', 'sfx-wall-bounce.vgm'],
   ['sfx/sfx-marble-clack.vgm', 'sfx-marble-clack.vgm'],
@@ -55,6 +69,7 @@ const vgmMap = [
   ['sfx/sfx-pipe.vgm', 'sfx-pipe.vgm'],
   ['sfx/sfx-ice-enter.vgm', 'sfx-ice-enter.vgm'],
   ['sfx/sfx-ice-leave.vgm', 'sfx-ice-leave.vgm'],
+  ['sfx/sfx-acid-dissolve.vgm', 'sfx-acid-dissolve.vgm'],
   ['sfx/sfx-countdown.vgm', 'sfx-countdown.vgm'],
 ];
 for (const [srcName, dstName] of vgmMap) {

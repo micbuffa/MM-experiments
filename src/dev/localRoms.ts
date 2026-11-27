@@ -64,6 +64,7 @@ const ORIGINAL_VGM_FILES: Readonly<Record<string, string>> = {
   'sfx-pipe.vgm': 'sfx/sfx-pipe.vgm',
   'sfx-ice-enter.vgm': 'sfx/sfx-ice-enter.vgm',
   'sfx-ice-leave.vgm': 'sfx/sfx-ice-leave.vgm',
+  'sfx-acid-dissolve.vgm': 'sfx/sfx-acid-dissolve.vgm',
   'sfx-countdown.vgm': 'sfx/sfx-countdown.vgm',
 };
 const LEVEL_PNG_FILES = new Map([

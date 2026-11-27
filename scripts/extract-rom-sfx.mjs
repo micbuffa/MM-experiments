@@ -877,6 +877,7 @@ const NAMED_SFX = [
   ['sfx-pipe.vgm', 0x35, 220], // 0x2a46a: pipe traversal
   ['sfx-ice-enter.vgm', 0x43, 180], // 0x2b19c: enter Level 2 ice zone (0x10)
   ['sfx-ice-leave.vgm', 0x44, 120], // 0x2b1ee: leave Level 2 ice zone
+  ['sfx-acid-dissolve.vgm', 0x5e, 260], // 0x1769e: Level 3 acid amoeba dissolve (POKEY fizz)
   ['sfx-countdown.vgm', 0x41, 120], // low-time countdown tick
 ];
 

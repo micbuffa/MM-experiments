@@ -327,8 +327,12 @@ export async function createHavokBackend(
       const limit = isBoosting
         ? REMASTER_PHYSICS.boostSpeedLimit
         : REMASTER_PHYSICS.flatSpeedLimit * speedScale;
+      // Only throttle forward acceleration above speed limit; never throttle braking / counter-spin!
+      const isBraking = fx * tmpVel.x + fz * tmpVel.z < 0;
       const scale =
-        speed > limit ? Math.max(0.2, 1 - (speed - limit) * 0.12) : 1;
+        !isBraking && speed > limit
+          ? Math.max(0.2, 1 - (speed - limit) * 0.12)
+          : 1;
 
       // Project uphill push force along the local terrain tangent so steep ramps
       // (~39° side-jump launchers) don't wedge the marble into the slope.

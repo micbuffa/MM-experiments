@@ -84,7 +84,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
   let disposed = false;
   let lastRollReg = -1;
   let shatterTimeout: number | undefined;
-  let dizzyProtectUntil = 0;
+  let prioritySfxUntil = 0;
 
   function post(msg: unknown) {
     if (ready && node && !disposed) node.port.postMessage(msg);
@@ -194,7 +194,9 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       goalP2Track,
       gameOverTrack,
     ] = await Promise.all([
-      fetch(`${prefix}assets/audio/sfx-bank.json`).catch(() => null),
+      fetch(`${prefix}assets/audio/sfx-bank.json`, { cache: 'no-cache' }).catch(
+        () => null,
+      ),
       fetchFirstVgm(resolveTrackUrls('level1-practice')),
       localVgms.has('level2-beginner.vgz')
         ? fetchFirstVgm(['/__local-roms/level2-beginner.vgz'])
@@ -273,6 +275,9 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       'sfx-ice-enter.vgm',
       'sfx-ice-leave.vgm',
       'sfx-acid-dissolve.vgm',
+      'sfx-mini-squash-acid.vgm',
+      'sfx-mini-squash-worm.vgm',
+      'sfx-mini-squash-black.vgm',
       'sfx-countdown.vgm',
     ];
     const mappedNames = sfxBank.romSfx
@@ -416,9 +421,23 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
         return true;
       };
       const hasImpactInBatch = events.some((e) => e.type === 'impact');
+      const hasPriorityInBatch = events.some(
+        (e) =>
+          e.type === 'pipeEnter' ||
+          e.type === 'catapult' ||
+          e.type === 'miniSquash' ||
+          e.type === 'wormEat' ||
+          e.type === 'acidDissolve' ||
+          e.type === 'shatter' ||
+          e.type === 'birdDeath',
+      );
+      const protectPriority = (ms: number) => {
+        prioritySfxUntil = Math.max(prioritySfxUntil, performance.now() + ms);
+      };
       for (const ev of events) {
         if (ev.type === 'impact') {
-          if (performance.now() < dizzyProtectUntil) continue;
+          if (hasPriorityInBatch || performance.now() < prioritySfxUntil)
+            continue;
           if (!playTriggerSfx('impact', 'sfx-impact.vgm')) {
             const midi =
               cfg.impact.baseMidi +
@@ -426,7 +445,8 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
             triggerNote(cfg.impact.channel, midi, cfg.impact.durationMs);
           }
         } else if (ev.type === 'wallBounce') {
-          if (performance.now() < dizzyProtectUntil) continue;
+          if (hasPriorityInBatch || performance.now() < prioritySfxUntil)
+            continue;
           if (!playTriggerSfx('wallBounce', 'sfx-wall-bounce.vgm')) {
             const wb = cfg.wallBounce ?? DEFAULT_SFX_BANK.events.wallBounce!;
             const midi =
@@ -448,10 +468,12 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
             triggerNote(mc.channel, midi, mc.durationMs);
           }
         } else if (ev.type === 'wormEat') {
+          protectPriority(700);
           if (!playTriggerSfx('wormEat', 'sfx-worm-eat.vgm')) {
             triggerNote(cfg.impact.channel, 34, 220);
           }
         } else if (ev.type === 'pipeEnter') {
+          protectPriority(850);
           if (!playTriggerSfx('pipeEnter', 'sfx-pipe.vgm')) {
             triggerNote(cfg.respawn.channel, 68, 180);
           }
@@ -462,6 +484,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
         } else if (ev.type === 'iceLeave') {
           playTriggerSfx('iceLeave', 'sfx-ice-leave.vgm');
         } else if (ev.type === 'acidDissolve' || ev.type === 'suction') {
+          protectPriority(900);
           if (!playTriggerSfx('acidDissolve', 'sfx-acid-dissolve.vgm')) {
             post({
               type: 'batch',
@@ -476,6 +499,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
             }, 650);
           }
         } else if (ev.type === 'catapult') {
+          protectPriority(850);
           if (!playTriggerSfx('pipeEnter', 'sfx-pipe.vgm')) {
             triggerNote(cfg.respawn.channel, 74, 180);
           }
@@ -492,10 +516,12 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
               : ev.kind === 'worm'
                 ? 'sfx-mini-squash-worm.vgm'
                 : 'sfx-mini-squash-acid.vgm';
+          protectPriority(650);
           if (!playTriggerSfx(trigger, fallbackFile)) {
             triggerNote(cfg.respawn.channel, 76, 120);
           }
         } else if (ev.type === 'birdDeath') {
+          protectPriority(900);
           // Special Level 5 bird death plays shatter crash WITHOUT the broom sweep!
           if (!playTriggerSfx('shatter', 'sfx-shatter.vgm')) {
             triggerNote(
@@ -505,6 +531,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
             );
           }
         } else if (ev.type === 'shatter') {
+          protectPriority(900);
           if (playTriggerSfx('shatter', 'sfx-shatter.vgm')) {
             const broomFile =
               sfxBank.romSfx?.broomSweep?.file ?? 'sfx-broom.vgm';
@@ -552,7 +579,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
           }
         } else if (ev.type === 'dizzy') {
           const playDizzy = () => {
-            dizzyProtectUntil = performance.now() + 1250;
+            protectPriority(1250);
             if (!playTriggerSfx('dizzy', 'sfx-dizzy.vgm')) {
               const dz = cfg.dizzy ?? DEFAULT_SFX_BANK.events.dizzy!;
               dz.notes.forEach((n, idx) => {

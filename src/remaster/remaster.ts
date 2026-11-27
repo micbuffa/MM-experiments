@@ -179,6 +179,7 @@ async function bootRemaster() {
   let wasAmigaStage = false;
   let autoAdvanceTimer = -1;
   let autoAdvancing = false;
+  let levelLoading = false;
   let victoryShownForRun = false;
   let twoPlayers = false;
   let timerFrozen = false;
@@ -333,32 +334,39 @@ async function bootRemaster() {
     course: RemasterCourseIndex,
     carryScores: readonly [number, number] = [0, 0],
   ) {
-    currentCourse = course;
-    statusEl.textContent = `LOADING LEVEL ${course}…`;
-    terrain = await loadCourseTerrain(course);
-    level = prepareLevel(terrain);
-    physics.dispose();
-    view.dispose();
-    view = createRemasterScene(engine, terrain, rollingActors);
-    view.camera.select(
-      screenMode === 'attract' ? attractCycle.cameraPreset : cameraPreset,
-    );
-    view.camera.setFov(fov);
-    physics = await createHavokBackend(view.scene, level, twoPlayers);
-    sim = createRemasterSimulation(
-      level,
-      physics,
-      twoPlayers,
-      Math.random,
-      carryScores,
-    );
-    sim.setTimerFrozen(timerFrozen);
-    accumulator = 0;
-    autoAdvanceTimer = -1;
-    if (screenMode === 'playing') {
-      audio.playLevelTheme(currentCourse);
+    levelLoading = true;
+    try {
+      statusEl.textContent = `LOADING LEVEL ${course}…`;
+      const nextTerrain = await loadCourseTerrain(course);
+      const nextLevel = prepareLevel(nextTerrain);
+      physics.dispose();
+      view.dispose();
+      terrain = nextTerrain;
+      level = nextLevel;
+      view = createRemasterScene(engine, terrain, rollingActors);
+      view.camera.select(
+        screenMode === 'attract' ? attractCycle.cameraPreset : cameraPreset,
+      );
+      view.camera.setFov(fov);
+      physics = await createHavokBackend(view.scene, level, twoPlayers);
+      currentCourse = course;
+      sim = createRemasterSimulation(
+        level,
+        physics,
+        twoPlayers,
+        Math.random,
+        carryScores,
+      );
+      sim.setTimerFrozen(timerFrozen);
+      accumulator = 0;
+      autoAdvanceTimer = -1;
+      if (screenMode === 'playing') {
+        audio.playLevelTheme(currentCourse);
+      }
+      updateToolbarLabels();
+    } finally {
+      levelLoading = false;
     }
-    updateToolbarLabels();
   }
 
   async function rebuildSession(
@@ -676,7 +684,10 @@ async function bootRemaster() {
       accumulator -= fixed;
     }
 
-    if (latestSnap.phase === 'gameOver' && !victoryShownForRun) {
+    if (levelLoading || autoAdvancing) {
+      // Async level transition in flight: never re-evaluate gameOver / victory
+      // against the outgoing simulation.
+    } else if (latestSnap.phase === 'gameOver' && !victoryShownForRun) {
       openVictory3D(
         latestSnap.players[0]?.score ?? 0,
         latestSnap.players[1]?.score,
@@ -688,7 +699,7 @@ async function bootRemaster() {
           latestSnap.players[0]?.score ?? 0,
           latestSnap.players[1]?.score,
         );
-      } else if (currentCourse < 6 && !autoAdvancing) {
+      } else if (currentCourse < 6) {
         if (autoAdvanceTimer < 0) {
           autoAdvanceTimer = AUTO_ADVANCE_DELAY_SECONDS;
         } else {

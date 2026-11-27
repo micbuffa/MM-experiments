@@ -111,3 +111,26 @@ test('remaster.html loads Level 4 with vacuums, pistons, catapult, and hammers',
 
   expect(errors).toEqual([]);
 });
+
+test('remaster.html loads Level 5 (Silly Race) uphill with miniature enemies and flying birds', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (err) => errors.push(String(err)));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(msg.text());
+  });
+
+  await page.goto('/remaster.html');
+  await page.locator('#level-select').selectOption('5');
+  await expect(page.locator('#remaster-canvas')).toBeVisible();
+  await expect
+    .poll(() => page.locator('#hud-status').textContent(), { timeout: 15_000 })
+    .toBe('FLYOVER');
+
+  await page.keyboard.press('Space');
+  await expect(page.locator('#hud-status')).toHaveText('PLAYING');
+  await page.waitForTimeout(250);
+
+  expect(errors).toEqual([]);
+});

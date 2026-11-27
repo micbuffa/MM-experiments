@@ -878,6 +878,9 @@ const NAMED_SFX = [
   ['sfx-ice-enter.vgm', 0x43, 180], // 0x2b19c: enter Level 2 ice zone (0x10)
   ['sfx-ice-leave.vgm', 0x44, 120], // 0x2b1ee: leave Level 2 ice zone
   ['sfx-acid-dissolve.vgm', 0x5e, 260], // 0x1769e: Level 3 acid amoeba dissolve (POKEY fizz)
+  ['sfx-mini-squash-worm.vgm', 0x5a, 180], // 0x1933a (type 8): Level 5 mini green worm squash (YM2151)
+  ['sfx-mini-squash-black.vgm', 0x5b, 180], // 0x1932a (type 7): Level 5 mini black marble squash (YM2151)
+  ['sfx-mini-squash-acid.vgm', 0x5c, 180], // 0x1930a (type 9): Level 5 mini acid amoeba squash (YM2151)
   ['sfx-countdown.vgm', 0x41, 120], // low-time countdown tick
 ];
 

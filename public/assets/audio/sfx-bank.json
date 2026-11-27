@@ -92,6 +92,24 @@
       "romCallSite": "0x1769e",
       "description": "Level 3 acid amoeba sizzle/dissolve (POKEY)"
     },
+    "miniSquashAcid": {
+      "file": "sfx-mini-squash-acid.vgm",
+      "romCommand": "0x5a",
+      "romCallSite": "0x1933c",
+      "description": "Level 5 mini acid amoeba squash (POKEY)"
+    },
+    "miniSquashWorm": {
+      "file": "sfx-mini-squash-worm.vgm",
+      "romCommand": "0x5b",
+      "romCallSite": "0x1932c",
+      "description": "Level 5 mini green worm squash (POKEY)"
+    },
+    "miniSquashBlack": {
+      "file": "sfx-mini-squash-black.vgm",
+      "romCommand": "0x5c",
+      "romCallSite": "0x1930c",
+      "description": "Level 5 mini black marble squash (POKEY)"
+    },
     "countdownTick": {
       "file": "sfx-countdown.vgm",
       "romCommand": "0x41",

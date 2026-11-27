@@ -1327,4 +1327,107 @@ describe('createRemasterSimulation', () => {
     expect(snap.events.some((e) => e.type === 'marbleClack')).toBe(true);
     expect(Math.abs(snap.players[0]!.velocity.x)).toBeLessThanOrEqual(5.5);
   });
+
+  it('runs Level 5 miniature squashes (+1000) and flying bird strikes (shatter)', () => {
+    const cells = Array.from({ length: 141 }, () =>
+      Array.from({ length: 141 }, () => [0, 0, 0, 0] as const),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 5,
+      direction: -1,
+      heightLayers: [
+        {
+          id: 'main',
+          columns: 141,
+          rows: 141,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      spawns: {
+        player1: { x: 125.5 - 70.5, y: 0, z: 124.5 - 70.5 },
+        player2: { x: 123.5 - 70.5, y: 0, z: 126.5 - 70.5 },
+      },
+      killY: -40,
+    };
+    const base = makeStubPhysics();
+    const sim = createRemasterSimulation(level, base, false, () => 0.5);
+    sim.skipOpening();
+
+    let snap = sim.step(1 / 60, []);
+    expect(snap.level5Actors).toHaveLength(19);
+
+    // 1. Roll over a miniature Silly -> +3 SEC time bonus, +500 score & marbleClack SFX
+    const timeBefore = snap.players[0]!.remainingTime;
+    const mini = snap.level5Actors.find((a) => a.kind === 'black')!;
+    base.marbles[0] = {
+      position: { x: mini.x / 8 - 70.5, y: 0, z: mini.z / 8 - 70.5 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.remainingTime).toBeGreaterThan(timeBefore + 2.5);
+    expect(snap.players[0]!.timeBonusTimer).toBeGreaterThan(1.0);
+    expect(snap.players[0]!.score).toBeGreaterThanOrEqual(500);
+    expect(snap.events.some((e) => e.type === 'miniSquash')).toBe(true);
+
+    // 2. Red inverted Y-pipe at (89, 90, h=16244) -> hides marble, plays pipeEnter, exits at upper outlet
+    const pipeEntryY = ((16244 - 16384) * Math.sqrt(2 / 3)) / 8;
+    base.marbles[0] = {
+      position: { x: 89 - 70.5, y: pipeEntryY, z: 90 - 70.5 },
+      velocity: { x: 0, y: 0, z: -2 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.pipeHidden).toBe(true);
+    expect(snap.events.some((e) => e.type === 'pipeEnter')).toBe(true);
+    snap = sim.step(0.4, []);
+    expect(snap.players[0]!.pipeHidden).toBe(true);
+    snap = sim.step(0.5, []);
+    expect(snap.players[0]!.pipeHidden).toBe(false);
+    expect(snap.players[0]!.velocity.z).toBeLessThan(-4);
+
+    // 3. Bidirectional Escher '?' seam: exact (+6, +6, +48) / (-6, -6, -48) isometric ray shift
+    const escherY = ((16368 - 16384) * Math.sqrt(2 / 3)) / 8;
+    base.marbles[0] = {
+      position: { x: 28.2 - 70.5, y: escherY, z: 16.0 - 70.5 },
+      velocity: { x: -3, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.position.x).toBeCloseTo(34.2 - 70.5, 1);
+    expect(snap.players[0]!.position.z).toBeCloseTo(22.0 - 70.5, 1);
+    // Turning back on the upper bridge after cooldown shifts by (-6, -6, -48)
+    sim.step(0.5, []);
+    const upperY = ((16416 - 16384) * Math.sqrt(2 / 3)) / 8;
+    base.marbles[0] = {
+      position: { x: 34.95 - 70.5, y: upperY, z: 22.5 - 70.5 },
+      velocity: { x: 3, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.position.x).toBeCloseTo(28.95 - 70.5, 1);
+    expect(snap.players[0]!.position.y).toBeCloseTo(escherY, 2);
+    expect(snap.players[0]!.position.z).toBeCloseTo(16.5 - 70.5, 1);
+
+    // 4. Collide with a flying bird -> special birdDead state (NO broom!)
+    const bird = snap.level5Actors.find(
+      (a) => a.kind === 'bird' && a.state === 1,
+    )!;
+    base.marbles[0] = {
+      position: { x: bird.x / 8 - 70.5, y: 0, z: bird.z / 8 - 70.5 },
+      velocity: { x: 0, y: 0, z: 0 },
+      grounded: true,
+      impactSpeed: 0,
+    };
+    snap = sim.step(1 / 60, []);
+    expect(snap.players[0]!.life).toBe('birdDead');
+    expect(snap.events.some((e) => e.type === 'birdDeath')).toBe(true);
+  });
 });

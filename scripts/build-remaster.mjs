@@ -37,6 +37,10 @@ copyFileSync(
   resolve(root, 'local-roms/level4-terrain.json'),
   resolve(dataDir, 'level4-terrain.json'),
 );
+copyFileSync(
+  resolve(root, 'local-roms/level5-terrain.json'),
+  resolve(dataDir, 'level5-terrain.json'),
+);
 const rollingActorsSrc = resolve(root, 'local-roms/rolling-actors.json');
 if (existsSync(rollingActorsSrc)) {
   copyFileSync(rollingActorsSrc, resolve(dataDir, 'rolling-actors.json'));
@@ -54,6 +58,7 @@ const vgmMap = [
   ['05 Level 2.vgz', 'level2-beginner.vgz'],
   ['06 Level 3.vgz', 'level3-intermediate.vgz'],
   ['07 Level 4-1.vgz', 'level4-aerial.vgz'],
+  ['09 Level 5.vgz', 'level5-silly.vgz'],
   ['13 Game Over.vgz', 'game-over.vgz'],
   ['sfx/sfx-wall-bounce.vgm', 'sfx-wall-bounce.vgm'],
   ['sfx/sfx-marble-clack.vgm', 'sfx-marble-clack.vgm'],
@@ -70,6 +75,9 @@ const vgmMap = [
   ['sfx/sfx-ice-enter.vgm', 'sfx-ice-enter.vgm'],
   ['sfx/sfx-ice-leave.vgm', 'sfx-ice-leave.vgm'],
   ['sfx/sfx-acid-dissolve.vgm', 'sfx-acid-dissolve.vgm'],
+  ['sfx/sfx-mini-squash-acid.vgm', 'sfx-mini-squash-acid.vgm'],
+  ['sfx/sfx-mini-squash-worm.vgm', 'sfx-mini-squash-worm.vgm'],
+  ['sfx/sfx-mini-squash-black.vgm', 'sfx-mini-squash-black.vgm'],
   ['sfx/sfx-countdown.vgm', 'sfx-countdown.vgm'],
 ];
 for (const [srcName, dstName] of vgmMap) {

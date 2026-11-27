@@ -151,4 +151,25 @@ describe('remasterLevel', () => {
     expect(level.spawns.player2.x).toBeCloseTo(22.5 - 65, 1);
     expect(level.spawns.player2.z).toBeCloseTo(9.5 - 65, 1);
   });
+
+  it('converts Level 5 (Silly Race) uphill terrain with ROM spawns, Escher goal, and direction = -1', () => {
+    const cells = Array.from({ length: 141 }, () =>
+      Array.from({ length: 141 }, () => [0, 0, 0, 0] as const),
+    );
+    const terrain: PracticeTerrain = {
+      cells,
+      origin: { x: 0, z: 0 },
+      lastScroll: -16152,
+      level: 'level5',
+    };
+    const level = practiceTerrainToRemasterLevel(terrain);
+    expect(level.courseIndex).toBe(5);
+    expect(level.name).toBe('Silly Race');
+    expect(level.direction).toBe(-1);
+    expect(level.timerSeconds).toBe(70);
+    expect(level.spawns.player1.x).toBeCloseTo(125.5 - 70.5, 1);
+    expect(level.spawns.player1.z).toBeCloseTo(124.5 - 70.5, 1);
+    expect(level.spawns.player2.x).toBeCloseTo(123.5 - 70.5, 1);
+    expect(level.spawns.player2.z).toBeCloseTo(126.5 - 70.5, 1);
+  });
 });

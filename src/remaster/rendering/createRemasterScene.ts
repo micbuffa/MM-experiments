@@ -23,10 +23,13 @@ import {
   intermediateOpeningScroll,
   level3OpeningScroll,
   level4OpeningScroll,
+  level5FinishScroll,
+  level5OpeningScroll,
   type PracticeTerrain,
 } from '../../game/modern/practiceTerrain';
 import type { RenderQuality } from '../../game/renderQuality';
 import { createAcidDissolve } from '../../rendering/createAcidDissolve';
+import { createBirdDeath } from '../../rendering/createBirdDeath';
 import { createCameraOcclusion } from '../../rendering/createCameraOcclusion';
 import { createMarbleSuction } from '../../rendering/createMarbleSuction';
 import { createDizzyStars } from '../../rendering/createDizzyStars';
@@ -56,6 +59,9 @@ import {
   setLevel4Pistons,
   setLevel4VacuumExtensions,
 } from '../../rendering/createLevel4Materials';
+import { createLevel5Actors } from '../../rendering/createLevel5Actors';
+import { updateLevel5PipeAnimation } from '../../rendering/createLevel5Terrain';
+import { level5FinishDepth } from '../../rendering/level5DisplayTerrain';
 import { sampleLayerHeight } from '../levels/remasterLevel';
 import { REMASTER_RULES } from '../engine/physicsConstants';
 import type { RemasterSnapshot } from '../engine/remasterSimulation';
@@ -69,7 +75,10 @@ export function createRemasterScene(
   const isLevel2 = terrain.level === 'intermediate';
   const isLevel3 = terrain.level === 'level3';
   const isLevel4 = terrain.level === 'level4';
+  const isLevel5 = terrain.level === 'level5';
   const scene = createTerrainStudy(engine, undefined, terrain, true, actors);
+  const updateLevel5Actors =
+    isLevel5 && actors ? createLevel5Actors(scene, terrain, actors) : undefined;
   const camera = createLivePracticeCamera(scene, terrain);
   const occlusion = createCameraOcclusion(scene, terrain);
   const first = createPracticeMarble(scene, 'remaster-marble-1', false);
@@ -94,6 +103,18 @@ export function createRemasterScene(
     'remaster-catchup-2',
     true,
   );
+  const firstBonus3 = createPracticeCatchUpLabel(
+    scene,
+    'remaster-bonus3-1',
+    false,
+    '+3',
+  );
+  const secondBonus3 = createPracticeCatchUpLabel(
+    scene,
+    'remaster-bonus3-2',
+    true,
+    '+3',
+  );
   const firstDizzy = createDizzyStars(scene, 'remaster-dizzy-1');
   const secondDizzy = createDizzyStars(scene, 'remaster-dizzy-2');
   const firstBroom = createBroomSweep(scene, 'remaster-broom-1', false);
@@ -106,10 +127,16 @@ export function createRemasterScene(
   const secondSuction = isLevel4
     ? createMarbleSuction(scene, 'remaster-suction-2', true)
     : undefined;
+  const firstBirdDeath = isLevel5
+    ? createBirdDeath(scene, 'remaster-bird-death-1', false)
+    : undefined;
+  const secondBirdDeath = isLevel5
+    ? createBirdDeath(scene, 'remaster-bird-death-2', true)
+    : undefined;
   const firstAward = createScoreAward(scene, 'remaster-award-1', false);
   const secondAward = createScoreAward(scene, 'remaster-award-2', true);
   const updateStartLift =
-    !isLevel2 && !isLevel3 && !isLevel4
+    !isLevel2 && !isLevel3 && !isLevel4 && !isLevel5
       ? createPracticeStartLift(scene, terrain)
       : undefined;
 
@@ -225,25 +252,31 @@ export function createRemasterScene(
     const arcadeZ = (worldZ + rows / 2 + terrain.origin.z) * arcadeCellUnits;
     const arcadeH =
       arcadeGroundHeight + (worldY * arcadeCellUnits) / arcadeHeightScale;
-    const openScroll = isLevel4
-      ? level4OpeningScroll
-      : isLevel3
-        ? level3OpeningScroll
-        : isLevel2
-          ? intermediateOpeningScroll
-          : practiceOpeningScroll;
-    const endScroll = isLevel4
-      ? -15120
-      : isLevel3
-        ? -15220
-        : isLevel2
-          ? -15120
-          : practiceFinishScroll;
+    const openScroll = isLevel5
+      ? level5OpeningScroll
+      : isLevel4
+        ? level4OpeningScroll
+        : isLevel3
+          ? level3OpeningScroll
+          : isLevel2
+            ? intermediateOpeningScroll
+            : practiceOpeningScroll;
+    const endScroll = isLevel5
+      ? level5FinishScroll
+      : isLevel4
+        ? -15120
+        : isLevel3
+          ? -15220
+          : isLevel2
+            ? -15120
+            : practiceFinishScroll;
+    const minScroll = Math.min(openScroll, endScroll);
+    const maxScroll = Math.max(openScroll, endScroll);
     // projectPracticePoint accounts for both isometric (x+z)/2 and terrain height drop.
     // Subtract 115px so the marble stays centered in the 240px viewport with lookahead below.
     const projY = projectPracticePoint(arcadeX, arcadeZ, arcadeH).y;
     const raw = Math.round(practiceOpeningScroll + projY - 115);
-    return Math.max(openScroll, Math.min(endScroll, raw));
+    return Math.max(minScroll, Math.min(maxScroll, raw));
   }
 
   return {
@@ -274,6 +307,7 @@ export function createRemasterScene(
         !p1.pipeHidden &&
         !p1.wormSwallowed &&
         p1.life !== 'shattered' &&
+        p1.life !== 'birdDead' &&
         p1.life !== 'melting' &&
         p1.life !== 'suctioned' &&
         p1.life !== 'respawning';
@@ -282,12 +316,34 @@ export function createRemasterScene(
         !p2.pipeHidden &&
         !p2.wormSwallowed &&
         p2.life !== 'shattered' &&
+        p2.life !== 'birdDead' &&
         p2.life !== 'melting' &&
         p2.life !== 'suctioned' &&
         p2.life !== 'respawning';
 
-      first.update(p1Visible ? p1.position : null);
-      second.update(p2Visible ? p2.position : null);
+      const escherVisualPos = (player: typeof p1) => {
+        if (!player) return null;
+        if (!isLevel5) return player.position;
+        const arcadeView = camera.diagnostics.active === 'arcade';
+        const ax =
+          (player.position.x + terrain.origin.x + columns / 2) *
+          arcadeCellUnits;
+        const az =
+          (player.position.z + terrain.origin.z + rows / 2) * arcadeCellUnits;
+        const ah =
+          arcadeGroundHeight +
+          (player.position.y * arcadeCellUnits) / arcadeHeightScale;
+        const shift = level5FinishDepth(ax, az, ah, arcadeView);
+        if (shift === 0) return player.position;
+        const cellShift = shift / arcadeCellUnits;
+        return {
+          x: player.position.x + cellShift,
+          y: player.position.y + cellShift * arcadeHeightScale,
+          z: player.position.z + cellShift,
+        };
+      };
+      first.update(p1Visible ? escherVisualPos(p1) : null);
+      second.update(p2Visible ? escherVisualPos(p2) : null);
       if (isLevel2) setIntermediateBridgeStep(scene, snapshot.bridgePhase * 6);
       if (isLevel4 && snapshot.level4) {
         setLevel4VacuumExtensions(
@@ -403,6 +459,26 @@ export function createRemasterScene(
         p2 && p2.life === 'shattered' ? p2.position : null,
         p2 ? shatterElapsed(p2.life, p2.stateTimer) : 0,
       );
+      const birdDeathFor = (player: typeof p1) => {
+        if (!player || player.life !== 'birdDead') return undefined;
+        const progress = Math.max(0, Math.min(1, 1 - player.stateTimer / 1.2));
+        // ROM state 0x0b: 8 polyhedral fragments spiral outward and scatter (NO broom sweep!)
+        const radiusPx = progress * 34;
+        const spin = progress * Math.PI * 2.2;
+        return {
+          progress,
+          fragments: Array.from({ length: 8 }, (_, id) => {
+            const angle = spin + (id * Math.PI) / 4;
+            return {
+              id,
+              x: Math.cos(angle) * radiusPx,
+              y: Math.sin(angle) * radiusPx * 0.72 - progress * 10,
+            };
+          }),
+        };
+      };
+      firstBirdDeath?.(birdDeathFor(p1), p1 ? p1.position : null);
+      secondBirdDeath?.(birdDeathFor(p2), p2 ? p2.position : null);
       const meltElapsed = (life: string, timer: number): number =>
         life === 'melting' ? Math.max(0, Math.min(1, 1 - timer / 1.15)) : 0;
       firstAcid(
@@ -481,18 +557,23 @@ export function createRemasterScene(
       }
 
       if (p1) {
-        // In 2P mode follow whichever player is leading down the course.
+        // In 2P mode follow whichever player is leading along the course direction.
+        const dir = isLevel5 ? -1 : 1;
         const leader =
-          p2 && p2.position.x + p2.position.z > p1.position.x + p1.position.z
+          p2 &&
+          (p2.position.x + p2.position.z) * dir >
+            (p1.position.x + p1.position.z) * dir
             ? p2
             : p1;
-        const openScroll = isLevel4
-          ? level4OpeningScroll
-          : isLevel3
-            ? level3OpeningScroll
-            : isLevel2
-              ? intermediateOpeningScroll
-              : practiceOpeningScroll;
+        const openScroll = isLevel5
+          ? level5OpeningScroll
+          : isLevel4
+            ? level4OpeningScroll
+            : isLevel3
+              ? level3OpeningScroll
+              : isLevel2
+                ? intermediateOpeningScroll
+                : practiceOpeningScroll;
         // Freeze camera scroll at lastSafe while falling so the marble visibly
         // plummets off the bottom edge of the screen (matches original arcade).
         const camAnchor =
@@ -508,13 +589,18 @@ export function createRemasterScene(
           height: arcadeGroundHeight,
           scroll,
           frame: frameCounter,
-          ...(isLevel4
-            ? { level: 'level4' as const }
-            : isLevel3
-              ? { level: 'level3' as const }
-              : isLevel2
-                ? { level: 'intermediate' as const }
-                : {}),
+          ...(isLevel5
+            ? {
+                level: 'level5' as const,
+                level5Actors: snapshot.level5Actors,
+              }
+            : isLevel4
+              ? { level: 'level4' as const }
+              : isLevel3
+                ? { level: 'level3' as const }
+                : isLevel2
+                  ? { level: 'intermediate' as const }
+                  : {}),
           ...(snapshot.phase === 'opening'
             ? { opening: snapshot.openingProgress }
             : {}),
@@ -529,9 +615,19 @@ export function createRemasterScene(
               }
             : {}),
         };
+        if (isLevel5 && updateLevel5Actors) {
+          updateLevel5Actors(syntheticPose);
+        }
+        if (isLevel5) {
+          updateLevel5PipeAnimation(
+            scene,
+            Boolean(p1.pipeHidden || p2?.pipeHidden),
+            dtSeconds,
+          );
+        }
         camera.update(syntheticPose, leader.position);
 
-        // Floating "-5 SEC" notice on 2P catch-up.
+        // Floating "-5 SEC" catch-up and "+3 SEC" mini-enemy bonus notices.
         const swing = (timer: number) => Math.sin(timer * 18) * 6;
         firstCatchUp(
           p1.catchUpTimer > 0 ? p1.position : null,
@@ -540,6 +636,14 @@ export function createRemasterScene(
         secondCatchUp(
           p2 && p2.catchUpTimer > 0 ? p2.position : null,
           p2 && p2.catchUpTimer > 0 ? swing(p2.catchUpTimer) : undefined,
+        );
+        firstBonus3(
+          p1.timeBonusTimer > 0 ? p1.position : null,
+          p1.timeBonusTimer > 0 ? swing(p1.timeBonusTimer) : undefined,
+        );
+        secondBonus3(
+          p2 && p2.timeBonusTimer > 0 ? p2.position : null,
+          p2 && p2.timeBonusTimer > 0 ? swing(p2.timeBonusTimer) : undefined,
         );
 
         // Floating time-bonus score award above marble on GOAL.

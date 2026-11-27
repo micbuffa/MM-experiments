@@ -20,6 +20,7 @@ import { practiceDisplayTerrain } from '../rendering/createPracticeLandmarks';
 import { intermediateDisplayTerrain } from '../rendering/intermediateLandmarks';
 import { level3DisplayTerrain } from '../rendering/createLevel3Materials';
 import { level4DisplayTerrain } from '../rendering/createLevel4Materials';
+import { level5DisplayTerrain } from '../rendering/level5DisplayTerrain';
 import { createRemasterAudio } from './audio/createRemasterAudio';
 import { REMASTER_PHYSICS } from './engine/physicsConstants';
 import {
@@ -46,19 +47,21 @@ const CAMERA_LABELS: Record<PracticeCameraPreset, string> = {
   chaseHigh: 'Chase High',
 };
 
-type RemasterCourseIndex = 1 | 2 | 3 | 4;
+type RemasterCourseIndex = 1 | 2 | 3 | 4 | 5;
 
 async function loadCourseTerrain(
   courseIndex: RemasterCourseIndex,
 ): Promise<PracticeTerrain> {
   const filename =
-    courseIndex === 4
-      ? 'level4-terrain.json'
-      : courseIndex === 3
-        ? 'level3-terrain.json'
-        : courseIndex === 2
-          ? 'intermediate-terrain-pipes.json'
-          : 'practice-complete-terrain.json';
+    courseIndex === 5
+      ? 'level5-terrain.json'
+      : courseIndex === 4
+        ? 'level4-terrain.json'
+        : courseIndex === 3
+          ? 'level3-terrain.json'
+          : courseIndex === 2
+            ? 'intermediate-terrain-pipes.json'
+            : 'practice-complete-terrain.json';
   const candidates = [
     `/__local-roms/${filename}`,
     `${import.meta.env.BASE_URL}beta-data/${filename}`,
@@ -152,7 +155,12 @@ async function bootRemaster() {
             ? { ...rawTerrain, cells: level3DisplayTerrain(rawTerrain.cells) }
             : rawTerrain.level === 'level4'
               ? { ...rawTerrain, cells: level4DisplayTerrain(rawTerrain.cells) }
-              : rawTerrain;
+              : rawTerrain.level === 'level5'
+                ? {
+                    ...rawTerrain,
+                    cells: level5DisplayTerrain(rawTerrain.cells),
+                  }
+                : rawTerrain;
     return practiceTerrainToRemasterLevel(displayTerrain);
   }
 
@@ -360,7 +368,9 @@ async function bootRemaster() {
             ? 'Press N for Level 3 (Intermediate Race) or R to replay'
             : currentCourse === 3
               ? 'Press N for Level 4 (Aerial Race) or R to replay'
-              : 'Press R to race again';
+              : currentCourse === 4
+                ? 'Press N for Level 5 (Silly Race) or R to replay'
+                : 'Press R to race again';
     } else if (snap.phase === 'gameOver') {
       statusEl.textContent = 'TIME UP';
       bannerEl.hidden = false;
@@ -468,7 +478,7 @@ async function bootRemaster() {
       } else if (event.code === 'KeyR') {
         sim.reset();
         audio.playLevelTheme(currentCourse);
-      } else if (event.code === 'KeyN' && currentCourse < 4) {
+      } else if (event.code === 'KeyN' && currentCourse < 5) {
         void loadLevel((currentCourse + 1) as RemasterCourseIndex);
       } else if (event.code === 'KeyM') {
         audioMuted = !audioMuted;
@@ -492,13 +502,15 @@ async function bootRemaster() {
     () => {
       unlockAudio();
       const target: RemasterCourseIndex =
-        levelSelect.value === '4'
-          ? 4
-          : levelSelect.value === '3'
-            ? 3
-            : levelSelect.value === '2'
-              ? 2
-              : 1;
+        levelSelect.value === '5'
+          ? 5
+          : levelSelect.value === '4'
+            ? 4
+            : levelSelect.value === '3'
+              ? 3
+              : levelSelect.value === '2'
+                ? 2
+                : 1;
       if (target !== currentCourse) void loadLevel(target);
     },
     { signal },

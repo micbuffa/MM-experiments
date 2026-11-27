@@ -73,6 +73,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
   let level2ThemeVgm: ParsedVgm | null = null;
   let level3ThemeVgm: ParsedVgm | null = null;
   let level4ThemeVgm: ParsedVgm | null = null;
+  let level5ThemeVgm: ParsedVgm | null = null;
   let goalFanfareVgm: ParsedVgm | null = null;
   let goalFanfareP2Vgm: ParsedVgm | null = null;
   let gameOverVgm: ParsedVgm | null = null;
@@ -184,6 +185,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       level2Track,
       level3Track,
       level4Track,
+      level5Track,
       goalTrack,
       goalP2Track,
       gameOverTrack,
@@ -204,6 +206,11 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
         ? fetchFirstVgm(['/__local-roms/level4-aerial.vgz'])
         : !import.meta.env.DEV
           ? fetchFirstVgm([`${prefix}assets/audio/level4-aerial.vgz`])
+          : Promise.resolve(null),
+      localVgms.has('level5-silly.vgz')
+        ? fetchFirstVgm(['/__local-roms/level5-silly.vgz'])
+        : !import.meta.env.DEV
+          ? fetchFirstVgm([`${prefix}assets/audio/level5-silly.vgz`])
           : Promise.resolve(null),
       fetchFirstVgm(resolveTrackUrls('goal-fanfare')),
       localVgms.has('goal-fanfare-p2.vgz')
@@ -228,6 +235,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     level2ThemeVgm = level2Track;
     level3ThemeVgm = level3Track;
     level4ThemeVgm = level4Track;
+    level5ThemeVgm = level5Track;
     goalFanfareVgm = goalTrack;
     goalFanfareP2Vgm = goalP2Track;
     gameOverVgm = gameOverTrack;
@@ -329,13 +337,15 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     playLevelTheme(courseIndex = currentCourse) {
       currentCourse = courseIndex;
       const track =
-        courseIndex === 4 && level4ThemeVgm
-          ? level4ThemeVgm
-          : courseIndex === 3 && level3ThemeVgm
-            ? level3ThemeVgm
-            : courseIndex === 2 && level2ThemeVgm
-              ? level2ThemeVgm
-              : levelThemeVgm;
+        courseIndex === 5 && level5ThemeVgm
+          ? level5ThemeVgm
+          : courseIndex === 4 && level4ThemeVgm
+            ? level4ThemeVgm
+            : courseIndex === 3 && level3ThemeVgm
+              ? level3ThemeVgm
+              : courseIndex === 2 && level2ThemeVgm
+                ? level2ThemeVgm
+                : levelThemeVgm;
       playTrack(customVgm ?? track);
     },
 
@@ -450,6 +460,31 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
         } else if (ev.type === 'catapult') {
           if (!playTriggerSfx('pipeEnter', 'sfx-pipe.vgm')) {
             triggerNote(cfg.respawn.channel, 74, 180);
+          }
+        } else if (ev.type === 'miniSquash') {
+          const trigger =
+            ev.kind === 'black'
+              ? 'miniSquashBlack'
+              : ev.kind === 'worm'
+                ? 'miniSquashWorm'
+                : 'miniSquashAcid';
+          const fallbackFile =
+            ev.kind === 'black'
+              ? 'sfx-mini-squash-black.vgm'
+              : ev.kind === 'worm'
+                ? 'sfx-mini-squash-worm.vgm'
+                : 'sfx-mini-squash-acid.vgm';
+          if (!playTriggerSfx(trigger, fallbackFile)) {
+            triggerNote(cfg.respawn.channel, 76, 120);
+          }
+        } else if (ev.type === 'birdDeath') {
+          // Special Level 5 bird death plays shatter crash WITHOUT the broom sweep!
+          if (!playTriggerSfx('shatter', 'sfx-shatter.vgm')) {
+            triggerNote(
+              cfg.shatter.fmChannel,
+              cfg.shatter.fmMidi,
+              cfg.shatter.fmDurationMs,
+            );
           }
         } else if (ev.type === 'shatter') {
           if (playTriggerSfx('shatter', 'sfx-shatter.vgm')) {

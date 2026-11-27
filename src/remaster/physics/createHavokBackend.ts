@@ -102,9 +102,108 @@ export async function createHavokBackend(
       0,
       PhysicsMaterialCombineMode.MULTIPLY,
     );
+    // On Level 5 (Silly Race), open the Escher archway cliffs at Z=21, Z=24 (X=29..35)
+    // and X=35 (Z=21..24) so the marble passes freely underneath the bridge to the '?' seam!
+    let finalCliffs = cliffs;
+    if (level.courseIndex === 5) {
+      const deckY = ((16416 - 16384) * Math.sqrt(2 / 3)) / 8;
+      const halfX = layer.columns / 2;
+      const halfZ = layer.rows / 2;
+      const filtered: number[] = [];
+      for (let i = 0; i < cliffs.indices.length; i += 3) {
+        const i0 = cliffs.indices[i]!;
+        const i1 = cliffs.indices[i + 1]!;
+        const i2 = cliffs.indices[i + 2]!;
+        const xs = [
+          cliffs.positions[i0 * 3]! + halfX,
+          cliffs.positions[i1 * 3]! + halfX,
+          cliffs.positions[i2 * 3]! + halfX,
+        ];
+        const ys = [
+          cliffs.positions[i0 * 3 + 1]!,
+          cliffs.positions[i1 * 3 + 1]!,
+          cliffs.positions[i2 * 3 + 1]!,
+        ];
+        const zs = [
+          cliffs.positions[i0 * 3 + 2]! + halfZ,
+          cliffs.positions[i1 * 3 + 2]! + halfZ,
+          cliffs.positions[i2 * 3 + 2]! + halfZ,
+        ];
+        const side = [21, 24].some((s) =>
+          zs.every((v) => Math.abs(v - s) < 0.05),
+        );
+        const seamEnd =
+          xs.every((v) => Math.abs(v - 35) < 0.05) &&
+          Math.min(...zs) >= 20.95 &&
+          Math.max(...zs) <= 24.05;
+        const lowerSeam =
+          xs.every((v) => Math.abs(v - 29) < 0.05) &&
+          Math.min(...zs) >= 14.95 &&
+          Math.max(...zs) <= 18.05;
+        if (
+          ((side && Math.min(...xs) >= 28.95 && Math.max(...xs) <= 35.05) ||
+            seamEnd ||
+            lowerSeam) &&
+          Math.max(...ys) <= deckY + 0.05
+        ) {
+          continue;
+        }
+        filtered.push(i0, i1, i2);
+      }
+      finalCliffs = {
+        positions: cliffs.positions,
+        indices: new Uint32Array(filtered),
+      };
+
+      // Add static Havok floor for the lower passage underneath the Escher arch (X=29..35, Z=21..24, H=16368)
+      // and the lower '?' teleport seam (X=27..29.2, Z=15..18, H=16368) so the marble crosses X=29 cleanly.
+      const passageY = ((16368 - 16384) * Math.sqrt(2 / 3)) / 8;
+      for (const box of [
+        {
+          name: 'remaster-level5-escher-passage',
+          w: 6.2,
+          d: 3.4,
+          cx: 32,
+          cz: 22.5,
+        },
+        {
+          name: 'remaster-level5-escher-lower-seam',
+          w: 2.4,
+          d: 3.4,
+          cx: 28.1,
+          cz: 16.5,
+        },
+      ]) {
+        const passageMesh = CreateBox(
+          box.name,
+          { width: box.w, height: 0.4, depth: box.d },
+          scene,
+        );
+        passageMesh.position.set(
+          box.cx - halfX,
+          passageY - 0.2,
+          box.cz - halfZ,
+        );
+        passageMesh.isVisible = false;
+        passageMesh.isPickable = false;
+        const passageAgg = new PhysicsAggregate(
+          passageMesh,
+          PhysicsShapeType.BOX,
+          { mass: 0, friction: surfaceProps.friction, restitution: 0 },
+          scene,
+        );
+        passageAgg.shape.material = {
+          friction: surfaceProps.friction,
+          restitution: 0,
+          restitutionCombine: PhysicsMaterialCombineMode.MULTIPLY,
+        };
+        ownedMeshes.push(passageMesh);
+        ownedAggregates.push(passageAgg);
+      }
+    }
     addStaticPart(
       `remaster-cliffs-${layer.id}`,
-      cliffs,
+      finalCliffs,
       0.0,
       REMASTER_PHYSICS.wallRestitution,
       PhysicsMaterialCombineMode.MAXIMUM,
@@ -305,6 +404,48 @@ export async function createHavokBackend(
   const tmpV2 = Vector3.Zero();
   const mainLayer = level.heightLayers[0];
   let disposed = false;
+  const tmpGrad = { gx: 0, gz: 0 };
+
+  const readCellGradInto = (
+    layer: NonNullable<typeof mainLayer>,
+    wx: number,
+    wz: number,
+  ): void => {
+    const cx = Math.floor(wx + layer.origin.x + layer.columns / 2);
+    const cz = Math.floor(wz + layer.origin.z + layer.rows / 2);
+    const cell = layer.cells[cz]?.[cx];
+    if (!cell) {
+      tmpGrad.gx = 0;
+      tmpGrad.gz = 0;
+      return;
+    }
+    const [nw, ne, se, sw] = cell;
+    if (nw === null || ne === null || se === null || sw === null) {
+      tmpGrad.gx = 0;
+      tmpGrad.gz = 0;
+      return;
+    }
+    const gx = (ne - nw + (se - sw)) * 0.5;
+    const gz = (sw - nw + (se - ne)) * 0.5;
+    if (Math.abs(gx) >= 1.8 || Math.abs(gz) >= 1.8) {
+      tmpGrad.gx = 0;
+      tmpGrad.gz = 0;
+      return;
+    }
+    tmpGrad.gx = gx;
+    tmpGrad.gz = gz;
+  };
+
+  const sampleCellSlopeVy = (
+    layer: NonNullable<typeof mainLayer>,
+    wx: number,
+    wz: number,
+    vx: number,
+    vz: number,
+  ): number => {
+    readCellGradInto(layer, wx, wz);
+    return tmpGrad.gx * vx + tmpGrad.gz * vz;
+  };
 
   return {
     applyPlayerForce(
@@ -353,10 +494,12 @@ export async function createHavokBackend(
           );
           if (hAhead !== null) {
             const slope = (hAhead - h0) / 0.35;
-            if (slope > 0.08 && slope < 0.95) {
+            const maxClimbSlope = level.direction === -1 ? 1.8 : 0.95;
+            if (slope > 0.08 && slope < maxClimbSlope) {
               // Apply force tangent to climbable ramps (not vertical walls or well rims).
-              uphillScale = 1 + Math.min(0.65, slope * 0.65);
-              fy = forceMag * scale * uphillScale * Math.min(0.95, slope);
+              uphillScale = 1 + Math.min(0.85, slope * 0.65);
+              fy =
+                forceMag * scale * uphillScale * Math.min(maxClimbSlope, slope);
             }
           }
         }
@@ -395,10 +538,8 @@ export async function createHavokBackend(
       m.aggregate.body.setMotionType(
         kinematic ? PhysicsMotionType.ANIMATED : PhysicsMotionType.DYNAMIC,
       );
-      if (kinematic) {
-        m.aggregate.body.setLinearVelocity(Vector3.ZeroReadOnly);
-        m.aggregate.body.setAngularVelocity(Vector3.ZeroReadOnly);
-      }
+      m.aggregate.body.setLinearVelocity(Vector3.ZeroReadOnly);
+      m.aggregate.body.setAngularVelocity(Vector3.ZeroReadOnly);
     },
 
     setMarbleVelocity(playerIndex: 0 | 1, velocity: Vec3) {
@@ -429,6 +570,75 @@ export async function createHavokBackend(
         m.prevVz = tmpVel.z;
         if (m.wallCooldown > 0)
           m.wallCooldown = Math.max(0, m.wallCooldown - dt);
+
+        // Level 5 (Silly Race, direction === -1): exact ramp-tangent inverted gravity.
+        // Gravity's tangent component along the cell plane is g_t = -|g|*(gx, gx^2+gz^2, gz)/denom.
+        // Adding -3.8 * g_t has EXACTLY ZERO normal component (dot(F, n) === 0, so it never
+        // lifts the sphere off the ramp and never increases normal friction) and produces a crisp
+        // net UPHILL acceleration so the marble climbs every ramp on its own!
+        if (
+          level.direction === -1 &&
+          mainLayer &&
+          m.aggregate.body.getMotionType() === PhysicsMotionType.DYNAMIC
+        ) {
+          const px = m.mesh.position.x;
+          const pz = m.mesh.position.z;
+          const h0 = sampleLayerHeight(mainLayer, px, pz);
+          const bottomY = m.mesh.position.y - radius;
+          if (h0 !== null && Math.abs(bottomY - h0) < 0.65) {
+            readCellGradInto(mainLayer, px, pz);
+            let gx = tmpGrad.gx;
+            let gz = tmpGrad.gz;
+            // At the bottom crease of an uphill ramp, the sphere's front rim (r = 0.35) touches
+            // the ramp while its center is still on the flat tile. Probe both along velocity AND
+            // the 4 cardinal directions (0.44 cells) so even a slow/stopped marble gently touching
+            // a steep ramp (e.g. 49°-60° white ramps) hooks effortlessly without Space boost.
+            if (Math.abs(gx) <= 0.02 && Math.abs(gz) <= 0.02) {
+              const hSpeed = Math.hypot(tmpVel.x, tmpVel.z);
+              if (hSpeed > 0.15) {
+                const probeX = px + (tmpVel.x / hSpeed) * 0.42;
+                const probeZ = pz + (tmpVel.z / hSpeed) * 0.42;
+                readCellGradInto(mainLayer, probeX, probeZ);
+                if (tmpGrad.gx * tmpVel.x + tmpGrad.gz * tmpVel.z > 0.02) {
+                  gx = tmpGrad.gx;
+                  gz = tmpGrad.gz;
+                }
+              }
+              if (Math.abs(gx) <= 0.02 && Math.abs(gz) <= 0.02) {
+                // Cardinal rim-contact check (no allocations) for steep ramp creases at low speed.
+                for (let dir = 0; dir < 4; dir++) {
+                  const dx = dir === 0 ? 1 : dir === 1 ? -1 : 0;
+                  const dz = dir === 2 ? 1 : dir === 3 ? -1 : 0;
+                  const probeX = px + dx * 0.44;
+                  const probeZ = pz + dz * 0.44;
+                  readCellGradInto(mainLayer, probeX, probeZ);
+                  if (tmpGrad.gx * dx + tmpGrad.gz * dz > 0.25) {
+                    const hEdge = sampleLayerHeight(
+                      mainLayer,
+                      px + dx * 0.26,
+                      pz + dz * 0.26,
+                    );
+                    if (hEdge !== null && Math.abs(hEdge - h0) < 0.45) {
+                      gx = tmpGrad.gx;
+                      gz = tmpGrad.gz;
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+            if (Math.abs(gx) > 0.02 || Math.abs(gz) > 0.02) {
+              const denom = 1 + gx * gx + gz * gz;
+              const accelScale =
+                (3.8 * Math.abs(REMASTER_PHYSICS.gravityY)) / denom;
+              // Apply directly to linear velocity so Havok sleep/static friction never stalls a stopped marble on a ramp.
+              tmpVel.x += gx * accelScale * dt;
+              tmpVel.y += (gx * gx + gz * gz) * accelScale * dt;
+              tmpVel.z += gz * accelScale * dt;
+              m.aggregate.body.setLinearVelocity(tmpVel);
+            }
+          }
+        }
       }
       const engine = scene.getPhysicsEngine();
       if (engine) {
@@ -484,6 +694,29 @@ export async function createHavokBackend(
         if (grounded && m.prevVy < -0.25 && tmpVel.y > 0.35 && tmpVel.y < 2.2) {
           tmpVel.y = 0;
           m.aggregate.body.setLinearVelocity(tmpVel);
+        }
+        // Level 5 (Silly Race): keep the marble glued to the floor when cresting uphill ramps onto
+        // flat tiles (matches original 68010 ROM height-tracking instead of ski-jumping into the air),
+        // while NEVER clamping vy when approaching or climbing an uphill ramp (slopeVyAhead > 0.05)!
+        if (
+          level.direction === -1 &&
+          mainLayer &&
+          groundH !== null &&
+          bottomY - groundH > -0.15 &&
+          bottomY - groundH < 0.45 &&
+          m.aggregate.body.getMotionType() === PhysicsMotionType.DYNAMIC
+        ) {
+          const slopeVyAhead = sampleCellSlopeVy(
+            mainLayer,
+            m.mesh.position.x + tmpVel.x * 0.05,
+            m.mesh.position.z + tmpVel.z * 0.05,
+            tmpVel.x,
+            tmpVel.z,
+          );
+          if (slopeVyAhead <= 0.05 && tmpVel.y > 0.08) {
+            tmpVel.y = bottomY > groundH + 0.02 ? -1.2 : 0;
+            m.aggregate.body.setLinearVelocity(tmpVel);
+          }
         }
         m.bridgeGrounded = false;
       }

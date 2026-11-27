@@ -79,6 +79,20 @@ import {
   resolveLevel4HammerSeparation,
   type Level4MechanismSnapshot,
 } from '../level4/level4Mechanics';
+import type { Level5Actor } from '../../emulation/level5Actors';
+import {
+  createLevel5ActorsState,
+  isInsideLevel5EscherReturn,
+  isInsideLevel5EscherTeleport,
+  isInsideLevel5RedPipeEntry,
+  readLevel5ActorsSnapshot,
+  stepLevel5Actors,
+  type Level5ActorsState,
+} from '../level5/level5Mechanics';
+import {
+  LEVEL5_ESCHER_TELEPORT,
+  LEVEL5_RED_Y_PIPE,
+} from '../level5/level5RomData';
 import { LEVEL4_BLACK_MARBLE, LEVEL4_CATAPULT } from '../level4/level4RomData';
 
 export type RemasterPhase = 'opening' | 'playing' | 'finished' | 'gameOver';
@@ -87,6 +101,7 @@ export type StartLiftPhase = 1 | 2 | 3 | 4 | 5;
 export type MarbleLifeState =
   | 'active'
   | 'shattered'
+  | 'birdDead'
   | 'melting'
   | 'suctioned'
   | 'falling'
@@ -173,6 +188,12 @@ export type RemasterEvent =
   | { readonly type: 'acidDissolve'; readonly player: 1 | 2 }
   | { readonly type: 'suction'; readonly player: 1 | 2 }
   | { readonly type: 'catapult'; readonly player: 1 | 2 }
+  | { readonly type: 'birdDeath'; readonly player: 1 | 2 }
+  | {
+      readonly type: 'miniSquash';
+      readonly player: 1 | 2;
+      readonly kind: 'black' | 'worm' | 'acid';
+    }
   | {
       readonly type: 'catchUp';
       readonly player: 1 | 2;
@@ -197,6 +218,7 @@ export interface RemasterPlayerState {
   readonly remainingTime: number;
   readonly stateTimer: number;
   readonly catchUpTimer: number;
+  readonly timeBonusTimer: number;
   readonly dizzyTimer: number;
   readonly scoreAward:
     { readonly points: number; readonly timer: number } | undefined;
@@ -228,6 +250,7 @@ export interface RemasterSnapshot {
   readonly amoebas: readonly Level3AmoebaSnapshot[];
   readonly waveProfile: readonly number[] | undefined;
   readonly level4: Level4MechanismSnapshot | undefined;
+  readonly level5Actors: readonly Level5Actor[];
   readonly bridgeStep: number;
   readonly goalOwner: 1 | 2 | undefined;
   readonly events: readonly RemasterEvent[];
@@ -244,6 +267,7 @@ interface MutablePlayer {
   remainingTime: number;
   stateTimer: number;
   catchUpTimer: number;
+  timeBonusTimer: number;
   dizzyTimer: number;
   scoreAward: { points: number; timer: number } | undefined;
   lastSafe: { x: number; y: number; z: number };
@@ -253,6 +277,8 @@ interface MutablePlayer {
   pipeEntryPos: Vec3 | undefined;
   pipeExitPos: Vec3 | undefined;
   level3PipeActive: boolean;
+  level5PipeActive: boolean;
+  escherCooldown: number;
   bridgeSupported: boolean;
   waveSupported: boolean;
   airbornePeakY: number;
@@ -329,6 +355,7 @@ export function createRemasterSimulation(
       remainingTime: level.timerSeconds,
       stateTimer: 0,
       catchUpTimer: 0,
+      timeBonusTimer: 0,
       dizzyTimer: 0,
       scoreAward: undefined,
       lastSafe: { ...pos },
@@ -338,6 +365,8 @@ export function createRemasterSimulation(
       pipeEntryPos: undefined,
       pipeExitPos: undefined,
       level3PipeActive: false,
+      level5PipeActive: false,
+      escherCooldown: 0,
       bridgeSupported: false,
       waveSupported: false,
       airbornePeakY: pos.y,
@@ -419,6 +448,8 @@ export function createRemasterSimulation(
   let level4PistonElapsed = 0;
   let level4PistonPattern = 0;
   let level4HammerPattern = Math.floor(random() * 4) & 3;
+  let level5State: Level5ActorsState | undefined =
+    level.courseIndex === 5 ? createLevel5ActorsState(random) : undefined;
 
   const players: MutablePlayer[] = twoPlayers
     ? [makePlayer(1, level.spawns.player1), makePlayer(2, level.spawns.player2)]
@@ -476,11 +507,15 @@ export function createRemasterSimulation(
         remainingTime: p.remainingTime,
         stateTimer: p.stateTimer,
         catchUpTimer: p.catchUpTimer,
+        timeBonusTimer: p.timeBonusTimer,
         dizzyTimer: p.dizzyTimer,
         scoreAward: p.scoreAward ? { ...p.scoreAward } : undefined,
         lastSafe: { ...p.lastSafe },
         maxProgress: p.maxProgress,
-        pipeHidden: p.pipeTraversal !== undefined || p.level3PipeActive,
+        pipeHidden:
+          p.pipeTraversal !== undefined ||
+          p.level3PipeActive ||
+          p.level5PipeActive,
         wormSwallowed: p.wormSwallowed,
         suctionVacuumIndex: p.suctionVacuumIndex,
       })),
@@ -529,6 +564,7 @@ export function createRemasterSimulation(
               };
             })()
           : undefined,
+      level5Actors: level5State ? readLevel5ActorsSnapshot(level5State) : [],
       goalOwner,
       events,
     };
@@ -1242,6 +1278,180 @@ export function createRemasterSimulation(
     }
   }
 
+  function updateLevel5Mechanics(dt: number, events: RemasterEvent[]) {
+    if (level.courseIndex !== 5 || !level5State || !mainLayer) return;
+    const frame = {
+      originX: mainLayer.origin.x,
+      originZ: mainLayer.origin.z,
+      columns: mainLayer.columns,
+      rows: mainLayer.rows,
+    };
+
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i]!;
+      const idx = i as 0 | 1;
+      if (p.escherCooldown > 0) {
+        p.escherCooldown = Math.max(0, p.escherCooldown - dt);
+      }
+
+      // 1. Active traversal inside the red inverted curly Y-pipe (ROM 0x2a738)
+      if (p.level5PipeActive) {
+        p.pipeElapsed += dt;
+        const duration = LEVEL5_RED_Y_PIPE.durationSeconds;
+        if (p.pipeElapsed < duration) {
+          if (p.pipeEntryPos && p.pipeExitPos) {
+            const rawT = Math.min(1, p.pipeElapsed / duration);
+            const t = rawT * rawT * (3 - 2 * rawT);
+            p.position = {
+              x: p.pipeEntryPos.x + (p.pipeExitPos.x - p.pipeEntryPos.x) * t,
+              y: p.pipeEntryPos.y + (p.pipeExitPos.y - p.pipeEntryPos.y) * t,
+              z: p.pipeEntryPos.z + (p.pipeExitPos.z - p.pipeEntryPos.z) * t,
+            };
+          }
+          physics.setMarbleKinematic(idx, true);
+          continue;
+        }
+        const exitPos = p.pipeExitPos ?? p.position;
+        p.position = { ...exitPos };
+        p.lastSafe = { ...exitPos, y: exitPos.y + 0.05 };
+        p.level5PipeActive = false;
+        p.pipeElapsed = 0;
+        p.pipeEntryPos = undefined;
+        p.pipeExitPos = undefined;
+        p.airbornePeakY = exitPos.y;
+        p.grounded = true;
+        p.wasGrounded = true;
+        p.velocity = { ...LEVEL5_RED_Y_PIPE.exitVelocityWorld };
+        physics.teleportMarble(idx, p.position);
+        physics.setMarbleKinematic(idx, false);
+        physics.setMarbleVelocity?.(idx, p.velocity);
+        continue;
+      }
+
+      if (p.life !== 'active') continue;
+      const point = romWorldToArcade(p.position, frame);
+      const cellX = point.x / arcadeCellUnits;
+      const cellZ = point.z / arcadeCellUnits;
+
+      // 2. Red inverted curly Y-pipe entry -> 50/50 random upper outlet + pipeEnter SFX
+      if (isInsideLevel5RedPipeEntry(cellX, cellZ, point.height)) {
+        const exitSpec = LEVEL5_RED_Y_PIPE.exits[random() < 0.5 ? 0 : 1]!;
+        const exitBase = romArcadeToWorld(
+          {
+            x: exitSpec.x * arcadeCellUnits,
+            z: exitSpec.z * arcadeCellUnits,
+            height: exitSpec.height,
+          },
+          frame,
+        );
+        const exitH = sampleLayerHeight(mainLayer, exitBase.x, exitBase.z);
+        const finalExit: Vec3 = { ...exitBase, y: exitH ?? exitBase.y };
+        p.pipeEntryPos = { ...p.position };
+        p.pipeExitPos = finalExit;
+        p.velocity = { x: 0, y: 0, z: 0 };
+        p.airbornePeakY = finalExit.y;
+        p.wasGrounded = true;
+        p.level5PipeActive = true;
+        p.pipeElapsed = 0;
+        physics.setMarbleKinematic(idx, true);
+        physics.teleportMarble(idx, finalExit);
+        events.push({ type: 'pipeEnter', player: p.id });
+        continue;
+      }
+
+      // 3. Bidirectional Escher '?' teleport seam: exact (+6, +6, +48) / (-6, -6, -48) isometric ray shift
+      // so screen position and arcade scroll remain 100% continuous with zero jump!
+      if (p.escherCooldown <= 0) {
+        const shiftDir = isInsideLevel5EscherTeleport(
+          cellX,
+          cellZ,
+          point.height,
+        )
+          ? 1
+          : isInsideLevel5EscherReturn(cellX, cellZ, point.height)
+            ? -1
+            : 0;
+        if (shiftDir !== 0) {
+          const { dx, dz, dh } = LEVEL5_ESCHER_TELEPORT.rayShift;
+          const targetBase = romArcadeToWorld(
+            {
+              x: (cellX + dx * shiftDir) * arcadeCellUnits,
+              z: (cellZ + dz * shiftDir) * arcadeCellUnits,
+              height: point.height + dh * shiftDir,
+            },
+            frame,
+          );
+          const targetH = sampleLayerHeight(
+            mainLayer,
+            targetBase.x,
+            targetBase.z,
+          );
+          // Only snap to mainLayer when it lies at the target elevation (never snap 4.9 units up
+          // onto the overhanging upper H=16416 platform when returning to the lower H=16368 seam!).
+          const dest: Vec3 = {
+            ...targetBase,
+            y:
+              targetH !== null && Math.abs(targetH - targetBase.y) < 0.8
+                ? targetH
+                : targetBase.y,
+          };
+          const keepVel = { x: p.velocity.x, y: 0, z: p.velocity.z };
+          p.position = { ...dest };
+          p.lastSafe = { ...dest };
+          p.airbornePeakY = dest.y;
+          p.grounded = true;
+          p.wasGrounded = true;
+          p.escherCooldown = LEVEL5_ESCHER_TELEPORT.cooldownSeconds;
+          physics.teleportMarble(idx, dest);
+          physics.setMarbleVelocity?.(idx, keepVel);
+          continue;
+        }
+      }
+    }
+
+    const probes = players.map((p, i) => ({
+      playerIndex: i as 0 | 1,
+      cellX: p.position.x + mainLayer.origin.x + mainLayer.columns / 2,
+      cellZ: p.position.z + mainLayer.origin.z + mainLayer.rows / 2,
+      grounded: p.grounded,
+      active: p.life === 'active' && !p.level5PipeActive,
+      immune: p.respawnGraceTimer > 0,
+    }));
+    const arenaFloorY =
+      ((16238 - arcadeGroundHeight) * arcadeHeightScale) / arcadeCellUnits;
+    const isArenaFloor = (cx: number, cz: number): boolean => {
+      const wx = cx - mainLayer.origin.x - mainLayer.columns / 2;
+      const wz = cz - mainLayer.origin.z - mainLayer.rows / 2;
+      const h = sampleLayerHeight(mainLayer, wx, wz);
+      return h !== null && Math.abs(h - arenaFloorY) < 0.28;
+    };
+    const outcome = stepLevel5Actors(
+      level5State,
+      probes,
+      dt,
+      random,
+      isArenaFloor,
+    );
+    for (const sq of outcome.squashes) {
+      const p = players[sq.playerIndex];
+      if (!p) continue;
+      // ROM 0x19346 (`ADDQ.W #3, $6a(A2)`): +3 seconds time bonus + 500 pts!
+      p.remainingTime += sq.timeBonusSeconds;
+      p.timeBonusTimer = 1.6;
+      p.score += sq.score;
+      events.push({ type: 'miniSquash', player: p.id, kind: sq.kind });
+    }
+    for (const playerIdx of outcome.birdHits) {
+      const p = players[playerIdx];
+      if (!p || p.life !== 'active') continue;
+      // ROM state 0x0b (36 ticks = 1.2 s): special reverse 8-fragment bird death (NO broom!).
+      p.life = 'birdDead';
+      p.stateTimer = 36 / 30;
+      physics.setMarbleKinematic(playerIdx, true);
+      events.push({ type: 'birdDeath', player: p.id });
+    }
+  }
+
   return {
     skipOpening() {
       if (phase !== 'opening') return;
@@ -1272,6 +1482,8 @@ export function createRemasterSimulation(
       level4PistonElapsed = 0;
       level4PistonPattern = 0;
       level4HammerPattern = Math.floor(random() * 4) & 3;
+      level5State =
+        level.courseIndex === 5 ? createLevel5ActorsState(random) : undefined;
       placePlayersAtSpawn();
       return snapshot([]);
     },
@@ -1333,6 +1545,12 @@ export function createRemasterSimulation(
                 );
               } else if (level.courseIndex === 4 && i === 0) {
                 physics.applyPlayerForce(i as 0 | 1, 26 * liftStrength, 0);
+              } else if (level.courseIndex === 5) {
+                physics.applyPlayerForce(
+                  i as 0 | 1,
+                  -18 * liftStrength,
+                  -18 * liftStrength,
+                );
               } else {
                 physics.applyPlayerForce(i as 0 | 1, 0, 26 * liftStrength);
               }
@@ -1348,6 +1566,9 @@ export function createRemasterSimulation(
         }
         if (p.catchUpTimer > 0) {
           p.catchUpTimer = Math.max(0, p.catchUpTimer - dt);
+        }
+        if (p.timeBonusTimer > 0) {
+          p.timeBonusTimer = Math.max(0, p.timeBonusTimer - dt);
         }
         if (p.dizzyTimer > 0) {
           p.dizzyTimer = Math.max(0, p.dizzyTimer - dt);
@@ -1470,6 +1691,7 @@ export function createRemasterSimulation(
 
         if (
           p.life === 'shattered' ||
+          p.life === 'birdDead' ||
           p.life === 'melting' ||
           p.life === 'suctioned' ||
           p.life === 'falling'
@@ -1624,19 +1846,22 @@ export function createRemasterSimulation(
       updatePipeTraversals(dt, events);
       updateLevel3Mechanics(dt, events);
       updateLevel4Mechanics(dt, events);
+      updateLevel5Mechanics(dt, events);
 
       for (let i = 0; i < players.length; i++) {
         const p = players[i]!;
         const idx = i as 0 | 1;
         if (
           p.life === 'shattered' ||
+          p.life === 'birdDead' ||
           p.life === 'melting' ||
           p.life === 'suctioned' ||
           p.life === 'falling' ||
           p.life === 'respawning' ||
           p.life === 'goal' ||
           p.pipeTraversal !== undefined ||
-          p.level3PipeActive
+          p.level3PipeActive ||
+          p.level5PipeActive
         ) {
           if (p.life !== 'goal') allAtGoal = false;
           continue;
@@ -1771,7 +1996,26 @@ export function createRemasterSimulation(
           const hW = sampleLayerHeight(mainLayer, bx - 0.5, bz);
           const hS = sampleLayerHeight(mainLayer, bx, bz + 0.5);
           const hN = sampleLayerHeight(mainLayer, bx, bz - 0.5);
+          const flatTol = level.courseIndex === 5 ? 0.12 : 0.4;
+          const cellXIdx = Math.floor(
+            bx + mainLayer.origin.x + mainLayer.columns / 2,
+          );
+          const cellZIdx = Math.floor(
+            bz + mainLayer.origin.z + mainLayer.rows / 2,
+          );
+          const currCell = mainLayer.cells[cellZIdx]?.[cellXIdx];
+          const currCellFlat =
+            level.courseIndex !== 5 ||
+            (currCell != null &&
+              currCell[0] !== null &&
+              currCell[1] !== null &&
+              currCell[2] !== null &&
+              currCell[3] !== null &&
+              Math.max(currCell[0], currCell[1], currCell[2], currCell[3]) -
+                Math.min(currCell[0], currCell[1], currCell[2], currCell[3]) <
+                0.05);
           const safeMargin =
+            currCellFlat &&
             groundH !== null &&
             hE !== null &&
             hW !== null &&
@@ -1781,10 +2025,10 @@ export function createRemasterSimulation(
             !isIceAtWorld(level, bx - 0.5, bz) &&
             !isIceAtWorld(level, bx, bz + 0.5) &&
             !isIceAtWorld(level, bx, bz - 0.5) &&
-            Math.abs(hE - groundH) < 0.4 &&
-            Math.abs(hW - groundH) < 0.4 &&
-            Math.abs(hS - groundH) < 0.4 &&
-            Math.abs(hN - groundH) < 0.4;
+            Math.abs(hE - groundH) < flatTol &&
+            Math.abs(hW - groundH) < flatTol &&
+            Math.abs(hS - groundH) < flatTol &&
+            Math.abs(hN - groundH) < flatTol;
           if (safeMargin && groundH !== null) {
             p.lastSafe = {
               x: bx,

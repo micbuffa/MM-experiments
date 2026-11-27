@@ -12,7 +12,13 @@ test('remaster.html boots Level 1 with Havok physics and responds to controls wi
   await page.goto('/remaster.html');
   await expect(page.locator('#remaster-canvas')).toBeVisible();
 
-  // Wait for terrain + Havok initialization to enter FLYOVER
+  // Boots into 100% 3D WebGL Attract Mode (Marble Odyssey 3D)
+  await expect
+    .poll(() => page.locator('#hud-status').textContent(), { timeout: 15_000 })
+    .toBe('ATTRACT');
+
+  // Press Space to launch 1P game -> FLYOVER
+  await page.keyboard.press('Space');
   await expect
     .poll(() => page.locator('#hud-status').textContent(), { timeout: 15_000 })
     .toBe('FLYOVER');
@@ -39,6 +45,10 @@ test('remaster.html boots Level 1 with Havok physics and responds to controls wi
   // Cycle camera preset cleanly
   await page.keyboard.press('KeyC');
   await expect(page.locator('#btn-camera')).toContainText('Follow');
+
+  // Preview 100% 3D Final Victory scene cleanly via Shift+V
+  await page.keyboard.press('Shift+KeyV');
+  await expect(page.locator('#hud-status')).toHaveText('VICTORY!');
 
   expect(errors).toEqual([]);
 });

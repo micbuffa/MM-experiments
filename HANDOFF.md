@@ -1,5 +1,37 @@
 # Handoff
 
+## Remaster 100% 3D GLSL Attract Mode (`Marbylon Madness 3D`), 3D Final Victory & Auto-Advance — November 27, 2026
+
+- **Committed, pushed & deployed Level 4 2P start-beam rail steering fix**: `2b679c1` on `origin/Remaster`, `044f1a2` on `origin/gh-pages`.
+- **100% English UI, Regular Timer Default + `T` Toggle & Automatic Course Progression**:
+  - Renamed `"Nervosité"` → `"Ball Sensitivity"` and translated all UI labels/aria attributes to English (`remaster.html`).
+  - Restored regular countdown timer by default (`timerFrozen = false`) and added visible **`Timer: Regular (T)` / `Timer: Infinite ∞ (T)`** toolbar button (`#btn-timer` + `KeyT`).
+  - Finishing Levels 1–5 now automatically chains into the next course (`1 → 2 → 3 → 4 → 5 → 6`) after `3.2 s` (`Space` skips the wait), carrying P1/P2 scores forward without needing `N`; finishing Level 6 opens the 3D Final Victory scene.
+- **3-Mode 100% 3D WebGL + Custom GLSL Attract Mode (`Marbylon Madness 3D`)** (`createAttract3DScene.ts`, `remasterAttract.ts`, `remasterAttract.test.ts`):
+  - **Mode 1 (`flyover`)**: real 3D BabylonJS levels scrolling live behind a floating 3D GLSL holographic title & raycasted 3D `1 PLAYER` / `2 PLAYERS` buttons (`autoClear = false` foreground compositing).
+  - **Mode 2 (`aiDemo`)**: real-time Havok 3D AI autopilot (`computeAttractAiInput`) playing the live course while cycling 3D cameras (`Arcade → Follow → Chase → Chase High → Overhead`).
+  - **Mode 3 (`amigaDemo`)** (`createAmigaDemo3DScene.ts`): 100% 3D GLSL **Amiga 500 Demoscene homage** — 7 animated horizontal Copper bars + Boing-Ball sinusoidal checkerboard floor + periodic CRT slice glitches, 48 thin-instanced morphing 3D Vectorballs (`Cube → Torus → Double Helix → Sphere`), old-school 4-step flat-shaded + wireframe sinusoidally deformed 3D polyhedron, classic vertex-waved sinusoidal horizontal scrolltext, and optional CRT scanlines (ON by default, toggled via **`S`** / `#btn-scanlines`).
+  - **Mode 4 (`showcase`)**: 100% 3D GLSL retro-arcade tribute (`attractGrid` neon horizon grid, `attractFresnel` energy rings, rotating 3-tier pedestal, orbiting Blue/Red/Black marbles, Hall of Fame, and full homage credits for Atari Games 1984 + Michel Buffa, Peter Salomonsen, Luca Elia, Aaron Giles).
+  - Cycles automatically across all 4 modes & all 6 courses (`←` / `→` switches attract mode manually).
+- **100% 3D WebGL + Custom GLSL Final Victory Scene (`createVictory3DScene.ts`)**:
+  - Launches on Level 6 `GOAL` (previewable anytime via **`Shift+V`**): `victoryAurora` starburst sky shader, `victoryGoldOrb` iridescent gold Trophy Marble on a 3-tier obsidian/gold podium with 3 spinning rings, 96 thin-instanced 3D confetti shards, 3D holographic score/rank/keyboard-initials entry & scrolling tribute credits, and raycasted 3D `PLAY AGAIN` / `TITLE 3D` buttons.
+- **Marble Cast Shadows & Light 3D Motion Trail (`createRemasterScene.ts`, `createMarbleTrail.ts`)**:
+  - Registered P1, P2, and Black Marble meshes as live `ShadowGenerator` casters on the `key` directional sun light with `setPracticeShadowRefresh(scene, 'every-frame')`, restoring crisp cast shadows matching the `main` branch 3D view.
+  - Added `createMarbleTrail` (single-draw-call `thinInstance` pool of 24 soft emissive orbs per player, zero per-frame allocations) emitting subtle speed-scaled motion sparkles behind moving marbles.
+- **Polish, Authentic 1984 Atari Font, Sensitivity & End-of-Game Initials**:
+  - Decoded the exact 1984 Atari System 1 8×8 alphanumeric bitmap font (`136032.104.f5` from `roms/atarisy1.zip`) into `src/remaster/rendering/arcadeBitmapFont.ts` and applied it across all 3D attract, Amiga, and victory scenes.
+  - Added a gently bouncing sinusoidal tribute scroller directly under the waving `MARBYLON MADNESS 3D` logo in `createAmigaDemo3DScene.ts` celebrating the 1986 Amiga port and thanking **Larry Reed, Will Harvey & Electronic Arts**.
+  - Extracted both Amiga scrolltexts and metrics into an editable module (`src/remaster/engine/amigaScrollTexts.ts`) with a sliding-window Canvas2D strip (zero clipping) and automatic `amigaDemo` stage duration scaling (`computeAmigaDemoDurationSeconds`).
+  - Updated `README.md` for `Marbylon Madness 3D`, the 4-stage 3D Attract Mode, 3D Victory/Hall of Fame, controls, and WebAssembly Music credits for Peter Salomonsen.
+  - Wired the `Ball Sensitivity` slider (`0.25×–2.00×`, default `0.80×`) to directly scale trackpad gain, input acceleration, and max speed in `remaster.ts` & `remasterSimulation.ts`.
+  - Fixed marble trail visibility by setting `proto.alwaysSelectAsActiveMesh = true` on the `thinInstance` pool in `createMarbleTrail.ts` (preventing BabylonJS frustum culling away from origin) and raising particle height/diameter.
+  - Added global Retina-crisp CRT scanlines overlay (`#scanlines-overlay`, ON by default, toggled anytime via **`S`** or **`Scanlines: ON (S)`**).
+  - Removed explicit `"AMIGA DEMOSCENE"` label text from `createAmigaDemo3DScene.ts` and removed technical engine/chip strings from the course intro banner (`remaster.ts`).
+  - Added **`Q`** shortcut (`Title (Q)`) to stop the current game and return to Attract Mode anytime.
+  - Enabled 3D Hall of Fame 3-letter initials entry on **`GAME OVER`** as well as Level 6 **`CONGRATULATIONS!`** (`createVictory3DScene.ts`).
+  - Verification: `npm run format && npm run check && npx playwright test tests/browser/remaster.spec.ts` (**6/6 passed**).
+- **Next action**: Michel visual review on `http://127.0.0.1:5173/remaster.html` (`←`/`→` in Attract Mode to inspect all 4 modes including the Amiga 1986 tribute scroller, `S` for scanlines, `Q` to quit to title, `Shift+V` for Victory), then commit/push/deploy once approved.
+
 ## Remaster Level 6 (Ultimate Race) ROM decode, simulation & 3D integration — November 27, 2026
 
 - **Committed & deployed Level 5**: pushed `93e27fd` to `origin/Remaster` and deployed standalone `dist-remaster/` (Levels 1–5) to `origin/gh-pages` (`b09d740`, `https://micbuffa.github.io/MM-experiments/remaster/`).

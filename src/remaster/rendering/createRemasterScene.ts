@@ -1,4 +1,5 @@
 import type { AbstractEngine } from '@babylonjs/core/Engines/abstractEngine';
+import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
@@ -68,7 +69,9 @@ import { level5FinishDepth } from '../../rendering/level5DisplayTerrain';
 import { sampleLayerHeight } from '../levels/remasterLevel';
 import { REMASTER_RULES } from '../engine/physicsConstants';
 import type { RemasterSnapshot } from '../engine/remasterSimulation';
+import { setPracticeShadowRefresh } from '../../rendering/createPracticeSun';
 import { createBroomSweep } from './createBroomSweep';
+import { createMarbleTrail } from './createMarbleTrail';
 
 export function createRemasterScene(
   engine: AbstractEngine,
@@ -87,6 +90,15 @@ export function createRemasterScene(
   const occlusion = createCameraOcclusion(scene, terrain);
   const first = createPracticeMarble(scene, 'remaster-marble-1', false);
   const second = createPracticeMarble(scene, 'remaster-marble-2', true);
+  const firstTrail = createMarbleTrail(scene, 'remaster-trail-1', false);
+  const secondTrail = createMarbleTrail(scene, 'remaster-trail-2', true);
+  // Cast live directional sun shadows for both player marbles (matching main branch 3D).
+  const keyShadows = scene.getLightByName('key')?.getShadowGenerator();
+  if (keyShadows instanceof ShadowGenerator) {
+    keyShadows.addShadowCaster(first.marble, true);
+    keyShadows.addShadowCaster(second.marble, true);
+    setPracticeShadowRefresh(scene, 'every-frame');
+  }
   const firstRespawn = createPracticeRespawn(
     scene,
     'remaster-respawn-1',
@@ -391,8 +403,12 @@ export function createRemasterScene(
           z: player.position.z + cellShift,
         };
       };
-      first.update(p1Visible ? escherVisualPos(p1) : null);
-      second.update(p2Visible ? escherVisualPos(p2) : null);
+      const p1Pos = p1Visible ? escherVisualPos(p1) : null;
+      const p2Pos = p2Visible ? escherVisualPos(p2) : null;
+      first.update(p1Pos);
+      second.update(p2Pos);
+      firstTrail.update(p1Pos, p1Pos && p1 ? p1.velocity : null, dtSeconds);
+      secondTrail.update(p2Pos, p2Pos && p2 ? p2.velocity : null, dtSeconds);
       if (isLevel2) setIntermediateBridgeStep(scene, snapshot.bridgePhase * 6);
       if (isLevel4 && snapshot.level4) {
         setLevel4VacuumExtensions(
@@ -599,6 +615,9 @@ export function createRemasterScene(
             scene,
           );
           mesh.material = blackMat;
+          if (keyShadows instanceof ShadowGenerator) {
+            keyShadows.addShadowCaster(mesh, true);
+          }
           enemyMeshes.set(enemy.id, mesh);
         }
         mesh.setEnabled(true);

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,15 +7,13 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: ws://localhost:* ws://127.0.0.1:*; img-src 'self' blob: data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
     />
-    <title>Marble Madness Remaster — Havok + YM2151/POKEY</title>
+    <title>Marbylon Madness 3D — A 3D Homage to Marble Madness (1984)</title>
     <link rel="icon" href="data:," />
   </head>
   <body>
     <main id="remaster-stage">
-      <canvas
-        id="remaster-canvas"
-        aria-label="Marble Madness Remaster 3D"
-      ></canvas>
+      <canvas id="remaster-canvas" aria-label="Marbylon Madness 3D"></canvas>
+      <div id="scanlines-overlay" aria-hidden="true"></div>
 
       <header id="remaster-hud">
         <div class="hud-block">
@@ -31,8 +29,10 @@
           <strong id="hud-timer">60</strong>
         </div>
         <div class="hud-block hud-right">
-          <span class="hud-label" id="hud-level-label">LEVEL 1 · HAVOK</span>
-          <strong id="hud-status">OPENING</strong>
+          <span class="hud-label" id="hud-level-label"
+            >COURSE 1 · PRACTICE</span
+          >
+          <strong id="hud-status">ATTRACT</strong>
         </div>
       </header>
 
@@ -43,9 +43,12 @@
 
       <footer id="remaster-toolbar">
         <div class="toolbar-group">
+          <button id="btn-attract" type="button" title="Return to Title 3D (Q)">
+            Title (Q)
+          </button>
           <label class="control-select">
             Course
-            <select id="level-select" aria-label="Choisir le niveau">
+            <select id="level-select" aria-label="Select course">
               <option value="1" selected>1 · Practice</option>
               <option value="2">2 · Beginner</option>
               <option value="3">3 · Intermediate</option>
@@ -58,7 +61,7 @@
           <button id="btn-players" type="button">Mode: 1P</button>
           <label class="control-select">
             P1
-            <select id="p1-control" aria-label="Contrôle Joueur 1">
+            <select id="p1-control" aria-label="Player 1 control">
               <option value="trackpad" selected>Trackpad / Mouse</option>
               <option value="keyboard">Keyboard (Arrows + WASD/ZQSD)</option>
               <option value="arrows">Keyboard (Arrows)</option>
@@ -69,7 +72,7 @@
           </label>
           <label class="control-select" id="p2-control-wrap" hidden>
             P2
-            <select id="p2-control" aria-label="Contrôle Joueur 2">
+            <select id="p2-control" aria-label="Player 2 control">
               <option value="keyboard" selected>
                 Keyboard (Arrows + WASD/ZQSD)
               </option>
@@ -80,12 +83,12 @@
               <option value="gamepad2">Gamepad 2</option>
             </select>
           </label>
+          <button id="btn-timer" type="button">Timer: Regular (T)</button>
+          <button id="btn-scanlines" type="button">Scanlines: ON (S)</button>
           <button id="btn-reset" type="button">Restart (R)</button>
         </div>
         <div class="toolbar-group">
-          <button id="btn-audio" type="button">
-            Audio: YM2151 + POKEY (M)
-          </button>
+          <button id="btn-audio" type="button">Audio: ON (M)</button>
           <label class="mix-slider">
             Music
             <input
@@ -94,7 +97,7 @@
               min="0"
               max="100"
               value="75"
-              aria-label="Volume musique"
+              aria-label="Music volume"
             />
           </label>
           <label class="mix-slider">
@@ -105,19 +108,19 @@
               min="0"
               max="100"
               value="100"
-              aria-label="Volume sound design"
+              aria-label="SFX volume"
             />
           </label>
           <label class="mix-slider">
-            Nervosité
+            Ball Sensitivity
             <input
               id="agility-slider"
               type="range"
-              min="40"
-              max="150"
+              min="25"
+              max="200"
               step="5"
               value="80"
-              aria-label="Nervosité de la bille"
+              aria-label="Ball sensitivity"
             />
             <span id="agility-val">0.80×</span>
           </label>

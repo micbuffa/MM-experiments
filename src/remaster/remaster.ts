@@ -36,9 +36,26 @@ import {
   createRemasterSimulation,
   type PlayerInput,
 } from './engine/remasterSimulation';
-import { practiceTerrainToRemasterLevel } from './levels/remasterLevel';
+import {
+  AUTO_ADVANCE_DELAY_SECONDS,
+  computeAttractAiInput,
+  createAttractCycle,
+  getCourseShowcase,
+  loadHighScores,
+  recordHighScore,
+  stepAttractCycle,
+  switchAttractStage,
+  type RemasterScreenMode,
+} from './engine/remasterAttract';
+import {
+  practiceTerrainToRemasterLevel,
+  sampleLayerHeight,
+} from './levels/remasterLevel';
 import { createHavokBackend } from './physics/createHavokBackend';
+import { createAmigaDemo3DScene } from './rendering/createAmigaDemo3DScene';
+import { createAttract3DScene } from './rendering/createAttract3DScene';
 import { createRemasterScene } from './rendering/createRemasterScene';
+import { createVictory3DScene } from './rendering/createVictory3DScene';
 
 const CAMERA_LABELS: Record<PracticeCameraPreset, string> = {
   arcade: 'Arcade',
@@ -128,12 +145,18 @@ async function bootRemaster() {
     document.querySelector<HTMLElement>('#p2-control-wrap')!;
   const p2ControlSelect =
     document.querySelector<HTMLSelectElement>('#p2-control')!;
+  const btnTimer = document.querySelector<HTMLButtonElement>('#btn-timer')!;
+  const btnScanlines =
+    document.querySelector<HTMLButtonElement>('#btn-scanlines')!;
   const btnReset = document.querySelector<HTMLButtonElement>('#btn-reset')!;
   const btnAudio = document.querySelector<HTMLButtonElement>('#btn-audio')!;
   const mixMusic = document.querySelector<HTMLInputElement>('#mix-music')!;
   const mixSfx = document.querySelector<HTMLInputElement>('#mix-sfx')!;
   const vgmFile = document.querySelector<HTMLInputElement>('#vgm-file')!;
   const telemetryEl = document.querySelector<HTMLElement>('#telemetry')!;
+  const scanlinesOverlay =
+    document.querySelector<HTMLElement>('#scanlines-overlay')!;
+  const btnAttract = document.querySelector<HTMLButtonElement>('#btn-attract')!;
 
   const controller = new AbortController();
   const { signal } = controller;
@@ -142,9 +165,24 @@ async function bootRemaster() {
   const audio = createRemasterAudio(import.meta.env.BASE_URL);
   let audioMuted = false;
 
+  const attract3D = createAttract3DScene(
+    engine,
+    loadHighScores(window.localStorage),
+  );
+  const amigaDemo3D = createAmigaDemo3DScene(engine);
+  const victory3D = createVictory3DScene(engine);
+
   let currentCourse: RemasterCourseIndex = 1;
+  let screenMode: RemasterScreenMode = 'attract';
+  let attractCycle = createAttractCycle(1, 'flyover');
+  let attractSwitching = false;
+  let wasAmigaStage = false;
+  let autoAdvanceTimer = -1;
+  let autoAdvancing = false;
+  let victoryShownForRun = false;
   let twoPlayers = false;
-  let timerFrozen = true;
+  let timerFrozen = false;
+  let scanlinesEnabled = true;
   let controls: RemasterPlayerControls = { ...DEFAULT_REMASTER_CONTROLS };
   let cameraPreset: PracticeCameraPreset = 'arcade';
   let fov = practiceLens.initial;
@@ -173,7 +211,7 @@ async function bootRemaster() {
     return practiceTerrainToRemasterLevel(displayTerrain);
   }
 
-  statusEl.textContent = 'LOADING TERRAIN…';
+  statusEl.textContent = 'LOADING COURSE…';
   const [initialTerrain, rollingActors] = await Promise.all([
     loadCourseTerrain(currentCourse),
     loadCourseActors(),
@@ -185,7 +223,7 @@ async function bootRemaster() {
   view.camera.select(cameraPreset);
   view.camera.setFov(fov);
 
-  statusEl.textContent = 'LOADING HAVOK…';
+  statusEl.textContent = 'PREPARING ARENA…';
   let physics = await createHavokBackend(view.scene, level, twoPlayers);
   let sim = createRemasterSimulation(level, physics, twoPlayers);
   sim.setTimerFrozen(timerFrozen);
@@ -211,21 +249,90 @@ async function bootRemaster() {
     });
   }
 
+  function enterAttractMode() {
+    screenMode = 'attract';
+    victoryShownForRun = false;
+    autoAdvanceTimer = -1;
+    autoAdvancing = false;
+    attractCycle = createAttractCycle(currentCourse, 'flyover');
+    bannerEl.hidden = true;
+    if (document.pointerLockElement === canvas) {
+      document.exitPointerLock?.();
+    }
+    view.camera.select('arcade');
+    attract3D.setHighScores(loadHighScores(window.localStorage));
+    attract3D.setMode(
+      attractCycle.stage,
+      attractCycle.course,
+      CAMERA_LABELS[attractCycle.cameraPreset],
+    );
+    updateHud();
+  }
+
+  function openVictory3D(p1Score: number, p2Score?: number, gameOver = false) {
+    screenMode = 'victory';
+    victoryShownForRun = true;
+    autoAdvanceTimer = -1;
+    bannerEl.hidden = true;
+    if (document.pointerLockElement === canvas) {
+      document.exitPointerLock?.();
+    }
+    victory3D.configure(p1Score, twoPlayers ? p2Score : undefined, {
+      gameOver,
+      course: currentCourse,
+    });
+    updateHud();
+  }
+
+  async function startGameFrom3DMenu(
+    course: RemasterCourseIndex,
+    multiplayer: boolean,
+  ) {
+    unlockAudio();
+    screenMode = 'playing';
+    victoryShownForRun = false;
+    autoAdvanceTimer = -1;
+    autoAdvancing = false;
+    const needsReload = course !== currentCourse;
+    const needsModeChange = multiplayer !== twoPlayers;
+    twoPlayers = multiplayer;
+    view.camera.select(cameraPreset);
+    if (needsReload) {
+      await loadLevel(course, [0, 0]);
+    } else if (needsModeChange) {
+      await rebuildSession([0, 0]);
+    } else {
+      sim.reset();
+      sim.setTimerFrozen(timerFrozen);
+      audio.playLevelTheme(currentCourse);
+      updateToolbarLabels();
+    }
+    updateHud();
+  }
+
   function updateToolbarLabels() {
     levelSelect.value = String(currentCourse);
     levelLabelEl.textContent = `LEVEL ${currentCourse} · ${level.name.toUpperCase()}`;
     btnCamera.textContent = `Camera: ${CAMERA_LABELS[cameraPreset]} (C)`;
     btnPlayers.textContent = `Mode: ${twoPlayers ? '2P' : '1P'}`;
+    btnTimer.textContent = timerFrozen
+      ? 'Timer: Infinite ∞ (T)'
+      : 'Timer: Regular (T)';
+    btnScanlines.textContent = scanlinesEnabled
+      ? 'Scanlines: ON (S)'
+      : 'Scanlines: OFF (S)';
+    scanlinesOverlay.hidden = !scanlinesEnabled;
     p1ControlSelect.value = controls.p1;
     p2ControlSelect.value = controls.p2;
     p2ControlWrap.hidden = !twoPlayers;
     p2HudBlock.hidden = !twoPlayers;
-    btnAudio.textContent = audioMuted
-      ? 'Audio: Muted (M)'
-      : 'Audio: YM2151 + POKEY (M)';
+    btnAudio.textContent = audioMuted ? 'Audio: Muted (M)' : 'Audio: ON (M)';
   }
 
-  async function loadLevel(course: RemasterCourseIndex) {
+  async function loadLevel(
+    course: RemasterCourseIndex,
+    carryScores: readonly [number, number] = [0, 0],
+  ) {
     currentCourse = course;
     statusEl.textContent = `LOADING LEVEL ${course}…`;
     terrain = await loadCourseTerrain(course);
@@ -233,22 +340,42 @@ async function bootRemaster() {
     physics.dispose();
     view.dispose();
     view = createRemasterScene(engine, terrain, rollingActors);
-    view.camera.select(cameraPreset);
+    view.camera.select(
+      screenMode === 'attract' ? attractCycle.cameraPreset : cameraPreset,
+    );
     view.camera.setFov(fov);
     physics = await createHavokBackend(view.scene, level, twoPlayers);
-    sim = createRemasterSimulation(level, physics, twoPlayers);
+    sim = createRemasterSimulation(
+      level,
+      physics,
+      twoPlayers,
+      Math.random,
+      carryScores,
+    );
     sim.setTimerFrozen(timerFrozen);
     accumulator = 0;
-    audio.playLevelTheme(currentCourse);
+    autoAdvanceTimer = -1;
+    if (screenMode === 'playing') {
+      audio.playLevelTheme(currentCourse);
+    }
     updateToolbarLabels();
   }
 
-  async function rebuildSession() {
+  async function rebuildSession(
+    carryScores: readonly [number, number] = [0, 0],
+  ) {
     physics.dispose();
     physics = await createHavokBackend(view.scene, level, twoPlayers);
-    sim = createRemasterSimulation(level, physics, twoPlayers);
+    sim = createRemasterSimulation(
+      level,
+      physics,
+      twoPlayers,
+      Math.random,
+      carryScores,
+    );
     sim.setTimerFrozen(timerFrozen);
     accumulator = 0;
+    autoAdvanceTimer = -1;
     audio.playLevelTheme(currentCourse);
     updateToolbarLabels();
   }
@@ -306,8 +433,9 @@ async function bootRemaster() {
 
     if (mode === 'trackpad') {
       if (Math.abs(mouseDx) > 0.01 || Math.abs(mouseDy) > 0.01) {
-        sx += Math.max(-1, Math.min(1, mouseDx / 28));
-        sy += Math.max(-1, Math.min(1, mouseDy / 28));
+        const gain = agilityFactor / 28;
+        sx += Math.max(-1, Math.min(1, mouseDx * gain));
+        sy += Math.max(-1, Math.min(1, mouseDy * gain));
         mouseDx *= 0.45;
         mouseDy *= 0.45;
       }
@@ -364,31 +492,26 @@ async function bootRemaster() {
         snap.phase === 'playing',
     );
 
-    if (snap.phase === 'opening') {
+    if (screenMode === 'attract') {
+      statusEl.textContent = 'ATTRACT';
+      bannerEl.hidden = true;
+    } else if (screenMode === 'victory') {
+      statusEl.textContent = 'VICTORY!';
+      bannerEl.hidden = true;
+    } else if (snap.phase === 'opening') {
       statusEl.textContent = 'FLYOVER';
       bannerEl.hidden = false;
       bannerTitle.textContent = level.name.toUpperCase();
-      bannerSub.textContent =
-        'Remaster Havok + YM2151/POKEY · Space to skip flyover · Click to capture trackpad';
+      const showcase = getCourseShowcase(currentCourse);
+      bannerSub.textContent = `${showcase.subtitle} · Space to roll!`;
     } else if (snap.phase === 'finished') {
       statusEl.textContent = 'GOAL!';
       bannerEl.hidden = false;
-      bannerTitle.textContent =
-        currentCourse === 6
-          ? `CONGRATULATIONS! SCORE ${p1?.score ?? 0}`
-          : `GOAL! SCORE ${p1?.score ?? 0}`;
+      bannerTitle.textContent = `GOAL! SCORE ${p1?.score ?? 0}`;
       bannerSub.textContent =
-        currentCourse === 1
-          ? 'Press N for Level 2 (Beginner Race) or R to replay'
-          : currentCourse === 2
-            ? 'Press N for Level 3 (Intermediate Race) or R to replay'
-            : currentCourse === 3
-              ? 'Press N for Level 4 (Aerial Race) or R to replay'
-              : currentCourse === 4
-                ? 'Press N for Level 5 (Silly Race) or R to replay'
-                : currentCourse === 5
-                  ? 'Press N for Level 6 (Ultimate Race) or R to replay'
-                  : 'All 6 courses completed! Press R to replay';
+        currentCourse < 6
+          ? `Advancing to Level ${currentCourse + 1}… (Space to continue now)`
+          : 'All 6 courses completed!';
     } else if (snap.phase === 'gameOver') {
       statusEl.textContent = 'TIME UP';
       bannerEl.hidden = false;
@@ -422,6 +545,128 @@ async function bootRemaster() {
     const dt = Math.min(0.1, Math.max(0, (now - lastTime) / 1000));
     lastTime = now;
 
+    if (screenMode === 'attract') {
+      audio.updateRolling(0, false);
+      const prevStage = attractCycle.stage;
+      const prevCam = attractCycle.cameraPreset;
+      const next = stepAttractCycle(attractCycle, dt);
+      attractCycle = next.state;
+
+      if (next.courseChanged && !attractSwitching) {
+        attractSwitching = true;
+        void loadLevel(attractCycle.course).finally(() => {
+          attractSwitching = false;
+        });
+      }
+      if (attractCycle.stage === 'aiDemo' && prevStage !== 'aiDemo') {
+        sim.reset();
+        sim.setTimerFrozen(true);
+        sim.skipOpening();
+        accumulator = 0;
+        view.camera.select(attractCycle.cameraPreset);
+      } else if (
+        attractCycle.stage === 'aiDemo' &&
+        attractCycle.cameraPreset !== prevCam
+      ) {
+        view.camera.select(attractCycle.cameraPreset);
+      } else if (attractCycle.stage === 'flyover' && prevStage !== 'flyover') {
+        view.camera.select('arcade');
+      }
+
+      attract3D.setMode(
+        attractCycle.stage,
+        attractCycle.course,
+        CAMERA_LABELS[attractCycle.cameraPreset],
+      );
+      attract3D.update(dt);
+      updateHud();
+
+      if (attractCycle.stage === 'flyover') {
+        const flySnap = {
+          ...sim.snapshot,
+          phase: 'opening' as const,
+          openingProgress: attractCycle.flyoverProgress,
+        };
+        view.sync(flySnap, dt);
+        engine.beginFrame();
+        try {
+          view.scene.render();
+          attract3D.scene.render();
+        } finally {
+          engine.endFrame();
+        }
+      } else if (attractCycle.stage === 'aiDemo') {
+        const mainLayer = level.heightLayers[0];
+        const sampleH = (wx: number, wz: number) =>
+          mainLayer ? sampleLayerHeight(mainLayer, wx, wz) : 0;
+        accumulator += dt;
+        const fixed = REMASTER_PHYSICS.fixedStepSeconds;
+        let aiSnap = sim.snapshot;
+        while (accumulator >= fixed) {
+          const p = aiSnap.players[0];
+          const cmd = p
+            ? computeAttractAiInput(
+                p.position,
+                p.velocity,
+                level.direction,
+                sampleH,
+              )
+            : { x: 0, z: 0, boost: false };
+          aiSnap = sim.step(fixed, [
+            { x: cmd.x, z: cmd.z, boost: cmd.boost, agility: 0.78 },
+          ]);
+          accumulator -= fixed;
+        }
+        view.sync(aiSnap, dt);
+        engine.beginFrame();
+        try {
+          view.scene.render();
+          attract3D.scene.render();
+        } finally {
+          engine.endFrame();
+        }
+      } else if (attractCycle.stage === 'amigaDemo') {
+        if (!wasAmigaStage) {
+          amigaDemo3D.resetScroll();
+          wasAmigaStage = true;
+        }
+        amigaDemo3D.setScanlines(scanlinesEnabled);
+        amigaDemo3D.update(dt);
+        engine.beginFrame();
+        try {
+          amigaDemo3D.scene.render();
+        } finally {
+          engine.endFrame();
+        }
+      } else {
+        wasAmigaStage = false;
+        engine.beginFrame();
+        try {
+          attract3D.scene.render();
+        } finally {
+          engine.endFrame();
+        }
+      }
+      if (attractCycle.stage !== 'amigaDemo') {
+        wasAmigaStage = false;
+      }
+      return;
+    }
+    wasAmigaStage = false;
+
+    if (screenMode === 'victory') {
+      audio.updateRolling(0, false);
+      victory3D.update(dt);
+      updateHud();
+      engine.beginFrame();
+      try {
+        victory3D.scene.render();
+      } finally {
+        engine.endFrame();
+      }
+      return;
+    }
+
     accumulator += dt;
     const fixed = REMASTER_PHYSICS.fixedStepSeconds;
     let latestSnap = sim.snapshot;
@@ -429,6 +674,40 @@ async function bootRemaster() {
       latestSnap = sim.step(fixed, sampleInputs());
       if (latestSnap.events.length > 0) audio.handleEvents(latestSnap.events);
       accumulator -= fixed;
+    }
+
+    if (latestSnap.phase === 'gameOver' && !victoryShownForRun) {
+      openVictory3D(
+        latestSnap.players[0]?.score ?? 0,
+        latestSnap.players[1]?.score,
+        true,
+      );
+    } else if (latestSnap.phase === 'finished') {
+      if (currentCourse === 6 && !victoryShownForRun) {
+        openVictory3D(
+          latestSnap.players[0]?.score ?? 0,
+          latestSnap.players[1]?.score,
+        );
+      } else if (currentCourse < 6 && !autoAdvancing) {
+        if (autoAdvanceTimer < 0) {
+          autoAdvanceTimer = AUTO_ADVANCE_DELAY_SECONDS;
+        } else {
+          autoAdvanceTimer -= dt;
+          if (autoAdvanceTimer <= 0) {
+            autoAdvancing = true;
+            const scores: [number, number] = [
+              latestSnap.players[0]?.score ?? 0,
+              latestSnap.players[1]?.score ?? 0,
+            ];
+            void loadLevel(
+              (currentCourse + 1) as RemasterCourseIndex,
+              scores,
+            ).finally(() => {
+              autoAdvancing = false;
+            });
+          }
+        }
+      }
     }
 
     const p1 = latestSnap.players[0];
@@ -455,11 +734,63 @@ async function bootRemaster() {
   // Event listeners (all scoped to AbortController for clean disposal).
   canvas.addEventListener(
     'click',
-    () => {
+    (event) => {
       unlockAudio();
+      const rect = canvas.getBoundingClientRect();
+      const px = event.clientX - rect.left;
+      const py = event.clientY - rect.top;
+      if (screenMode === 'attract') {
+        const action =
+          attractCycle.stage === 'amigaDemo'
+            ? amigaDemo3D.pickAction(px, py)
+            : attract3D.pickAction(px, py);
+        if (action === 'start2p') {
+          void startGameFrom3DMenu(currentCourse, true);
+        } else {
+          void startGameFrom3DMenu(currentCourse, false);
+        }
+        return;
+      }
+      if (screenMode === 'victory') {
+        const action = victory3D.pickAction(px, py);
+        if (action === 'replay') {
+          void startGameFrom3DMenu(1, twoPlayers);
+        } else if (action === 'attract') {
+          enterAttractMode();
+        }
+        return;
+      }
       if (document.pointerLockElement !== canvas) {
         void canvas.requestPointerLock?.();
       }
+    },
+    { signal },
+  );
+
+  canvas.addEventListener(
+    'pointermove',
+    (event) => {
+      if (screenMode === 'playing') return;
+      const rect = canvas.getBoundingClientRect();
+      const px = event.clientX - rect.left;
+      const py = event.clientY - rect.top;
+      if (screenMode === 'attract') {
+        if (attractCycle.stage === 'amigaDemo') {
+          amigaDemo3D.setHover(px, py);
+        } else {
+          attract3D.setHover(px, py);
+        }
+      } else if (screenMode === 'victory') {
+        victory3D.setHover(px, py);
+      }
+    },
+    { signal },
+  );
+
+  btnAttract.addEventListener(
+    'click',
+    () => {
+      enterAttractMode();
     },
     { signal },
   );
@@ -481,8 +812,78 @@ async function bootRemaster() {
       unlockAudio();
       heldKeys.add(event.code);
       if (event.repeat) return;
+      if (screenMode === 'attract') {
+        if (event.code === 'Space' || event.code === 'Enter') {
+          event.preventDefault();
+          void startGameFrom3DMenu(currentCourse, false);
+        } else if (event.code === 'Digit2' || event.code === 'Numpad2') {
+          void startGameFrom3DMenu(currentCourse, true);
+        } else if (event.code === 'ArrowRight') {
+          attractCycle = switchAttractStage(attractCycle, 1);
+          if (attractCycle.stage === 'aiDemo') {
+            sim.reset();
+            sim.setTimerFrozen(true);
+            sim.skipOpening();
+          }
+          view.camera.select(attractCycle.cameraPreset);
+        } else if (event.code === 'ArrowLeft') {
+          attractCycle = switchAttractStage(attractCycle, -1);
+          if (attractCycle.stage === 'aiDemo') {
+            sim.reset();
+            sim.setTimerFrozen(true);
+            sim.skipOpening();
+          }
+          view.camera.select(attractCycle.cameraPreset);
+        } else if (event.code === 'KeyS') {
+          scanlinesEnabled = !scanlinesEnabled;
+          amigaDemo3D.setScanlines(scanlinesEnabled);
+          updateToolbarLabels();
+        } else if (event.shiftKey && event.code === 'KeyV') {
+          audio.handleEvents([{ type: 'goal', player: 1, timeBonus: 0 }]);
+          openVictory3D(
+            sim.snapshot.players[0]?.score ?? 0,
+            sim.snapshot.players[1]?.score,
+          );
+        }
+        return;
+      }
+      if (screenMode === 'victory') {
+        const action = victory3D.handleKey(event.code, event.key);
+        if (action === 'saveScore') {
+          const p1Score = sim.snapshot.players[0]?.score ?? 0;
+          const p2Score = sim.snapshot.players[1]?.score ?? 0;
+          const updated = recordHighScore(
+            window.localStorage,
+            victory3D.initials,
+            Math.max(p1Score, p2Score),
+            currentCourse,
+          );
+          attract3D.setHighScores(updated);
+          victory3D.markSaved();
+        } else if (action === 'replay') {
+          void startGameFrom3DMenu(1, twoPlayers);
+        } else if (action === 'attract') {
+          enterAttractMode();
+        }
+        return;
+      }
+      if (event.shiftKey && event.code === 'KeyV') {
+        audio.handleEvents([{ type: 'goal', player: 1, timeBonus: 0 }]);
+        openVictory3D(
+          sim.snapshot.players[0]?.score ?? 0,
+          sim.snapshot.players[1]?.score,
+        );
+        return;
+      }
       if (event.code === 'Space' && sim.snapshot.phase === 'opening') {
         sim.skipOpening();
+      } else if (
+        event.code === 'Space' &&
+        sim.snapshot.phase === 'finished' &&
+        currentCourse < 6 &&
+        !autoAdvancing
+      ) {
+        autoAdvanceTimer = 0;
       } else if (event.code === 'KeyC') {
         cameraPreset = nextPracticeCamera(cameraPreset, twoPlayers);
         view.camera.select(cameraPreset);
@@ -494,17 +895,24 @@ async function bootRemaster() {
         fov = clampPracticeFov(fov + practiceLens.step);
         view.camera.setFov(fov);
       } else if (event.code === 'KeyR') {
+        victoryShownForRun = false;
+        autoAdvanceTimer = -1;
         sim.reset();
         audio.playLevelTheme(currentCourse);
-      } else if (event.code === 'KeyN' && currentCourse < 6) {
-        void loadLevel((currentCourse + 1) as RemasterCourseIndex);
       } else if (event.code === 'KeyM') {
         audioMuted = !audioMuted;
         audio.setMuted(audioMuted);
         updateToolbarLabels();
+      } else if (event.code === 'KeyS') {
+        scanlinesEnabled = !scanlinesEnabled;
+        amigaDemo3D.setScanlines(scanlinesEnabled);
+        updateToolbarLabels();
+      } else if (event.code === 'KeyQ') {
+        enterAttractMode();
       } else if (event.code === 'KeyT') {
         timerFrozen = !timerFrozen;
         sim.setTimerFrozen(timerFrozen);
+        updateToolbarLabels();
         updateHud();
       }
     },
@@ -519,23 +927,29 @@ async function bootRemaster() {
     { signal },
   );
 
+  const parseCourseValue = (raw: string): RemasterCourseIndex =>
+    raw === '6'
+      ? 6
+      : raw === '5'
+        ? 5
+        : raw === '4'
+          ? 4
+          : raw === '3'
+            ? 3
+            : raw === '2'
+              ? 2
+              : 1;
+
   levelSelect.addEventListener(
     'change',
     () => {
       unlockAudio();
-      const target: RemasterCourseIndex =
-        levelSelect.value === '6'
-          ? 6
-          : levelSelect.value === '5'
-            ? 5
-            : levelSelect.value === '4'
-              ? 4
-              : levelSelect.value === '3'
-                ? 3
-                : levelSelect.value === '2'
-                  ? 2
-                  : 1;
-      if (target !== currentCourse) void loadLevel(target);
+      const target = parseCourseValue(levelSelect.value);
+      if (screenMode !== 'playing') {
+        void startGameFrom3DMenu(target, twoPlayers);
+      } else if (target !== currentCourse) {
+        void loadLevel(target);
+      }
     },
     { signal },
   );
@@ -582,6 +996,27 @@ async function bootRemaster() {
         2,
         parseRemasterControlMode(p2ControlSelect.value),
       );
+      updateToolbarLabels();
+    },
+    { signal },
+  );
+
+  btnTimer.addEventListener(
+    'click',
+    () => {
+      timerFrozen = !timerFrozen;
+      sim.setTimerFrozen(timerFrozen);
+      updateToolbarLabels();
+      updateHud();
+    },
+    { signal },
+  );
+
+  btnScanlines.addEventListener(
+    'click',
+    () => {
+      scanlinesEnabled = !scanlinesEnabled;
+      amigaDemo3D.setScanlines(scanlinesEnabled);
       updateToolbarLabels();
     },
     { signal },
@@ -648,15 +1083,22 @@ async function bootRemaster() {
     audio.dispose();
     physics.dispose();
     view.dispose();
+    attract3D.dispose();
+    amigaDemo3D.dispose();
+    victory3D.dispose();
     engine.dispose();
   }
 
   window.addEventListener('beforeunload', dispose, { once: true });
   if (import.meta.hot) import.meta.hot.dispose(dispose);
 
+  const initialSelected = parseCourseValue(levelSelect.value);
   updateToolbarLabels();
   engine.resize();
   rafId = requestAnimationFrame(tick);
+  if (initialSelected !== currentCourse) {
+    void startGameFrom3DMenu(initialSelected, twoPlayers);
+  }
 }
 
 bootRemaster().catch((error) => {

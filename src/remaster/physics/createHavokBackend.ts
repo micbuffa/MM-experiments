@@ -648,7 +648,7 @@ export async function createHavokBackend(
       const forceMag = Math.hypot(fx, fz);
       const isBoosting =
         boosting || forceMag > REMASTER_PHYSICS.inputAcceleration * 1.05;
-      const speedScale = Math.max(0.55, Math.min(1.4, agility));
+      const speedScale = Math.max(0.35, Math.min(1.75, agility));
       // Keep full boostSpeedLimit when holding Space so Level 1 side jumps remain
       // clearable regardless of the normal-driving Nervosité slider.
       const limit = isBoosting

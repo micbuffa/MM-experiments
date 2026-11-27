@@ -344,6 +344,7 @@ export function createRemasterSimulation(
   physics: RemasterPhysicsBackend,
   twoPlayers = false,
   random: () => number = Math.random,
+  initialScores: readonly [number, number] = [0, 0],
 ) {
   const mainLayer = level.heightLayers[0];
   const START_LIFT_IDLE_DELAY = 2.2;
@@ -375,7 +376,7 @@ export function createRemasterSimulation(
       velocity: { x: 0, y: 0, z: 0 },
       grounded: true,
       surface: sampleSurfaceAt(level, pos.x, pos.z),
-      score: 0,
+      score: initialScores[id - 1] ?? 0,
       remainingTime: level.timerSeconds,
       stateTimer: 0,
       catchUpTimer: 0,
@@ -1786,7 +1787,7 @@ export function createRemasterSimulation(
         const input = inputs[i];
         if (!input) continue;
         const mag = Math.hypot(input.x, input.z);
-        const agility = Math.max(0.4, Math.min(1.5, input.agility ?? 1));
+        const agility = Math.max(0.25, Math.min(2.0, input.agility ?? 1));
         const dizzyScale =
           p.dizzyTimer > 0 ? REMASTER_RULES.dizzySpeedFactor : 1;
         const onRomIce = isIceAtWorld(level, p.position.x, p.position.z);

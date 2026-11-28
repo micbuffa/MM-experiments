@@ -93,6 +93,13 @@ describe('remasterAttract', () => {
     expect(s2.stage).toBe('amigaDemo');
     const s3 = switchAttractStage(s2, 1);
     expect(s3.stage).toBe('showcase');
+    const sNextCourse = switchAttractStage(s3, 1);
+    expect(sNextCourse.stage).toBe('flyover');
+    expect(sNextCourse.course).toBe(2);
+    expect(sNextCourse.flyoverProgress).toBe(0);
+    const sWrapBack = switchAttractStage(createAttractCycle(1, 'flyover'), -1);
+    expect(sWrapBack.stage).toBe('showcase');
+    expect(sWrapBack.course).toBe(6);
     const s0 = switchAttractStage(s1, -1);
     expect(s0.stage).toBe('flyover');
   });

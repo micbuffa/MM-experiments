@@ -1,5 +1,18 @@
 # Handoff
 
+## Remaster Mobile/Tablet Support, TFMX Amiga Tracker Music, Orbital Rainbow Scroller & Level 5 Polish — November 28, 2026
+
+- **Mobile & Tablet Playability (iPhone, Android, iPad)** (`remasterTouch.ts`, `remasterTouch.test.ts`, `remaster.html`, `remaster.css`, `remaster.ts`):
+  - Full-screen Pointer Events touch trackball scaled by `Ball Sensitivity`, **dual left + right floating `BOOST` buttons** (ambidextrous for right- and left-handed players) + 2nd-finger canvas boost, tap to skip flyover/post-goal, swipe left/right to switch 3D Attract modes, mobile Hall of Fame initials bar, `100dvh` + safe areas, collapsible `⚙ Controls` drawer, and portrait-responsive `FOVMODE_HORIZONTAL_FIXED` framing across Attract / Amiga / Victory 3D scenes.
+- **Amiga 3D Demoscene & Attract Mode Polish** (`createAmigaDemo3DScene.ts`, `createAttract3DScene.ts`, `amigaScrollTexts.ts`, `remasterAttract.ts`, `remasterAttract.test.ts`):
+  - Transformed the Amiga 1986 tribute scroller into an **equatorial 3D orbital sinusoidal cylinder ring** (`amigaOrbital` GLSL shader with animated rainbow copper gradient and depth dimming on the back arc) orbiting the raised central Vectorballs, raised `MARBYLON MADNESS 3D` logo (`y = 3.85`) and `flyover`/`aiDemo` marquee (`y = 4.70`).
+  - Manual `←` / `→` (and mobile swipe) now cleanly restarts `flyover` from `0` and advances/wraps Courses `1 → 2 → 3 → 4 → 5 → 6 → 1` just like the automatic cycle.
+- **Stereo TFMX / Amiga Tracker Placeholder Soundtrack** (`createAmigaTrackerMusic.ts`, `createRemasterAudio.ts`):
+  - 3 original WebAudio themes (Turrican-inspired 130 BPM 64-step `demo`, cosmic 122 BPM `showcase`, uplifting 128 BPM `victory`) with stereo dotted-eighth echo, compressor, detuned resonant synth-brass lead, string pad, filtered sub-bass, and drums — cleanly isolated for Peter Salomonsen's future WebAssembly Music replacement.
+- **Gameplay Fixes** (`remasterSimulation.ts`, `remasterSimulation.test.ts`, `createHavokBackend.ts`):
+  - Enforced strict flat-tile + flat-neighborhood `lastSafe` checkpoints across **all 6 courses** (preventing sloped respawns before bridges) with regression unit test.
+  - Fixed Level 5 white ramp crease stalling by checking `approachingRamp` (`0.48` cells ahead) in the crest clamp, balancing inverted gravity (`2.15 × |g|` standard slopes / `2.95 × |g|` steep white ramps), and preventing sticky `Space` boost via `event.preventDefault()` + `window.blur` cleanup.
+
 ## Remaster 100% 3D GLSL Attract Mode (`Marbylon Madness 3D`), 3D Final Victory & Auto-Advance — November 27, 2026
 
 - **Committed, pushed & deployed Level 4 2P start-beam rail steering fix**: `2b679c1` on `origin/Remaster`, `044f1a2` on `origin/gh-pages`.

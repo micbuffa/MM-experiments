@@ -32,11 +32,11 @@ export const AMIGA_BOTTOM_SCROLL_TEXT =
   'PRESS SPACE TO PLAY  ·  S TOGGLE SCANLINES  ·  LEFT/RIGHT SWITCH MODE     ';
 
 export const AMIGA_TOP_SCROLL_METRICS: AmigaScrollStripMetrics = {
-  canvasWidth: 1536,
-  canvasHeight: 64,
-  pixelSize: 3.1,
+  canvasWidth: 2048,
+  canvasHeight: 96,
+  pixelSize: 4.1,
   letterSpacing: 0.8,
-  speedPxPerSec: 330,
+  speedPxPerSec: 320,
   startOffsetRatio: 0.25,
 };
 

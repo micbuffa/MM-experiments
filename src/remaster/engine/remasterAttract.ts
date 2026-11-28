@@ -246,12 +246,23 @@ export function switchAttractStage(
   delta: 1 | -1,
 ): AttractCycleState {
   const curIdx = STAGE_ORDER.indexOf(state.stage);
-  const nextIdx = (curIdx + delta + STAGE_ORDER.length) % STAGE_ORDER.length;
+  const rawNext = curIdx + delta;
+  const nextIdx = (rawNext + STAGE_ORDER.length) % STAGE_ORDER.length;
   const nextStage = STAGE_ORDER[nextIdx]!;
+  let courseIndex = state.courseIndex;
+  if (rawNext >= STAGE_ORDER.length) {
+    courseIndex = (courseIndex + 1) % ATTRACT_COURSE_SHOWCASE.length;
+  } else if (rawNext < 0) {
+    courseIndex =
+      (courseIndex - 1 + ATTRACT_COURSE_SHOWCASE.length) %
+      ATTRACT_COURSE_SHOWCASE.length;
+  }
   return {
     ...state,
     stage: nextStage,
     stageElapsed: 0,
+    courseIndex,
+    course: ATTRACT_COURSE_SHOWCASE[courseIndex]!.course,
     flyoverProgress: 0,
     cameraPreset: 'arcade',
   };

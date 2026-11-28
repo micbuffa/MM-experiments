@@ -1639,4 +1639,50 @@ describe('createRemasterSimulation', () => {
     expect(snap.players[1]!.velocity.x).toBe(0);
     expect(snap.players[1]!.velocity.z).toBeGreaterThan(0);
   });
+
+  it('never records lastSafe on a sloped tile approaching a bridge on any course', () => {
+    // 10x10 layer: rows 0..4 flat at y=0, rows 5..9 sloped downward by 0.25/cell
+    const cells = Array.from({ length: 10 }, (_, r) =>
+      Array.from({ length: 10 }, () =>
+        r < 5
+          ? ([0, 0, 0, 0] as const)
+          : ([
+              -(r - 5) * 0.25,
+              -(r - 5) * 0.25,
+              -(r - 4) * 0.25,
+              -(r - 4) * 0.25,
+            ] as const),
+      ),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 2,
+      heightLayers: [
+        {
+          id: 'slope-test',
+          columns: 10,
+          rows: 10,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      spawns: {
+        player1: { x: 0, y: 0, z: -2.5 },
+        player2: { x: 1, y: 0, z: -2.5 },
+      },
+    };
+    const stub = makeStubPhysics();
+    const sim = createRemasterSimulation(level, stub, false);
+    sim.skipOpening();
+    // Stand on flat tile (z = -2.5, row 2): lastSafe updates on flat ground
+    sim.step(1 / 60, []);
+    const flatSafe = { ...sim.snapshot.players[0]!.lastSafe };
+    expect(flatSafe.z).toBeCloseTo(-2.5, 2);
+
+    // Move onto sloped tile (z = 2.5, row 7): grounded, but must NOT overwrite lastSafe
+    stub.teleportMarble(0, { x: 0, y: -0.625, z: 2.5 });
+    sim.step(1 / 60, []);
+    expect(sim.snapshot.players[0]!.lastSafe.z).toBeCloseTo(flatSafe.z, 2);
+  });
 });

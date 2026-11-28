@@ -675,20 +675,25 @@ export async function createHavokBackend(
         if (h0 !== null && Math.abs(bottomY - h0) < 0.45) {
           const dirX = fx / forceMag;
           const dirZ = fz / forceMag;
+          const probeDist = level.direction === -1 ? 0.46 : 0.35;
           const hAhead = sampleLayerHeight(
             activeHeightLayer,
-            px + dirX * 0.35,
-            pz + dirZ * 0.35,
+            px + dirX * probeDist,
+            pz + dirZ * probeDist,
           );
           if (hAhead !== null) {
-            const slope = (hAhead - h0) / 0.35;
+            const slope = (hAhead - h0) / probeDist;
             const maxClimbSlope =
-              level.direction === -1 || level.courseIndex === 6 ? 1.8 : 0.95;
+              level.direction === -1
+                ? 2.35
+                : level.courseIndex === 6
+                  ? 1.8
+                  : 0.95;
             if (slope > 0.08 && slope < maxClimbSlope) {
               // Apply force tangent to climbable ramps (not vertical walls or well rims).
               uphillScale =
-                level.courseIndex === 6
-                  ? 1 + Math.min(1.45, slope * 1.15)
+                level.direction === -1 || level.courseIndex === 6
+                  ? 1 + Math.min(1.85, slope * 1.35)
                   : 1 + Math.min(0.85, slope * 0.65);
               fy =
                 forceMag * scale * uphillScale * Math.min(maxClimbSlope, slope);
@@ -823,7 +828,7 @@ export async function createHavokBackend(
                       px + dx * 0.26,
                       pz + dz * 0.26,
                     );
-                    if (hEdge !== null && Math.abs(hEdge - h0) < 0.45) {
+                    if (hEdge !== null && Math.abs(hEdge - h0) < 0.68) {
                       gx = tmpGrad.gx;
                       gz = tmpGrad.gz;
                       break;
@@ -834,8 +839,13 @@ export async function createHavokBackend(
             }
             if (Math.abs(gx) > 0.02 || Math.abs(gz) > 0.02) {
               const denom = 1 + gx * gx + gz * gz;
+              // Balanced +1.15*|g| net uphill pull on standard slopes (challenging
+              // yet passable without BOOST) and +1.95*|g| on steep 50-65 deg white
+              // ramps so the marble climbs smoothly without launching like permanent boost.
+              const slopeMag = Math.hypot(gx, gz);
+              const invFactor = slopeMag > 0.85 ? 2.95 : 2.15;
               const accelScale =
-                (3.8 * Math.abs(REMASTER_PHYSICS.gravityY)) / denom;
+                (invFactor * Math.abs(REMASTER_PHYSICS.gravityY)) / denom;
               // Apply directly to linear velocity so Havok sleep/static friction never stalls a stopped marble on a ramp.
               tmpVel.x += gx * accelScale * dt;
               tmpVel.y += (gx * gx + gz * gz) * accelScale * dt;
@@ -951,6 +961,23 @@ export async function createHavokBackend(
           bottomY - groundH < 0.45 &&
           m.aggregate.body.getMotionType() === PhysicsMotionType.DYNAMIC
         ) {
+          const hSpeed = Math.hypot(tmpVel.x, tmpVel.z);
+          const lookDist = Math.max(0.48, hSpeed * 0.08);
+          const lookX =
+            hSpeed > 0.05
+              ? m.mesh.position.x + (tmpVel.x / hSpeed) * lookDist
+              : m.mesh.position.x;
+          const lookZ =
+            hSpeed > 0.05
+              ? m.mesh.position.z + (tmpVel.z / hSpeed) * lookDist
+              : m.mesh.position.z;
+          const hAheadCrest = sampleLayerHeight(
+            activeHeightLayer,
+            lookX,
+            lookZ,
+          );
+          const approachingRamp =
+            hAheadCrest !== null && hAheadCrest > groundH + 0.06;
           const slopeVyAhead = sampleCellSlopeVy(
             activeHeightLayer,
             m.mesh.position.x + tmpVel.x * 0.05,
@@ -958,7 +985,7 @@ export async function createHavokBackend(
             tmpVel.x,
             tmpVel.z,
           );
-          if (slopeVyAhead <= 0.05 && tmpVel.y > 0.08) {
+          if (!approachingRamp && slopeVyAhead <= 0.05 && tmpVel.y > 0.08) {
             tmpVel.y = bottomY > groundH + 0.02 ? -1.2 : 0;
             m.aggregate.body.setLinearVelocity(tmpVel);
           }

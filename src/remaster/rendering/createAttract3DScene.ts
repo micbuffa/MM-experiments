@@ -556,7 +556,7 @@ export function createAttract3DScene(
       btn2P.mesh.position.set(1.85, 0.85, -3.8);
     } else {
       marqueePlane.scaling.set(0.66, 0.52, 1);
-      marqueePlane.position.set(0, 3.85, -1.6);
+      marqueePlane.position.set(0, 4.7, -1.6);
       btn1P.mesh.scaling.set(0.74, 0.74, 1);
       btn2P.mesh.scaling.set(0.74, 0.74, 1);
       btn1P.mesh.position.set(-1.85, 0.35, -3.6);
@@ -838,7 +838,7 @@ export function createAttract3DScene(
       } else {
         camera.position.set(0, 2.2, -13.6);
         camera.setTarget(new Vector3(0, 2.2, 0));
-        marqueePlane.position.y = 3.85 + Math.sin(elapsed * 1.4) * 0.05;
+        marqueePlane.position.y = 4.7 + Math.sin(elapsed * 1.4) * 0.05;
         marqueePlane.rotation.y = Math.sin(elapsed * 0.55) * 0.03;
         btn1P.mesh.position.y =
           0.35 + (btn1P.hovered ? 0.1 : 0) + Math.sin(elapsed * 2.1) * 0.025;

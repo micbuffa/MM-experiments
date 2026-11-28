@@ -177,8 +177,10 @@ async function bootRemaster() {
     document.querySelector<HTMLButtonElement>('#btn-mobile-camera');
   const btnMobileReset =
     document.querySelector<HTMLButtonElement>('#btn-mobile-reset');
-  const btnTouchBoost =
-    document.querySelector<HTMLButtonElement>('#btn-touch-boost');
+  const touchBoostButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('.touch-boost-btn'),
+  );
+  const activeBoostPointers = new Set<number>();
   const mobileInitialsBar = document.querySelector<HTMLElement>(
     '#mobile-initials-bar',
   );
@@ -207,7 +209,7 @@ async function bootRemaster() {
   let screenMode: RemasterScreenMode = 'attract';
   let attractCycle = createAttractCycle(1, 'flyover');
   let attractSwitching = false;
-  let wasAmigaStage = false;
+  let lastTrackerAttractStage: 'amigaDemo' | 'showcase' | null = null;
   let autoAdvanceTimer = -1;
   let autoAdvancing = false;
   let levelLoading = false;
@@ -292,14 +294,23 @@ async function bootRemaster() {
     btnToolbarToggle?.setAttribute('aria-expanded', String(open));
   }
 
+  function clearTouchBoostButtons() {
+    activeBoostPointers.clear();
+    setTouchButtonBoost(touchState, false);
+    for (const btn of touchBoostButtons) {
+      btn.classList.remove('boost-active');
+    }
+  }
+
   function enterAttractMode() {
     screenMode = 'attract';
     victoryShownForRun = false;
     mobileScoreSaved = false;
     autoAdvanceTimer = -1;
     autoAdvancing = false;
+    audio.stopAmigaTracker();
     resetTouchTrackball(touchState);
-    btnTouchBoost?.classList.remove('boost-active');
+    clearTouchBoostButtons();
     setDrawerOpen(false);
     attractCycle = createAttractCycle(currentCourse, 'flyover');
     bannerEl.hidden = true;
@@ -322,12 +333,13 @@ async function bootRemaster() {
     mobileScoreSaved = false;
     autoAdvanceTimer = -1;
     resetTouchTrackball(touchState);
-    btnTouchBoost?.classList.remove('boost-active');
+    clearTouchBoostButtons();
     setDrawerOpen(false);
     bannerEl.hidden = true;
     if (document.pointerLockElement === canvas) {
       document.exitPointerLock?.();
     }
+    audio.playAmigaTracker('victory');
     victory3D.configure(p1Score, twoPlayers ? p2Score : undefined, {
       gameOver,
       course: currentCourse,
@@ -349,7 +361,7 @@ async function bootRemaster() {
     autoAdvanceTimer = -1;
     autoAdvancing = false;
     resetTouchTrackball(touchState);
-    btnTouchBoost?.classList.remove('boost-active');
+    clearTouchBoostButtons();
     setDrawerOpen(false);
     const needsReload = course !== currentCourse;
     const needsModeChange = multiplayer !== twoPlayers;
@@ -560,8 +572,8 @@ async function bootRemaster() {
         snap.phase === 'playing',
     );
 
-    if (btnTouchBoost) {
-      btnTouchBoost.hidden = !(isTouchDevice && screenMode === 'playing');
+    for (const btn of touchBoostButtons) {
+      btn.hidden = !(isTouchDevice && screenMode === 'playing');
     }
     if (mobileInitialsBar) {
       mobileInitialsBar.hidden = !(
@@ -709,9 +721,10 @@ async function bootRemaster() {
           engine.endFrame();
         }
       } else if (attractCycle.stage === 'amigaDemo') {
-        if (!wasAmigaStage) {
+        if (lastTrackerAttractStage !== 'amigaDemo') {
           amigaDemo3D.resetScroll();
-          wasAmigaStage = true;
+          audio.playAmigaTracker('demo');
+          lastTrackerAttractStage = 'amigaDemo';
         }
         amigaDemo3D.setScanlines(scanlinesEnabled);
         amigaDemo3D.update(dt);
@@ -722,7 +735,10 @@ async function bootRemaster() {
           engine.endFrame();
         }
       } else {
-        wasAmigaStage = false;
+        if (lastTrackerAttractStage !== 'showcase') {
+          audio.playAmigaTracker('showcase');
+          lastTrackerAttractStage = 'showcase';
+        }
         engine.beginFrame();
         try {
           attract3D.scene.render();
@@ -730,12 +746,21 @@ async function bootRemaster() {
           engine.endFrame();
         }
       }
-      if (attractCycle.stage !== 'amigaDemo') {
-        wasAmigaStage = false;
+      if (
+        attractCycle.stage !== 'amigaDemo' &&
+        attractCycle.stage !== 'showcase'
+      ) {
+        if (lastTrackerAttractStage !== null) {
+          audio.stopAmigaTracker();
+        }
+        lastTrackerAttractStage = null;
       }
       return;
     }
-    wasAmigaStage = false;
+    if (lastTrackerAttractStage !== null) {
+      audio.stopAmigaTracker();
+    }
+    lastTrackerAttractStage = null;
 
     if (screenMode === 'victory') {
       audio.updateRolling(0, false);
@@ -879,6 +904,8 @@ async function bootRemaster() {
           sim.reset();
           sim.setTimerFrozen(true);
           sim.skipOpening();
+        } else if (attractCycle.stage === 'flyover') {
+          sim.reset();
         }
         view.camera.select(attractCycle.cameraPreset);
         return;
@@ -1020,6 +1047,8 @@ async function bootRemaster() {
             sim.reset();
             sim.setTimerFrozen(true);
             sim.skipOpening();
+          } else if (attractCycle.stage === 'flyover') {
+            sim.reset();
           }
           view.camera.select(attractCycle.cameraPreset);
         } else if (event.code === 'ArrowLeft') {
@@ -1028,6 +1057,8 @@ async function bootRemaster() {
             sim.reset();
             sim.setTimerFrozen(true);
             sim.skipOpening();
+          } else if (attractCycle.stage === 'flyover') {
+            sim.reset();
           }
           view.camera.select(attractCycle.cameraPreset);
         } else if (event.code === 'KeyS') {
@@ -1070,6 +1101,9 @@ async function bootRemaster() {
           sim.snapshot.players[1]?.score,
         );
         return;
+      }
+      if (event.code === 'Space') {
+        event.preventDefault();
       }
       if (event.code === 'Space' && sim.snapshot.phase === 'opening') {
         sim.skipOpening();
@@ -1119,6 +1153,16 @@ async function bootRemaster() {
     'keyup',
     (event) => {
       heldKeys.delete(event.code);
+    },
+    { signal },
+  );
+
+  window.addEventListener(
+    'blur',
+    () => {
+      heldKeys.clear();
+      resetTouchTrackball(touchState);
+      clearTouchBoostButtons();
     },
     { signal },
   );
@@ -1269,40 +1313,44 @@ async function bootRemaster() {
     { signal },
   );
 
-  const setBoostButtonPressed = (active: boolean) => {
-    setTouchButtonBoost(touchState, active);
-    btnTouchBoost?.classList.toggle('boost-active', active);
-  };
-  btnTouchBoost?.addEventListener(
-    'pointerdown',
-    (event) => {
+  for (const btn of touchBoostButtons) {
+    btn.addEventListener(
+      'pointerdown',
+      (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        isTouchDevice = true;
+        unlockAudio();
+        try {
+          btn.setPointerCapture(event.pointerId);
+        } catch {
+          // Ignore capture errors on synthetic events.
+        }
+        activeBoostPointers.add(event.pointerId);
+        setTouchButtonBoost(touchState, true);
+        btn.classList.add('boost-active');
+      },
+      { signal },
+    );
+    const releaseBoost = (event: PointerEvent) => {
       event.preventDefault();
       event.stopPropagation();
-      isTouchDevice = true;
-      unlockAudio();
-      try {
-        btnTouchBoost.setPointerCapture(event.pointerId);
-      } catch {
-        // Ignore capture errors on synthetic events.
-      }
-      setBoostButtonPressed(true);
-    },
-    { signal },
-  );
-  const releaseBoostButton = (event: PointerEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setBoostButtonPressed(false);
-  };
-  btnTouchBoost?.addEventListener('pointerup', releaseBoostButton, { signal });
-  btnTouchBoost?.addEventListener('pointercancel', releaseBoostButton, {
-    signal,
-  });
-  btnTouchBoost?.addEventListener(
-    'lostpointercapture',
-    () => setBoostButtonPressed(false),
-    { signal },
-  );
+      activeBoostPointers.delete(event.pointerId);
+      btn.classList.remove('boost-active');
+      setTouchButtonBoost(touchState, activeBoostPointers.size > 0);
+    };
+    btn.addEventListener('pointerup', releaseBoost, { signal });
+    btn.addEventListener('pointercancel', releaseBoost, { signal });
+    btn.addEventListener(
+      'lostpointercapture',
+      (event) => {
+        activeBoostPointers.delete(event.pointerId);
+        btn.classList.remove('boost-active');
+        setTouchButtonBoost(touchState, activeBoostPointers.size > 0);
+      },
+      { signal },
+    );
+  }
 
   btnToolbarToggle?.addEventListener(
     'click',

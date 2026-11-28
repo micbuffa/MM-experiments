@@ -2179,7 +2179,7 @@ export function createRemasterSimulation(
           const hW = sampleLayerHeight(mainLayer, bx - 0.5, bz);
           const hS = sampleLayerHeight(mainLayer, bx, bz + 0.5);
           const hN = sampleLayerHeight(mainLayer, bx, bz - 0.5);
-          const flatTol = level.courseIndex === 5 ? 0.12 : 0.4;
+          const flatTol = 0.12;
           const cellXIdx = Math.floor(
             bx + mainLayer.origin.x + mainLayer.columns / 2,
           );
@@ -2187,16 +2187,17 @@ export function createRemasterSimulation(
             bz + mainLayer.origin.z + mainLayer.rows / 2,
           );
           const currCell = mainLayer.cells[cellZIdx]?.[cellXIdx];
+          // Every level (1..6) requires a genuinely flat tile + flat neighborhood
+          // so respawns never drop the marble onto a slope (e.g. approaching a bridge).
           const currCellFlat =
-            level.courseIndex !== 5 ||
-            (currCell != null &&
-              currCell[0] !== null &&
-              currCell[1] !== null &&
-              currCell[2] !== null &&
-              currCell[3] !== null &&
-              Math.max(currCell[0], currCell[1], currCell[2], currCell[3]) -
-                Math.min(currCell[0], currCell[1], currCell[2], currCell[3]) <
-                0.05);
+            currCell != null &&
+            currCell[0] !== null &&
+            currCell[1] !== null &&
+            currCell[2] !== null &&
+            currCell[3] !== null &&
+            Math.max(currCell[0], currCell[1], currCell[2], currCell[3]) -
+              Math.min(currCell[0], currCell[1], currCell[2], currCell[3]) <
+              0.05;
           const safeMargin =
             currCellFlat &&
             !(

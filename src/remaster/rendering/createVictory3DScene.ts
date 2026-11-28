@@ -692,12 +692,23 @@ export function createVictory3DScene(engine: Engine): Victory3DSceneController {
       elapsed += dt;
       const aspect =
         engine.getRenderWidth() / Math.max(1, engine.getRenderHeight());
-      if (aspect < 1.15) {
+      const isPortrait = aspect < 1.15;
+      if (isPortrait) {
         camera.fovMode = Camera.FOVMODE_HORIZONTAL_FIXED;
-        camera.fov = 0.96;
+        camera.fov = 0.88;
+        holoPlane.position.set(0, 2.7, -3.4);
+        holoPlane.scaling.set(1.05, 1.08, 1);
+        podiumRoot.position.set(0, -1.4, 3.4);
+        btnReplay.mesh.position.set(-1.7, -0.75, -3.7);
+        btnAttract.mesh.position.set(1.7, -0.75, -3.7);
       } else {
         camera.fovMode = Camera.FOVMODE_VERTICAL_FIXED;
         camera.fov = 0.72;
+        holoPlane.position.set(1.75, 2.75, -1.6);
+        holoPlane.scaling.set(1, 1, 1);
+        podiumRoot.position.set(-3.4, -0.2, 0.2);
+        btnReplay.mesh.position.set(0.0, -0.35, -3.9);
+        btnAttract.mesh.position.set(3.5, -0.35, -3.9);
       }
 
       auroraMat.setFloat('uTime', elapsed);

@@ -9,9 +9,11 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import { CreatePolyhedron } from '@babylonjs/core/Meshes/Builders/polyhedronBuilder';
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
 // Register thin-instance helpers on Mesh for 48-sphere single-draw-call vectorballs.
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
@@ -210,6 +212,58 @@ const OLD_SCHOOL_POLY_FRAG = /* glsl */ `
   }
 `;
 
+const ORBITAL_SCROLL_VERT = /* glsl */ `
+  precision highp float;
+  attribute vec3 position;
+  attribute vec2 uv;
+  uniform mat4 world;
+  uniform mat4 worldViewProjection;
+  uniform float uTime;
+  varying vec2 vUv;
+  varying float vDepthZ;
+  void main() {
+    vUv = uv;
+    vec3 p = position;
+    float angle = atan(p.z, p.x);
+    // Classic Amiga equatorial sinusoidal ribbon wave around the 3D vectorballs
+    p.y += sin(angle * 3.0 + uTime * 3.8) * 0.24
+         + cos(angle * 2.0 - uTime * 2.4) * 0.08;
+    vec4 wp = world * vec4(p, 1.0);
+    vDepthZ = wp.z;
+    gl_Position = worldViewProjection * vec4(p, 1.0);
+  }
+`;
+
+const ORBITAL_SCROLL_FRAG = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  varying float vDepthZ;
+  uniform sampler2D uTex;
+  uniform float uTime;
+  uniform float uScanlines;
+  void main() {
+    // Flip horizontal UV so text reads naturally left-to-right on the front arc
+    vec2 uv = vec2(1.0 - vUv.x, vUv.y);
+    vec4 tex = texture2D(uTex, uv);
+    if (tex.a < 0.04) discard;
+
+    // Animated Amiga rainbow copper gradient (distinct from the bottom yellow scroller)
+    float phase = vUv.x * 16.0 - uTime * 3.4 + vUv.y * 2.8;
+    vec3 rainbow = 0.56 + 0.44 * cos(vec3(0.0, 2.094, 4.188) + phase);
+    // Boost pastel highlight near the top of each glyph for crisp readability
+    rainbow = mix(rainbow, vec3(1.0), smoothstep(0.55, 1.0, vUv.y) * 0.28);
+
+    // Front arc (closer to camera) is bright & vivid; back arc behind the
+    // vectorballs softly dims so the front text stays crystal clear.
+    float frontFactor = smoothstep(2.4, -1.6, vDepthZ);
+    vec3 col = tex.rgb * rainbow * mix(0.42, 1.18, frontFactor);
+    if (uScanlines > 0.5) {
+      col *= 0.85 + 0.15 * sin(vUv.y * 96.0);
+    }
+    gl_FragColor = vec4(col, tex.a * mix(0.30, 1.0, frontFactor));
+  }
+`;
+
 let amigaShadersRegistered = false;
 function ensureAmigaShaders() {
   if (amigaShadersRegistered) return;
@@ -217,6 +271,8 @@ function ensureAmigaShaders() {
   Effect.ShadersStore['amigaCopperFragmentShader'] = COPPER_FRAG;
   Effect.ShadersStore['amigaSineScrollVertexShader'] = SINE_SCROLL_VERT;
   Effect.ShadersStore['amigaSineScrollFragmentShader'] = SINE_SCROLL_FRAG;
+  Effect.ShadersStore['amigaOrbitalVertexShader'] = ORBITAL_SCROLL_VERT;
+  Effect.ShadersStore['amigaOrbitalFragmentShader'] = ORBITAL_SCROLL_FRAG;
   Effect.ShadersStore['amigaPolyVertexShader'] = OLD_SCHOOL_POLY_VERT;
   Effect.ShadersStore['amigaPolyFragmentShader'] = OLD_SCHOOL_POLY_FRAG;
   amigaShadersRegistered = true;
@@ -343,7 +399,7 @@ export function createAmigaDemo3DScene(
 
   // 2. 48 Thin-Instanced Morphing 3D Vectorballs (single draw call)
   const vballRoot = new TransformNode('amiga-vball-root', scene);
-  vballRoot.position.set(0, 0.55, 0.2);
+  vballRoot.position.set(0, 1.05, 0.2);
 
   const vballProto = CreateSphere(
     'amiga-vball-proto',
@@ -453,14 +509,14 @@ export function createAmigaDemo3DScene(
   // Subdivided plane so vertex shader produces smooth sinusoidal wave deformation
   const logoMesh = CreatePlane(
     'amiga-logo-mesh',
-    { width: 8.6, height: 1.6 },
+    { width: 8.6, height: 1.5 },
     scene,
   );
-  logoMesh.position.set(0, 3.05, -2.0);
+  logoMesh.position.set(0, 3.85, -2.0);
   logoMesh.material = logoMat;
   logoMesh.isPickable = false;
 
-  // 4b. Gently bouncing Amiga 1986 arcade-port tribute scroller right under the logo
+  // 4b. Equatorial 3D Orbital Sinusoidal Scroller orbiting around the central Vectorballs
   // Rendered via a sliding-window Canvas2D strip so arbitrarily long messages never clip.
   const tributeTex = new DynamicTexture(
     'amiga-tribute-tex',
@@ -484,45 +540,40 @@ export function createAmigaDemo3DScene(
     letterSpacing: AMIGA_TOP_SCROLL_METRICS.letterSpacing,
     stepPx: tributeStepPx,
     totalWidthPx: AMIGA_TOP_SCROLL_TEXT.length * tributeStepPx,
-    fillStyle: '#7dd3fc',
-    shadowColor: '#070a18',
-    shadowOffset: 2,
+    fillStyle: '#ffffff',
+    shadowColor: '#050814',
+    shadowOffset: 3,
     speedPxPerSec: AMIGA_TOP_SCROLL_METRICS.speedPxPerSec,
     startOffsetRatio: AMIGA_TOP_SCROLL_METRICS.startOffsetRatio,
     lastOffsetPx: -9999,
   };
   drawScrollingStrip(tributeStripState, 0, true);
   const tributeMat = new ShaderMaterial(
-    'amiga-tribute-mat',
+    'amiga-orbital-mat',
     scene,
-    { vertex: 'amigaSineScroll', fragment: 'amigaSineScroll' },
+    { vertex: 'amigaOrbital', fragment: 'amigaOrbital' },
     {
       attributes: ['position', 'uv'],
-      uniforms: [
-        'worldViewProjection',
-        'uTime',
-        'uWaveAmp',
-        'uWaveFreq',
-        'uScrollSpeed',
-        'uScanlines',
-      ],
+      uniforms: ['world', 'worldViewProjection', 'uTime', 'uScanlines'],
       samplers: ['uTex'],
       needAlphaBlending: true,
     },
   );
   tributeMat.setTexture('uTex', tributeTex);
-  tributeMat.setFloat('uWaveAmp', 0.08);
-  tributeMat.setFloat('uWaveFreq', 0.95);
-  tributeMat.setFloat('uScrollSpeed', 0.0);
   tributeMat.backFaceCulling = false;
 
-  const tributeStrip = CreatePlane(
-    'amiga-tribute-strip',
-    { width: 12.6, height: 0.42 },
+  const tributeStrip = CreateCylinder(
+    'amiga-orbital-ring',
+    {
+      diameter: 7.4,
+      height: 0.76,
+      tessellation: 72,
+      cap: Mesh.NO_CAP,
+      enclose: false,
+    },
     scene,
   );
-  tributeStrip.increaseVertices(20);
-  tributeStrip.position.set(0, 2.08, -2.2);
+  tributeStrip.position.set(0, 1.05, 0.2);
   tributeStrip.material = tributeMat;
   tributeStrip.isPickable = false;
 
@@ -661,10 +712,16 @@ export function createAmigaDemo3DScene(
         engine.getRenderWidth() / Math.max(1, engine.getRenderHeight());
       if (aspect < 1.15) {
         camera.fovMode = Camera.FOVMODE_HORIZONTAL_FIXED;
-        camera.fov = 0.98;
+        camera.fov = 0.9;
+        logoMesh.scaling.set(1.08, 1.18, 1);
+        tributeStrip.scaling.set(1.02, 1.42, 1.02);
+        scrollStrip.scaling.set(1.06, 1.28, 1);
       } else {
         camera.fovMode = Camera.FOVMODE_VERTICAL_FIXED;
         camera.fov = 0.72;
+        logoMesh.scaling.set(1, 1, 1);
+        tributeStrip.scaling.set(1, 1, 1);
+        scrollStrip.scaling.set(1, 1, 1);
       }
       const scanVal = scanlinesEnabled ? 1.0 : 0.0;
 
@@ -675,8 +732,11 @@ export function createAmigaDemo3DScene(
       tributeMat.setFloat('uTime', elapsed);
       tributeMat.setFloat('uScanlines', scanVal);
       drawScrollingStrip(tributeStripState, scrollElapsed);
-      // Gentle arcade bounce under the waving logo
-      tributeStrip.position.y = 2.0 + Math.abs(Math.sin(elapsed * 3.1)) * 0.18;
+      // Equatorial orbital spin + gentle sinusoidal tilt & bob around the central Vectorballs
+      tributeStrip.position.y = 1.05 + Math.sin(elapsed * 2.1) * 0.22;
+      tributeStrip.rotation.y = elapsed * 0.2;
+      tributeStrip.rotation.x = 0.2 + Math.sin(elapsed * 0.75) * 0.14;
+      tributeStrip.rotation.z = Math.sin(elapsed * 0.55) * 0.12;
       scrollMat.setFloat('uTime', elapsed);
       scrollMat.setFloat('uScanlines', scanVal);
       drawScrollingStrip(scrollStripState, scrollElapsed);

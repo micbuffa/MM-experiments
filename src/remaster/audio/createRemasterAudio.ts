@@ -1,5 +1,9 @@
 import type { RemasterEvent } from '../engine/remasterSimulation';
 import {
+  createAmigaTrackerMusic,
+  type AmigaTrackerTrack,
+} from './createAmigaTrackerMusic';
+import {
   DEFAULT_SFX_BANK,
   parseSfxBank,
   type FmChannelPatch,
@@ -46,6 +50,8 @@ export interface RemasterAudioController {
   setMix(music: number, sfx: number): void;
   setMusicEnabled(enabled: boolean): void;
   playLevelTheme(courseIndex?: number): void;
+  playAmigaTracker(track: AmigaTrackerTrack): void;
+  stopAmigaTracker(): void;
   loadVgm(bytes: Uint8Array): ParsedVgm;
   clearVgm(): void;
   updateRolling(speed: number, grounded: boolean): void;
@@ -85,6 +91,8 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
   let lastRollReg = -1;
   let shatterTimeout: number | undefined;
   let prioritySfxUntil = 0;
+  let pendingAmigaTrack: AmigaTrackerTrack | null = null;
+  const amigaTracker = createAmigaTrackerMusic();
 
   function post(msg: unknown) {
     if (ready && node && !disposed) node.port.postMessage(msg);
@@ -305,6 +313,9 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
         return;
       }
       ctx = new AudioContext();
+      amigaTracker.attachContext(ctx);
+      amigaTracker.setVolume(musicGain);
+      amigaTracker.setMuted(muted);
       const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
       const [, wasmResponse] = await Promise.all([
         ctx.audioWorklet.addModule(
@@ -336,26 +347,36 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       applySfxPatches();
       post({ type: 'mute', muted });
       post({ type: 'mix', music: musicGain, sfx: sfxGain });
-      playTrack(customVgm ?? levelThemeVgm);
+      if (pendingAmigaTrack && !customVgm) {
+        playTrack(null);
+        amigaTracker.play(pendingAmigaTrack);
+      } else {
+        playTrack(customVgm ?? levelThemeVgm);
+      }
     },
 
     setMuted(value: boolean) {
       muted = value;
+      amigaTracker.setMuted(muted);
       post({ type: 'mute', muted });
     },
 
     setMix(music: number, sfx: number) {
       musicGain = Math.max(0, Math.min(2, music));
       sfxGain = Math.max(0, Math.min(2, sfx));
+      amigaTracker.setVolume(musicGain);
       post({ type: 'mix', music: musicGain, sfx: sfxGain });
     },
 
     setMusicEnabled(enabled: boolean) {
       musicEnabled = enabled;
+      if (!enabled) amigaTracker.stop();
       playTrack(enabled ? (customVgm ?? levelThemeVgm) : null);
     },
 
     playLevelTheme(courseIndex = currentCourse) {
+      pendingAmigaTrack = null;
+      amigaTracker.stop();
       currentCourse = courseIndex;
       const track =
         courseIndex === 6 && level6ThemeVgm
@@ -372,7 +393,23 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       playTrack(customVgm ?? track);
     },
 
+    playAmigaTracker(track: AmigaTrackerTrack) {
+      pendingAmigaTrack = track;
+      if (customVgm) return;
+      playTrack(null);
+      if (musicEnabled) {
+        amigaTracker.play(track);
+      }
+    },
+
+    stopAmigaTracker() {
+      pendingAmigaTrack = null;
+      amigaTracker.stop();
+    },
+
     loadVgm(bytes: Uint8Array): ParsedVgm {
+      pendingAmigaTrack = null;
+      amigaTracker.stop();
       const parsed = parseVgm(bytes);
       customVgm = parsed;
       playTrack(parsed);
@@ -652,6 +689,7 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
       if (disposed) return;
       disposed = true;
       window.clearTimeout(shatterTimeout);
+      amigaTracker.dispose();
       node?.disconnect();
       void ctx?.close();
     },

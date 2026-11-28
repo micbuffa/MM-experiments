@@ -22,8 +22,9 @@ The **`Remaster`** branch runs **all 6 original arcade courses standalone** with
 - **4-Stage 3D Attract Mode** ([`src/remaster/rendering/createAttract3DScene.ts`](src/remaster/rendering/createAttract3DScene.ts), [`src/remaster/rendering/createAmigaDemo3DScene.ts`](src/remaster/rendering/createAmigaDemo3DScene.ts), [`src/remaster/engine/remasterAttract.ts`](src/remaster/engine/remasterAttract.ts)):
   1. **Live 3D Flyover**: real 3D courses scrolling live behind a floating holographic GLSL title & raycasted 3D `1 PLAYER` / `2 PLAYERS` buttons.
   2. **Live 3D AI Demo**: real-time Havok AI autopilot playing the course while cycling all 5 3D cameras.
-  3. **Amiga 500 Demoscene Homage**: custom GLSL Copper bars, Boing-Ball sinusoidal checkerboard floor, periodic CRT glitches, 48 thin-instanced morphing 3D Vectorballs (`Cube → Torus → Helix → Sphere`), flat-stepped + wireframe sinusoidally deformed polyhedron, and two waving sinusoidal scrolltexts (editable in [`src/remaster/engine/amigaScrollTexts.ts`](src/remaster/engine/amigaScrollTexts.ts) with automatic duration scaling).
+  3. **Amiga 500 Demoscene Homage**: custom GLSL Copper bars, Boing-Ball sinusoidal checkerboard floor, periodic CRT glitches, 48 thin-instanced morphing 3D Vectorballs (`Cube → Torus → Helix → Sphere`), flat-stepped + wireframe sinusoidally deformed polyhedron, an **equatorial 3D orbital rainbow sinusoidal scrolltext** orbiting the Vectorballs plus a classic bottom sinusoidal scroller (both editable in [`src/remaster/engine/amigaScrollTexts.ts`](src/remaster/engine/amigaScrollTexts.ts) with automatic duration scaling).
   4. **3D Arcade Showcase**: custom GLSL neon horizon grid, Fresnel energy rings, stepped marble pedestal, orbiting glossy marbles, Hall of Fame, and tribute credits.
+- **Stereo TFMX / Amiga Tracker Placeholder Soundtrack** ([`src/remaster/audio/createAmigaTrackerMusic.ts`](src/remaster/audio/createAmigaTrackerMusic.ts)): 3 original WebAudio chiptune themes (epic Turrican-inspired 130 BPM demo theme, cosmic 122 BPM showcase theme, uplifting 128 BPM victory theme) with stereo echo, resonant synth-brass lead, string pad & drums — cleanly isolated for Peter Salomonsen's upcoming WebAssembly Music compositions.
 - **100% 3D Final Victory & Game Over Hall of Fame** ([`src/remaster/rendering/createVictory3DScene.ts`](src/remaster/rendering/createVictory3DScene.ts)): custom GLSL aurora sky & iridescent gold Trophy Marble, 96 thin-instanced 3D confetti shards, live keyboard 3-letter Hall of Fame initials entry (`localStorage`), scrolling credits, and raycasted 3D `PLAY AGAIN` / `TITLE 3D` buttons.
 - **Authentic 1984 Atari System 1 8×8 Bitmap Font** ([`src/remaster/rendering/arcadeBitmapFont.ts`](src/remaster/rendering/arcadeBitmapFont.ts)): pixel-crisp 8×8 arcade glyphs across all 3D title, Amiga, and victory scenes.
 
@@ -59,8 +60,9 @@ Open **`http://127.0.0.1:5173/remaster.html`** to play the standalone Remaster (
 
 ## Controls (`remaster.html`)
 
-- **Attract Mode**: click 3D `1 PLAYER` / `2 PLAYERS` buttons (or press **`Space` / `Enter`** for 1P, **`2`** for 2P) · **`←` / `→`** switch between the 4 3D attract modes
-- **Click canvas** (in-game): unlock WebAssembly audio & capture trackpad / mouse (Pointer Lock)
+- **Attract Mode**: click/tap 3D `1 PLAYER` / `2 PLAYERS` buttons (or press **`Space` / `Enter`** for 1P, **`2`** for 2P) · **`←` / `→`** (or **swipe left/right** on mobile) switch between the 4 3D attract modes and cycle Courses `1 → 6 → 1`
+- **Mobile & Tablet (iPhone, Android, iPad)**: drag anywhere on the screen as a full-screen touch trackball, hold either the **left or right `BOOST` button** (or place a **2nd finger** anywhere on the playfield) for turbo boost, tap to skip flyover/post-goal, and use the compact **`⚙ Controls`** drawer for settings
+- **Click canvas** (desktop): unlock WebAssembly audio & capture trackpad / mouse (Pointer Lock)
 - **Player 1**: Trackpad / Mouse, **Arrows / WASD**, or **Gamepad 1** (left stick / D-pad)
 - **Player 2** (2P mode): **IJKL** or **Gamepad 2**
 - **`Space`** (or Gamepad A/B): skip opening flyover / **boost** for ramp jumps / skip post-goal countdown

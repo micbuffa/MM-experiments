@@ -127,7 +127,8 @@ export interface ProbeSession extends VenueEffects {
   pause(): void;
   resume(): void;
   setCaptured(value: boolean): void;
-  setBoost(value: boolean): void;
+  setBoost(value: boolean, allowUncaptured?: boolean): void;
+  pushTouchMotion?(dx: number, dy: number): void;
   setPlayer2Direction(direction: Direction, pressed: boolean): void;
   setPlayerDirection?(
     player: ArcadePlayer,
@@ -385,7 +386,7 @@ export async function prepareEmulator(
           }
         }
       }
-      if (!captured) return;
+      if (!captured && !boost.held) return;
       const native = instance.Module.marbleNativeInput;
       if (!native) return;
       const command = boost.next();
@@ -559,9 +560,15 @@ export async function prepareEmulator(
       clearInputs();
       captured = value;
     },
-    setBoost(value) {
+    setBoost(value, allowUncaptured = false) {
       if (value) {
-        if (disposed || instance.paused || !captured || boost.held) return;
+        if (
+          disposed ||
+          instance.paused ||
+          (!captured && !allowUncaptured) ||
+          boost.held
+        )
+          return;
         resetMetrics();
         motion.reset();
         instance.Module.marbleNativeInput?.setPending(0, 0);
@@ -571,6 +578,17 @@ export async function prepareEmulator(
         motion.reset();
         instance.Module.marbleNativeInput?.setPending(0, 0);
       }
+    },
+    pushTouchMotion(dx, dy) {
+      if (disposed || !instance.started || instance.paused) return;
+      const native = instance.Module?.marbleNativeInput;
+      if (!native) return;
+      const state = native.state();
+      const [x, y] = cameraMotion.transform(dx, dy);
+      boost.observe(x, y, performance.now() / 1000);
+      if (boost.held) return;
+      const [tx, ty] = motion.transform(x, y, state.pendingX, state.pendingY);
+      if (tx || ty) native.setPending(state.pendingX + tx, state.pendingY + ty);
     },
     setPlayer2Direction(direction, pressed) {
       if (disposed || instance.paused || !captured) return;

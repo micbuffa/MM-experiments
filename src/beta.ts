@@ -51,6 +51,7 @@ import {
 import { arcadeShortcut } from './input/arcadeShortcuts';
 import { DEFAULT_GAIN } from './input/relativeMotion';
 import { requestPointerCapture } from './input/requestPointerCapture';
+import { createTouchTrackball } from './input/touchTrackball';
 import { mountPracticeHud } from './ui/practiceHud';
 
 const CAMERA_LABELS: Readonly<Record<PracticeCameraPreset, string>> = {
@@ -139,7 +140,31 @@ async function bootBeta() {
     document.querySelector<HTMLSelectElement>('#render-quality')!;
   const infiniteTimeCheckbox =
     document.querySelector<HTMLInputElement>('#infinite-time')!;
+  const btnStart1P =
+    document.querySelector<HTMLButtonElement>('#btn-start-1p')!;
+  const btnStart2P =
+    document.querySelector<HTMLButtonElement>('#btn-start-2p')!;
+  const mobileBoostLeft =
+    document.querySelector<HTMLButtonElement>('#mobile-boost-left')!;
+  const mobileBoostRight = document.querySelector<HTMLButtonElement>(
+    '#mobile-boost-right',
+  )!;
+  const mobileBar = document.getElementById('mobile-bar')!;
+  const mobileViewBtn =
+    document.querySelector<HTMLButtonElement>('#mobile-view-btn')!;
+  const mobileCamBtn =
+    document.querySelector<HTMLButtonElement>('#mobile-cam-btn')!;
+  const mobileTimerBtn =
+    document.querySelector<HTMLButtonElement>('#mobile-timer-btn')!;
+  const mobileQualityBtn = document.querySelector<HTMLButtonElement>(
+    '#mobile-quality-btn',
+  )!;
+  const mobileTitleBtn =
+    document.querySelector<HTMLButtonElement>('#mobile-title-btn')!;
   const updateHud = mountPracticeHud(hudRoot);
+  const touchTrackball = createTouchTrackball();
+  const isCompactViewport = () =>
+    window.matchMedia('(max-width: 960px), (pointer: coarse)').matches;
 
   let selectedLevel: BetaStartLevel = 1;
   let infiniteTime = false;
@@ -165,6 +190,8 @@ async function bootBeta() {
   let fov = practiceLens.initial;
   let twoPlayers = false;
   let spaceHeld = false;
+  let boostBtnLeft = false;
+  let boostBtnRight = false;
   let restoring = false;
   let nullPoseFrames = 0;
   let bootFrames = 0;
@@ -254,10 +281,22 @@ async function bootBeta() {
     loading.hidden = phase !== 'loading';
     attractOverlay.hidden = phase !== 'attract';
     playBanner.hidden = phase !== 'playing';
+    mobileBoostLeft.hidden = phase !== 'playing';
+    mobileBoostRight.hidden = phase !== 'playing';
+    mobileBar.hidden = phase !== 'playing';
     bannerView.textContent = BETA_VIEW_LABELS[viewMode];
     bannerCamera.textContent = CAMERA_LABELS[cameraPreset];
     bannerQuality.textContent = BETA_QUALITY_LABELS[renderQuality];
     bannerTimer.textContent = infiniteTime ? 'Infinite' : 'Normal';
+    mobileViewBtn.textContent =
+      viewMode === 'modern'
+        ? 'View: 3D'
+        : viewMode === 'compare'
+          ? 'View: Split'
+          : 'View: 2D';
+    mobileCamBtn.textContent = `Cam: ${CAMERA_LABELS[cameraPreset]}`;
+    mobileTimerBtn.textContent = infiniteTime ? 'Timer: ∞' : 'Timer';
+    mobileQualityBtn.textContent = BETA_QUALITY_LABELS[renderQuality];
     qualitySelect.value = renderQuality;
     infiniteTimeCheckbox.checked = infiniteTime;
     session?.setInfiniteTime?.(infiniteTime);
@@ -283,10 +322,33 @@ async function bootBeta() {
     }
   }
 
+  function syncBoost() {
+    const active =
+      phase === 'playing' &&
+      (spaceHeld ||
+        boostBtnLeft ||
+        boostBtnRight ||
+        touchTrackball.boostActive);
+    const touchTriggered =
+      boostBtnLeft || boostBtnRight || touchTrackball.boostActive;
+    mobileBoostLeft.classList.toggle('active', boostBtnLeft);
+    mobileBoostRight.classList.toggle('active', boostBtnRight);
+    session?.setBoost(active, touchTriggered);
+  }
+
+  function resetTouchAndBoost() {
+    touchTrackball.reset();
+    spaceHeld = false;
+    boostBtnLeft = false;
+    boostBtnRight = false;
+    syncBoost();
+  }
+
   function enterAttract() {
     phase = 'attract';
     viewMode = 'direct';
     nullPoseFrames = 0;
+    resetTouchAndBoost();
     if (document.pointerLockElement) document.exitPointerLock();
     updateHud(undefined);
     syncUi();
@@ -294,7 +356,7 @@ async function bootBeta() {
 
   function enterPlaying(restartFlyover: boolean) {
     phase = 'playing';
-    viewMode = 'compare';
+    viewMode = isCompactViewport() ? 'modern' : 'compare';
     nullPoseFrames = 0;
     syncUi();
     if (restartFlyover) view?.restartOpening();
@@ -543,15 +605,181 @@ async function bootBeta() {
       { signal },
     );
 
+    function triggerArcadeStart(players: 1 | 2) {
+      if (!session || phase !== 'attract') return;
+      unlockAudio();
+      session.resume();
+      const cp = checkpointForStartLevel(selectedLevel);
+      if (cp) {
+        void startSelectedCheckpoint(cp);
+        return;
+      }
+      session.pulse(2, 0);
+      if (players === 2) {
+        window.setTimeout(() => session?.pulse(2, 0), 90);
+        window.setTimeout(() => session?.pulse(3, 1), 220);
+      } else {
+        window.setTimeout(() => session?.pulse(3, 0), 160);
+      }
+    }
+
+    btnStart1P.addEventListener('click', () => triggerArcadeStart(1), {
+      signal,
+    });
+    btnStart2P.addEventListener('click', () => triggerArcadeStart(2), {
+      signal,
+    });
+
+    function bindMobileBoostButton(
+      btn: HTMLButtonElement,
+      setHeld: (held: boolean) => void,
+    ) {
+      btn.addEventListener(
+        'pointerdown',
+        (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          unlockAudio();
+          try {
+            btn.setPointerCapture(event.pointerId);
+          } catch {
+            // Ignore synthetic pointers.
+          }
+          setHeld(true);
+          syncBoost();
+        },
+        { signal },
+      );
+      const release = (event: PointerEvent) => {
+        event.stopPropagation();
+        setHeld(false);
+        syncBoost();
+      };
+      btn.addEventListener('pointerup', release, { signal });
+      btn.addEventListener('pointercancel', release, { signal });
+      btn.addEventListener('lostpointercapture', release, { signal });
+    }
+
+    bindMobileBoostButton(mobileBoostLeft, (held) => {
+      boostBtnLeft = held;
+    });
+    bindMobileBoostButton(mobileBoostRight, (held) => {
+      boostBtnRight = held;
+    });
+
+    mobileViewBtn.addEventListener(
+      'click',
+      () => {
+        if (phase !== 'playing') return;
+        viewMode = nextBetaViewMode(viewMode);
+        syncUi();
+      },
+      { signal },
+    );
+    mobileCamBtn.addEventListener(
+      'click',
+      () => {
+        if (phase !== 'playing' || viewMode === 'direct') return;
+        cameraPreset = nextPracticeCamera(cameraPreset, twoPlayers);
+        view?.selectPracticeCamera(cameraPreset);
+        syncUi();
+      },
+      { signal },
+    );
+    mobileTimerBtn.addEventListener(
+      'click',
+      () => {
+        if (phase !== 'playing') return;
+        infiniteTime = !infiniteTime;
+        syncUi();
+      },
+      { signal },
+    );
+    mobileQualityBtn.addEventListener(
+      'click',
+      () => {
+        if (phase !== 'playing') return;
+        renderQuality = nextBetaQuality(renderQuality);
+        syncUi();
+      },
+      { signal },
+    );
+    mobileTitleBtn.addEventListener(
+      'click',
+      () => {
+        if (!session || phase !== 'playing') return;
+        if (attractState) session.restoreRawState?.(attractState);
+        enterAttract();
+      },
+      { signal },
+    );
+
+    stage.addEventListener(
+      'pointerdown',
+      (event) => {
+        if (event.pointerType !== 'touch' || phase !== 'playing') return;
+        if (
+          event.target instanceof Element &&
+          event.target.closest('button, input, select, label, nav, aside')
+        ) {
+          return;
+        }
+        event.preventDefault();
+        unlockAudio();
+        touchTrackball.pointerDown(
+          event.pointerId,
+          event.clientX,
+          event.clientY,
+        );
+        syncBoost();
+      },
+      { signal, passive: false },
+    );
+
+    stage.addEventListener(
+      'pointermove',
+      (event) => {
+        if (event.pointerType !== 'touch' || phase !== 'playing') return;
+        const delta = touchTrackball.pointerMove(
+          event.pointerId,
+          event.clientX,
+          event.clientY,
+        );
+        if (delta && session) {
+          event.preventDefault();
+          session.pushTouchMotion?.(delta.dx, delta.dy);
+        }
+      },
+      { signal, passive: false },
+    );
+
+    const endTouch = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch') return;
+      touchTrackball.pointerUp(event.pointerId);
+      syncBoost();
+    };
+    stage.addEventListener('pointerup', endTouch, { signal });
+    stage.addEventListener('pointercancel', endTouch, { signal });
+
+    window.addEventListener('blur', resetTouchAndBoost, { signal });
+    document.addEventListener(
+      'visibilitychange',
+      () => {
+        if (document.hidden) resetTouchAndBoost();
+      },
+      { signal },
+    );
+
     window.addEventListener(
       'pointerdown',
       (event) => {
         unlockAudio();
         if (
+          event.pointerType !== 'touch' &&
           phase === 'playing' &&
           (controls.p1 === 'trackpad' || controls.p2 === 'trackpad') &&
           event.target instanceof Element &&
-          !event.target.closest('input, button, label, fieldset, select')
+          !event.target.closest('input, button, label, fieldset, select, nav')
         ) {
           void requestCapture();
         }
@@ -623,7 +851,7 @@ async function bootBeta() {
           event.preventDefault();
           if (!spaceHeld) {
             spaceHeld = true;
-            session.setBoost(true);
+            syncBoost();
           }
           return;
         }
@@ -689,7 +917,7 @@ async function bootBeta() {
         }
         if (event.code === 'Space' && spaceHeld && session) {
           spaceHeld = false;
-          session.setBoost(false);
+          syncBoost();
         }
       },
       { signal, capture: true },

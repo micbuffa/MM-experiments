@@ -1,5 +1,15 @@
 # Handoff
 
+## Mobile & Tablet Support (Dual Boost, Touch Trackball, Responsive Beta UI) + Magic Wand 3D Polish — November 28, 2026
+
+- **Mobile & Tablet Playability on `beta.html`** ([touchTrackball.ts](src/input/touchTrackball.ts), [touchTrackball.test.ts](src/input/touchTrackball.test.ts), [emulatorjs.ts](src/emulation/emulatorjs.ts), [beta.html](beta.html), [src/beta.css](src/beta.css), [src/beta.ts](src/beta.ts)):
+  - Added pure multi-touch trackball state machine (`createTouchTrackball`) with ≥ 90% V8 unit test coverage: primary finger drag feeds relative deltas directly into MAME's native trackball pipeline (`session.pushTouchMotion`), while a 2nd finger anywhere on the playfield holds turbo boost.
+  - Added tactile **`1 PLAYER · START`** and **`2 PLAYERS`** buttons in Attract Mode so phones and tablets can start any level (`1`–`6`) without a keyboard.
+  - Added **dual left + right floating `BOOST` buttons** (ambidextrous) wired via Pointer Events to `session.setBoost(active, true)`, a compact bottom mobile action bar (`View`, `Cam`, `Timer`, `Quality`, `Title`), `100dvh` + safe-area viewport handling, and automatic full-screen 3D default (`modern`) on compact/touch viewports (`≤ 960px` or `pointer: coarse`).
+- **Improved 3D Magic Wand Model & Broadside Arcade View Angle** ([createMagicWand.ts](src/rendering/createMagicWand.ts)):
+  - Ported the `Remaster` improvements: rotated wand orientation by 90° (`yaw = +Math.PI / 4`) so the wand waves broadside across the isometric Arcade camera instead of foreshortened end-on, and enlarged the glossy black shaft (`1.85 × 0.21`), bright ivory tip (`0.48 × 0.23`), and golden grip (`0.36 × 0.23`) for crisp silhouette readability.
+- **Validation & Deployment**: `npm run format && npm run check && npm run build:beta`, pushed to `origin/main` and deployed `dist-beta/` to `origin/gh-pages` (`https://micbuffa.github.io/MM-experiments/`).
+
 ## Pipe geometry polish, Chase High camera, raycast-gated occlusion, projection unfreeze & Level 1 pre-flyover curtain — November 25, 2026
 
 - **Level 2 blue Y-pipe upper hoods & Level 3 orange pipe geometry** ([fitIntermediatePipeHoods.ts](src/rendering/fitIntermediatePipeHoods.ts), [fitIntermediatePipeHoods.test.ts](src/rendering/fitIntermediatePipeHoods.test.ts), [widenLevel3Pipe.ts](src/rendering/widenLevel3Pipe.ts), [widenLevel3Pipe.test.ts](src/rendering/widenLevel3Pipe.test.ts)):

@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>Marble Madness 3D · Beta</title>
   </head>
   <body>
@@ -82,6 +85,22 @@
 
       <aside id="attract-overlay" class="attract-overlay" hidden>
         <div class="attract-card">
+          <div class="attract-start-buttons">
+            <button
+              type="button"
+              id="btn-start-1p"
+              class="start-btn start-btn-p1"
+            >
+              1 PLAYER · START
+            </button>
+            <button
+              type="button"
+              id="btn-start-2p"
+              class="start-btn start-btn-p2"
+            >
+              2 PLAYERS
+            </button>
+          </div>
           <div class="attract-keys">
             <span class="key-pill"><kbd>5</kbd> Insert coins</span>
             <span class="key-pill"><kbd>1</kbd> Start Player 1</span>
@@ -185,6 +204,38 @@
           >Click to capture mouse / trackpad</span
         >
       </header>
+
+      <button
+        type="button"
+        id="mobile-boost-left"
+        class="mobile-boost-btn mobile-boost-left"
+        aria-label="Boost (left)"
+        hidden
+      >
+        BOOST
+      </button>
+      <button
+        type="button"
+        id="mobile-boost-right"
+        class="mobile-boost-btn mobile-boost-right"
+        aria-label="Boost (right)"
+        hidden
+      >
+        BOOST
+      </button>
+
+      <nav
+        id="mobile-bar"
+        class="mobile-bar"
+        aria-label="Mobile gameplay controls"
+        hidden
+      >
+        <button type="button" id="mobile-view-btn">View: 3D</button>
+        <button type="button" id="mobile-cam-btn">Cam: Arcade</button>
+        <button type="button" id="mobile-timer-btn">Timer</button>
+        <button type="button" id="mobile-quality-btn">Qual</button>
+        <button type="button" id="mobile-title-btn">Title</button>
+      </nav>
     </main>
     <script type="module" src="/src/beta.ts"></script>
   </body>

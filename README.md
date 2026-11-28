@@ -31,14 +31,15 @@ Browser-based 3D wrapper for **Marble Madness (Atari System I, 1984)**: the orig
   - **3D intro flyover**: depth-anchored to the true start platform with an elevated scenic arc and automatic terrain clearance, blending seamlessly into gameplay.
 - **Level 6 (_Ultimate Race_)**:
   - Complete final course with carmine-red cliffs, 1-block-thick floating upper platforms, speckled amber start mound, hollow square pit island, open yellow triangular chutes, cyan ice strips and `11×11` diamond with 4 hexagonal pyramids, live MAME-synced shimmering amoeba plateaus (Playfield Bank 3), parallel-ribbed worm platforms, black-on-white `GOAL` pad with flags, and the **4-phase disappearing-block final maze** locked directly to the 68010 core (`0x400978`).
-- **3D Cameras, Quality & HUD**: 4 camera presets (`Arcade`, `Follow`, `Overhead`, `Chase` with transparent wall occlusion), `+/-` zoom, `Eco / Balanced / High` GPU quality modes with Intel HD/UHD auto-detection, native Score/Timer/Notice HUD, and instant **Side-by-side / 3D / Original** view cycling (`V`).
+- **3D Cameras, Quality, Magic Wand & HUD**: 5 camera presets (`Arcade`, `Follow`, `Overhead`, `Chase`, `Chase High` with raycast-gated transparent wall occlusion), `+/-` zoom, `Eco / Balanced / High` GPU quality modes with Intel HD/UHD auto-detection, broadside-angled 3D **Magic Wand** (`+10 SEC`) with spinning stars and marble squash-and-stretch, native Score/Timer/Notice HUD, and instant **Side-by-side / 3D / Original** view cycling (`V`).
 
 ### 4. Static Beta Distribution (`dist-beta/` & GitHub Pages)
 
 - Self-contained static entry point (`beta.html` → `dist-beta/index.html`) deployed to `gh-pages`:
   - Initialization overlay with progress bar, **4.6–8.5 KB Attract Mode boot savestate** (skips the ~4–5 s Atari System 1 POST), **Service Worker Cache-First** (`sw.js`), **IndexedDB ROM cache**, lazy-loaded level checkpoints, and compact zlib-compressed **`rolling-actors.bin` (577 KB vs 6.7 MB JSON)**.
-  - Starts automatically in **full-screen CRT Attract Mode** (scanlines) with a semi-transparent key legend (`5` Insert coins, `1` Start Player 1, `2` Start Player 2), starting level radio buttons (**`1`–`6`**, full game), player control pickers, and `3D Quality` selector.
-  - Automatically switches to **full-screen side-by-side CRT view** (pixel-aligned 4:3 Original on the left, 3D on the right with intro flyover) and a semi-transparent top banner (`V` View, `C` Camera, `G` Quality, `T` Timer, `Space` Boost, `Esc` Pause).
+  - Starts automatically in **full-screen CRT Attract Mode** (scanlines) with tactile **`1 PLAYER · START`** / **`2 PLAYERS`** buttons, a semi-transparent key legend (`5` Insert coins, `1` Start Player 1, `2` Start Player 2), starting level radio buttons (**`1`–`6`**, full game), player control pickers, and `3D Quality` selector.
+  - **Mobile & Tablet Playability (iPhone, Android, iPad)**: responsive `100dvh` + safe-area layout, full-screen multi-touch trackball steering feeding the authentic MAME trackball pipeline, **dual left + right floating `BOOST` buttons** (ambidextrous) + 2nd-finger playfield boost, automatic full-screen 3D default on compact viewports, and a compact bottom action bar (`View`, `Cam`, `Timer`, `Quality`, `Title`).
+  - On desktop, automatically switches to **full-screen side-by-side CRT view** (pixel-aligned 4:3 Original on the left, 3D on the right with intro flyover) and a semi-transparent top banner (`V` View, `C` Camera, `G` Quality, `T` Timer, `Space` Boost, `Esc` Pause).
 
 ---
 

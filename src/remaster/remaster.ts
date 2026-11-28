@@ -37,6 +37,15 @@ import {
   type PlayerInput,
 } from './engine/remasterSimulation';
 import {
+  createTouchTrackballState,
+  resetTouchTrackball,
+  sampleTouchTrackball,
+  setTouchButtonBoost,
+  touchPointerDown,
+  touchPointerMove,
+  touchPointerUp,
+} from './engine/remasterTouch';
+import {
   AUTO_ADVANCE_DELAY_SECONDS,
   computeAttractAiInput,
   createAttractCycle,
@@ -157,6 +166,28 @@ async function bootRemaster() {
   const scanlinesOverlay =
     document.querySelector<HTMLElement>('#scanlines-overlay')!;
   const btnAttract = document.querySelector<HTMLButtonElement>('#btn-attract')!;
+  const toolbarEl = document.querySelector<HTMLElement>('#remaster-toolbar')!;
+  const btnToolbarToggle = document.querySelector<HTMLButtonElement>(
+    '#btn-toolbar-toggle',
+  );
+  const btnMobileAttract = document.querySelector<HTMLButtonElement>(
+    '#btn-mobile-attract',
+  );
+  const btnMobileCamera =
+    document.querySelector<HTMLButtonElement>('#btn-mobile-camera');
+  const btnMobileReset =
+    document.querySelector<HTMLButtonElement>('#btn-mobile-reset');
+  const btnTouchBoost =
+    document.querySelector<HTMLButtonElement>('#btn-touch-boost');
+  const mobileInitialsBar = document.querySelector<HTMLElement>(
+    '#mobile-initials-bar',
+  );
+  const mobileInitialsInput = document.querySelector<HTMLInputElement>(
+    '#mobile-initials-input',
+  );
+  const btnMobileSaveScore = document.querySelector<HTMLButtonElement>(
+    '#btn-mobile-save-score',
+  );
 
   const controller = new AbortController();
   const { signal } = controller;
@@ -230,6 +261,12 @@ async function bootRemaster() {
   sim.setTimerFrozen(timerFrozen);
 
   const heldKeys = new Set<string>();
+  const touchState = createTouchTrackballState();
+  let isTouchDevice =
+    window.matchMedia('(pointer: coarse)').matches ||
+    navigator.maxTouchPoints > 0;
+  let lastTouchEndMs = -1000;
+  let mobileScoreSaved = false;
   let mouseDx = 0;
   let mouseDy = 0;
   const agilitySlider = document.getElementById(
@@ -250,11 +287,20 @@ async function bootRemaster() {
     });
   }
 
+  function setDrawerOpen(open: boolean) {
+    toolbarEl.classList.toggle('drawer-open', open);
+    btnToolbarToggle?.setAttribute('aria-expanded', String(open));
+  }
+
   function enterAttractMode() {
     screenMode = 'attract';
     victoryShownForRun = false;
+    mobileScoreSaved = false;
     autoAdvanceTimer = -1;
     autoAdvancing = false;
+    resetTouchTrackball(touchState);
+    btnTouchBoost?.classList.remove('boost-active');
+    setDrawerOpen(false);
     attractCycle = createAttractCycle(currentCourse, 'flyover');
     bannerEl.hidden = true;
     if (document.pointerLockElement === canvas) {
@@ -273,7 +319,11 @@ async function bootRemaster() {
   function openVictory3D(p1Score: number, p2Score?: number, gameOver = false) {
     screenMode = 'victory';
     victoryShownForRun = true;
+    mobileScoreSaved = false;
     autoAdvanceTimer = -1;
+    resetTouchTrackball(touchState);
+    btnTouchBoost?.classList.remove('boost-active');
+    setDrawerOpen(false);
     bannerEl.hidden = true;
     if (document.pointerLockElement === canvas) {
       document.exitPointerLock?.();
@@ -282,6 +332,9 @@ async function bootRemaster() {
       gameOver,
       course: currentCourse,
     });
+    if (mobileInitialsInput) {
+      mobileInitialsInput.value = victory3D.initials;
+    }
     updateHud();
   }
 
@@ -292,8 +345,12 @@ async function bootRemaster() {
     unlockAudio();
     screenMode = 'playing';
     victoryShownForRun = false;
+    mobileScoreSaved = false;
     autoAdvanceTimer = -1;
     autoAdvancing = false;
+    resetTouchTrackball(touchState);
+    btnTouchBoost?.classList.remove('boost-active');
+    setDrawerOpen(false);
     const needsReload = course !== currentCourse;
     const needsModeChange = multiplayer !== twoPlayers;
     twoPlayers = multiplayer;
@@ -447,7 +504,10 @@ async function bootRemaster() {
         mouseDx *= 0.45;
         mouseDy *= 0.45;
       }
-      if (heldKeys.has('Space')) boost = true;
+      const touch = sampleTouchTrackball(touchState, agilityFactor);
+      sx = Math.max(-1, Math.min(1, sx + touch.sx));
+      sy = Math.max(-1, Math.min(1, sy + touch.sy));
+      if (touch.boost || heldKeys.has('Space')) boost = true;
       if (allowKeyboardFallback) {
         const kb = readKeyboardScreenInput(heldKeys, 'keyboard');
         sx += kb.x;
@@ -500,6 +560,17 @@ async function bootRemaster() {
         snap.phase === 'playing',
     );
 
+    if (btnTouchBoost) {
+      btnTouchBoost.hidden = !(isTouchDevice && screenMode === 'playing');
+    }
+    if (mobileInitialsBar) {
+      mobileInitialsBar.hidden = !(
+        isTouchDevice &&
+        screenMode === 'victory' &&
+        !mobileScoreSaved
+      );
+    }
+
     if (screenMode === 'attract') {
       statusEl.textContent = 'ATTRACT';
       bannerEl.hidden = true;
@@ -511,14 +582,18 @@ async function bootRemaster() {
       bannerEl.hidden = false;
       bannerTitle.textContent = level.name.toUpperCase();
       const showcase = getCourseShowcase(currentCourse);
-      bannerSub.textContent = `${showcase.subtitle} · Space to roll!`;
+      bannerSub.textContent = isTouchDevice
+        ? `${showcase.subtitle} · Drag to roll · Hold BOOST or 2nd finger`
+        : `${showcase.subtitle} · Space to roll!`;
     } else if (snap.phase === 'finished') {
       statusEl.textContent = 'GOAL!';
       bannerEl.hidden = false;
       bannerTitle.textContent = `GOAL! SCORE ${p1?.score ?? 0}`;
       bannerSub.textContent =
         currentCourse < 6
-          ? `Advancing to Level ${currentCourse + 1}… (Space to continue now)`
+          ? isTouchDevice
+            ? `Advancing to Level ${currentCourse + 1}… (Tap to continue)`
+            : `Advancing to Level ${currentCourse + 1}… (Space to continue now)`
           : 'All 6 courses completed!';
     } else if (snap.phase === 'gameOver') {
       statusEl.textContent = 'TIME UP';
@@ -744,9 +819,119 @@ async function bootRemaster() {
 
   // Event listeners (all scoped to AbortController for clean disposal).
   canvas.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+      event.preventDefault();
+      isTouchDevice = true;
+      unlockAudio();
+      setDrawerOpen(false);
+      try {
+        canvas.setPointerCapture(event.pointerId);
+      } catch {
+        // Ignore capture failures on synthetic pointer events.
+      }
+      touchPointerDown(
+        touchState,
+        event.pointerId,
+        event.clientX,
+        event.clientY,
+        performance.now(),
+      );
+    },
+    { signal },
+  );
+
+  canvas.addEventListener(
+    'pointermove',
+    (event) => {
+      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+      event.preventDefault();
+      touchPointerMove(
+        touchState,
+        event.pointerId,
+        event.clientX,
+        event.clientY,
+      );
+    },
+    { signal },
+  );
+
+  const handleTouchPointerEnd = (event: PointerEvent) => {
+    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+    event.preventDefault();
+    lastTouchEndMs = performance.now();
+    const outcome = touchPointerUp(
+      touchState,
+      event.pointerId,
+      event.clientX,
+      event.clientY,
+      lastTouchEndMs,
+    );
+    const rect = canvas.getBoundingClientRect();
+    const px = event.clientX - rect.left;
+    const py = event.clientY - rect.top;
+
+    if (screenMode === 'attract') {
+      if (outcome.swipeDirection !== 0) {
+        attractCycle = switchAttractStage(attractCycle, outcome.swipeDirection);
+        if (attractCycle.stage === 'aiDemo') {
+          sim.reset();
+          sim.setTimerFrozen(true);
+          sim.skipOpening();
+        }
+        view.camera.select(attractCycle.cameraPreset);
+        return;
+      }
+      if (outcome.wasTap) {
+        const action =
+          attractCycle.stage === 'amigaDemo'
+            ? amigaDemo3D.pickAction(px, py)
+            : attract3D.pickAction(px, py);
+        if (action === 'start2p') {
+          void startGameFrom3DMenu(currentCourse, true);
+        } else {
+          void startGameFrom3DMenu(currentCourse, false);
+        }
+      }
+      return;
+    }
+
+    if (screenMode === 'victory') {
+      if (outcome.wasTap) {
+        const action = victory3D.pickAction(px, py);
+        if (action === 'replay') {
+          void startGameFrom3DMenu(1, twoPlayers);
+        } else if (action === 'attract') {
+          enterAttractMode();
+        }
+      }
+      return;
+    }
+
+    if (outcome.wasTap) {
+      if (sim.snapshot.phase === 'opening') {
+        sim.skipOpening();
+      } else if (
+        sim.snapshot.phase === 'finished' &&
+        currentCourse < 6 &&
+        !autoAdvancing
+      ) {
+        autoAdvanceTimer = 0;
+      }
+    }
+  };
+
+  canvas.addEventListener('pointerup', handleTouchPointerEnd, { signal });
+  canvas.addEventListener('pointercancel', handleTouchPointerEnd, { signal });
+
+  canvas.addEventListener(
     'click',
     (event) => {
+      // Ignore synthetic click fired immediately after a touch gesture.
+      if (performance.now() - lastTouchEndMs < 400) return;
       unlockAudio();
+      setDrawerOpen(false);
       const rect = canvas.getBoundingClientRect();
       const px = event.clientX - rect.left;
       const py = event.clientY - rect.top;
@@ -771,7 +956,7 @@ async function bootRemaster() {
         }
         return;
       }
-      if (document.pointerLockElement !== canvas) {
+      if (!isTouchDevice && document.pointerLockElement !== canvas) {
         void canvas.requestPointerLock?.();
       }
     },
@@ -1084,7 +1269,104 @@ async function bootRemaster() {
     { signal },
   );
 
-  window.addEventListener('resize', () => engine.resize(), { signal });
+  const setBoostButtonPressed = (active: boolean) => {
+    setTouchButtonBoost(touchState, active);
+    btnTouchBoost?.classList.toggle('boost-active', active);
+  };
+  btnTouchBoost?.addEventListener(
+    'pointerdown',
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      isTouchDevice = true;
+      unlockAudio();
+      try {
+        btnTouchBoost.setPointerCapture(event.pointerId);
+      } catch {
+        // Ignore capture errors on synthetic events.
+      }
+      setBoostButtonPressed(true);
+    },
+    { signal },
+  );
+  const releaseBoostButton = (event: PointerEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setBoostButtonPressed(false);
+  };
+  btnTouchBoost?.addEventListener('pointerup', releaseBoostButton, { signal });
+  btnTouchBoost?.addEventListener('pointercancel', releaseBoostButton, {
+    signal,
+  });
+  btnTouchBoost?.addEventListener(
+    'lostpointercapture',
+    () => setBoostButtonPressed(false),
+    { signal },
+  );
+
+  btnToolbarToggle?.addEventListener(
+    'click',
+    () => {
+      setDrawerOpen(!toolbarEl.classList.contains('drawer-open'));
+    },
+    { signal },
+  );
+  btnMobileAttract?.addEventListener(
+    'click',
+    () => {
+      enterAttractMode();
+    },
+    { signal },
+  );
+  btnMobileCamera?.addEventListener(
+    'click',
+    () => {
+      unlockAudio();
+      cameraPreset = nextPracticeCamera(cameraPreset, twoPlayers);
+      view.camera.select(cameraPreset);
+      updateToolbarLabels();
+    },
+    { signal },
+  );
+  btnMobileReset?.addEventListener(
+    'click',
+    () => {
+      unlockAudio();
+      victoryShownForRun = false;
+      autoAdvanceTimer = -1;
+      sim.reset();
+      audio.playLevelTheme(currentCourse);
+    },
+    { signal },
+  );
+
+  btnMobileSaveScore?.addEventListener(
+    'click',
+    () => {
+      const p1Score = sim.snapshot.players[0]?.score ?? 0;
+      const p2Score = sim.snapshot.players[1]?.score ?? 0;
+      const raw = mobileInitialsInput?.value ?? victory3D.initials;
+      const updated = recordHighScore(
+        window.localStorage,
+        raw,
+        Math.max(p1Score, p2Score),
+        currentCourse,
+      );
+      attract3D.setHighScores(updated);
+      victory3D.markSaved();
+      mobileScoreSaved = true;
+      updateHud();
+    },
+    { signal },
+  );
+
+  const handleViewportResize = () => {
+    engine.resize();
+  };
+  window.addEventListener('resize', handleViewportResize, { signal });
+  window.addEventListener('orientationchange', handleViewportResize, {
+    signal,
+  });
 
   function dispose() {
     if (disposed) return;

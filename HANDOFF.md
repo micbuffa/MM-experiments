@@ -29,6 +29,7 @@
   - Removed explicit `"AMIGA DEMOSCENE"` label text from `createAmigaDemo3DScene.ts` and removed technical engine/chip strings from the course intro banner (`remaster.ts`).
   - Added **`Q`** shortcut (`Title (Q)`) to stop the current game and return to Attract Mode anytime.
   - Enabled 3D Hall of Fame 3-letter initials entry on **`GAME OVER`** as well as Level 6 **`CONGRATULATIONS!`** (`createVictory3DScene.ts`).
+  - Added mobile & tablet support (`remasterTouch.ts`, `remasterTouch.test.ts`, `remaster.html`, `remaster.css`, `remaster.ts`, and portrait-responsive `fovMode` in `createAttract3DScene.ts` / `createAmigaDemo3DScene.ts` / `createVictory3DScene.ts`): full-screen Pointer Events touch-trackball steering scaled by `Ball Sensitivity`, multi-touch turbo boost (dedicated floating `BOOST` button + 2nd finger anywhere on the canvas), swipe left/right to switch 3D Attract modes, tap to skip flyover/post-goal, mobile Hall of Fame initials bar, `100dvh` + iPhone safe areas, and collapsible `⚙ Controls` drawer on screens `≤ 960px` or `pointer: coarse`.
   - Verification: `npm run format && npm run check && npx playwright test tests/browser/remaster.spec.ts` (**6/6 passed**).
 - **Next action**: Michel visual review on `http://127.0.0.1:5173/remaster.html` (`←`/`→` in Attract Mode to inspect all 4 modes including the Amiga 1986 tribute scroller, `S` for scanlines, `Q` to quit to title, `Shift+V` for Victory), then commit/push/deploy once approved.
 

@@ -690,6 +690,15 @@ export function createVictory3DScene(engine: Engine): Victory3DSceneController {
     update(dtSeconds: number) {
       const dt = Math.min(0.1, Math.max(0, dtSeconds));
       elapsed += dt;
+      const aspect =
+        engine.getRenderWidth() / Math.max(1, engine.getRenderHeight());
+      if (aspect < 1.15) {
+        camera.fovMode = Camera.FOVMODE_HORIZONTAL_FIXED;
+        camera.fov = 0.96;
+      } else {
+        camera.fovMode = Camera.FOVMODE_VERTICAL_FIXED;
+        camera.fov = 0.72;
+      }
 
       auroraMat.setFloat('uTime', elapsed);
       goldOrbMat.setFloat('uTime', elapsed);

@@ -657,6 +657,15 @@ export function createAmigaDemo3DScene(
       const dt = Math.min(0.1, Math.max(0, dtSeconds));
       elapsed += dt;
       scrollElapsed += dt;
+      const aspect =
+        engine.getRenderWidth() / Math.max(1, engine.getRenderHeight());
+      if (aspect < 1.15) {
+        camera.fovMode = Camera.FOVMODE_HORIZONTAL_FIXED;
+        camera.fov = 0.98;
+      } else {
+        camera.fovMode = Camera.FOVMODE_VERTICAL_FIXED;
+        camera.fov = 0.72;
+      }
       const scanVal = scanlinesEnabled ? 1.0 : 0.0;
 
       copperMat.setFloat('uTime', elapsed);

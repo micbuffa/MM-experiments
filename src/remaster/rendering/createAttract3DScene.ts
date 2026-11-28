@@ -776,6 +776,15 @@ export function createAttract3DScene(
 
     update(dtSeconds: number) {
       elapsed += Math.min(0.1, Math.max(0, dtSeconds));
+      const aspect =
+        engine.getRenderWidth() / Math.max(1, engine.getRenderHeight());
+      if (aspect < 1.15) {
+        camera.fovMode = Camera.FOVMODE_HORIZONTAL_FIXED;
+        camera.fov = 0.96;
+      } else {
+        camera.fovMode = Camera.FOVMODE_VERTICAL_FIXED;
+        camera.fov = 0.72;
+      }
       gridMat.setFloat('uTime', elapsed);
       marqueeMat.setFloat('uTime', elapsed);
       btn1P.mat.setFloat('uTime', elapsed);

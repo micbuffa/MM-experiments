@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: ws://localhost:* ws://127.0.0.1:*; img-src 'self' blob: data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
@@ -41,94 +46,139 @@
         <p id="banner-sub">Press Space or Click to play</p>
       </section>
 
+      <button
+        id="btn-touch-boost"
+        type="button"
+        aria-label="Turbo Boost"
+        hidden
+      >
+        BOOST
+      </button>
+
+      <div id="mobile-initials-bar" hidden>
+        <label class="mobile-initials-label" for="mobile-initials-input"
+          >INITIALS</label
+        >
+        <input
+          id="mobile-initials-input"
+          type="text"
+          maxlength="3"
+          value="AAA"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          aria-label="Hall of Fame initials"
+        />
+        <button id="btn-mobile-save-score" type="button">SAVE</button>
+      </div>
+
       <footer id="remaster-toolbar">
-        <div class="toolbar-group">
-          <button id="btn-attract" type="button" title="Return to Title 3D (Q)">
-            Title (Q)
+        <div class="toolbar-mobile-bar">
+          <button
+            id="btn-toolbar-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="remaster-toolbar-drawer"
+          >
+            ⚙ Controls
           </button>
-          <label class="control-select">
-            Course
-            <select id="level-select" aria-label="Select course">
-              <option value="1" selected>1 · Practice</option>
-              <option value="2">2 · Beginner</option>
-              <option value="3">3 · Intermediate</option>
-              <option value="4">4 · Aerial</option>
-              <option value="5">5 · Silly</option>
-              <option value="6">6 · Ultimate</option>
-            </select>
-          </label>
-          <button id="btn-camera" type="button">Camera: Arcade (C)</button>
-          <button id="btn-players" type="button">Mode: 1P</button>
-          <label class="control-select">
-            P1
-            <select id="p1-control" aria-label="Player 1 control">
-              <option value="trackpad" selected>Trackpad / Mouse</option>
-              <option value="keyboard">Keyboard (Arrows + WASD/ZQSD)</option>
-              <option value="arrows">Keyboard (Arrows)</option>
-              <option value="wasd">Keyboard (WASD / ZQSD)</option>
-              <option value="gamepad1">Gamepad 1</option>
-              <option value="gamepad2">Gamepad 2</option>
-            </select>
-          </label>
-          <label class="control-select" id="p2-control-wrap" hidden>
-            P2
-            <select id="p2-control" aria-label="Player 2 control">
-              <option value="keyboard" selected>
-                Keyboard (Arrows + WASD/ZQSD)
-              </option>
-              <option value="wasd">Keyboard (WASD / ZQSD)</option>
-              <option value="arrows">Keyboard (Arrows)</option>
-              <option value="trackpad">Trackpad / Mouse</option>
-              <option value="gamepad1">Gamepad 1</option>
-              <option value="gamepad2">Gamepad 2</option>
-            </select>
-          </label>
-          <button id="btn-timer" type="button">Timer: Regular (T)</button>
-          <button id="btn-scanlines" type="button">Scanlines: ON (S)</button>
-          <button id="btn-reset" type="button">Restart (R)</button>
+          <button id="btn-mobile-attract" type="button">Title</button>
+          <button id="btn-mobile-camera" type="button">Cam</button>
+          <button id="btn-mobile-reset" type="button">Restart</button>
         </div>
-        <div class="toolbar-group">
-          <button id="btn-audio" type="button">Audio: ON (M)</button>
-          <label class="mix-slider">
-            Music
-            <input
-              id="mix-music"
-              type="range"
-              min="0"
-              max="100"
-              value="75"
-              aria-label="Music volume"
-            />
-          </label>
-          <label class="mix-slider">
-            SFX
-            <input
-              id="mix-sfx"
-              type="range"
-              min="0"
-              max="100"
-              value="100"
-              aria-label="SFX volume"
-            />
-          </label>
-          <label class="mix-slider">
-            Ball Sensitivity
-            <input
-              id="agility-slider"
-              type="range"
-              min="25"
-              max="200"
-              step="5"
-              value="80"
-              aria-label="Ball sensitivity"
-            />
-            <span id="agility-val">0.80×</span>
-          </label>
-          <label class="file-btn">
-            Load .VGM/.VGZ
-            <input id="vgm-file" type="file" accept=".vgm,.vgz" hidden />
-          </label>
-          <span id="telemetry" class="telemetry">0.0 c/s</span>
+        <div id="remaster-toolbar-drawer" class="toolbar-drawer">
+          <div class="toolbar-group">
+            <button
+              id="btn-attract"
+              type="button"
+              title="Return to Title 3D (Q)"
+            >
+              Title (Q)
+            </button>
+            <label class="control-select">
+              Course
+              <select id="level-select" aria-label="Select course">
+                <option value="1" selected>1 · Practice</option>
+                <option value="2">2 · Beginner</option>
+                <option value="3">3 · Intermediate</option>
+                <option value="4">4 · Aerial</option>
+                <option value="5">5 · Silly</option>
+                <option value="6">6 · Ultimate</option>
+              </select>
+            </label>
+            <button id="btn-camera" type="button">Camera: Arcade (C)</button>
+            <button id="btn-players" type="button">Mode: 1P</button>
+            <label class="control-select">
+              P1
+              <select id="p1-control" aria-label="Player 1 control">
+                <option value="trackpad" selected>Trackpad / Mouse</option>
+                <option value="keyboard">Keyboard (Arrows + WASD/ZQSD)</option>
+                <option value="arrows">Keyboard (Arrows)</option>
+                <option value="wasd">Keyboard (WASD / ZQSD)</option>
+                <option value="gamepad1">Gamepad 1</option>
+                <option value="gamepad2">Gamepad 2</option>
+              </select>
+            </label>
+            <label class="control-select" id="p2-control-wrap" hidden>
+              P2
+              <select id="p2-control" aria-label="Player 2 control">
+                <option value="keyboard" selected>
+                  Keyboard (Arrows + WASD/ZQSD)
+                </option>
+                <option value="wasd">Keyboard (WASD / ZQSD)</option>
+                <option value="arrows">Keyboard (Arrows)</option>
+                <option value="trackpad">Trackpad / Mouse</option>
+                <option value="gamepad1">Gamepad 1</option>
+                <option value="gamepad2">Gamepad 2</option>
+              </select>
+            </label>
+            <button id="btn-timer" type="button">Timer: Regular (T)</button>
+            <button id="btn-scanlines" type="button">Scanlines: ON (S)</button>
+            <button id="btn-reset" type="button">Restart (R)</button>
+          </div>
+          <div class="toolbar-group">
+            <button id="btn-audio" type="button">Audio: ON (M)</button>
+            <label class="mix-slider">
+              Music
+              <input
+                id="mix-music"
+                type="range"
+                min="0"
+                max="100"
+                value="75"
+                aria-label="Music volume"
+              />
+            </label>
+            <label class="mix-slider">
+              SFX
+              <input
+                id="mix-sfx"
+                type="range"
+                min="0"
+                max="100"
+                value="100"
+                aria-label="SFX volume"
+              />
+            </label>
+            <label class="mix-slider">
+              Ball Sensitivity
+              <input
+                id="agility-slider"
+                type="range"
+                min="25"
+                max="200"
+                step="5"
+                value="80"
+                aria-label="Ball sensitivity"
+              />
+              <span id="agility-val">0.80×</span>
+            </label>
+            <label class="file-btn">
+              Load .VGM/.VGZ
+              <input id="vgm-file" type="file" accept=".vgm,.vgz" hidden />
+            </label>
+            <span id="telemetry" class="telemetry">0.0 c/s</span>
+          </div>
         </div>
       </footer>
     </main>

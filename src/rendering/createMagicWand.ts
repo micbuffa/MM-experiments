@@ -19,32 +19,33 @@ export function createMagicWand(scene: Scene, name: string) {
   gold.diffuseColor.set(1, 0.82, 0.12);
   gold.emissiveColor.set(0.85, 0.55, 0.05);
 
-  // Classic magician's wand: black rod with bright white tips and a glowing golden star-orb tip.
+  // Classic magician's wand: glossy black rod with bright ivory tip and golden handle,
+  // sized and angled broadside to the isometric Arcade camera for clear silhouette readability.
   const shaft = CreateCylinder(
     name + '-shaft',
-    { height: 1.5, diameter: 0.13, tessellation: 12 },
+    { height: 1.85, diameter: 0.21, tessellation: 12 },
     scene,
   );
   shaft.parent = root;
-  shaft.position.y = 0.95;
+  shaft.position.y = 1.05;
   shaft.material = bodyPaint;
 
   const topTip = CreateCylinder(
     name + '-top-tip',
-    { height: 0.36, diameter: 0.14, tessellation: 12 },
+    { height: 0.48, diameter: 0.23, tessellation: 12 },
     scene,
   );
   topTip.parent = root;
-  topTip.position.y = 1.85;
+  topTip.position.y = 2.15;
   topTip.material = tipPaint;
 
   const grip = CreateCylinder(
     name + '-grip',
-    { height: 0.28, diameter: 0.14, tessellation: 12 },
+    { height: 0.36, diameter: 0.23, tessellation: 12 },
     scene,
   );
   grip.parent = root;
-  grip.position.y = 0.14;
+  grip.position.y = 0.18;
   grip.material = gold;
 
   const sparks = createDizzyStars(scene, name + '-magic');
@@ -61,13 +62,14 @@ export function createMagicWand(scene: Scene, name: string) {
       return;
     }
     root.setEnabled(true);
-    // Hold the wand diagonally beside and above the marble, waving across it.
-    const swing = Math.sin(magic.progress * Math.PI * 6) * 0.32;
-    const tilt = -0.95 + swing;
-    const yaw = -Math.PI / 4 + Math.cos(magic.progress * Math.PI * 3) * 0.18;
-    root.position.set(point.x - 0.85, point.y + 1.05, point.z - 0.65);
+    // Hold the wand broadside across the Arcade isometric view (+Math.PI / 4)
+    // beside and above the marble, waving smoothly across it.
+    const swing = Math.sin(magic.progress * Math.PI * 5) * 0.38;
+    const tilt = -0.82 + swing;
+    const yaw = Math.PI / 4 + Math.cos(magic.progress * Math.PI * 2.5) * 0.14;
+    root.position.set(point.x - 0.95, point.y + 1.05, point.z + 0.95);
     root.rotation.set(0, yaw, tilt);
-    const len = 2.0;
+    const len = 2.38;
     tip.x = root.position.x - Math.sin(tilt) * Math.cos(yaw) * len;
     tip.y = root.position.y + Math.cos(tilt) * len;
     tip.z = root.position.z + Math.sin(tilt) * Math.sin(yaw) * len;

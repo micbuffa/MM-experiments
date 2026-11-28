@@ -1,5 +1,19 @@
 # Handoff
 
+## Remaster CI Fixes, Level 6 Ice Anti-Softlock, Level 4 ROM Respawns/Pistons & Magic Wand — November 28, 2026
+
+- **GitHub Actions CI Fixes** (`tests/browser/remaster.spec.ts`, `src/remaster/remaster.ts`, `src/remaster/audio/createRemasterAudio.ts`):
+  - Added a CI-safe synthetic 12×12 terrain Playwright test via `page.route` in `remaster.spec.ts` and gated the 6 `local-roms/` Playwright tests with `requireLocalTerrain()` so they skip cleanly in CI when `local-roms/` is absent.
+  - Guarded all `'/__local-roms/'` string literals in `remaster.ts` and `createRemasterAudio.ts` behind `import.meta.env.DEV` so Vite tree-shakes them out of `dist/`, restoring green `tests/preview/production.spec.ts` (3/3 passed).
+- **Level 6 Cyan Ice Anti-Softlock & Pyramid Restitution** (`src/remaster/engine/remasterSimulation.ts`, `src/remaster/physics/createHavokBackend.ts`, `src/remaster/engine/remasterSimulation.test.ts`):
+  - Added a gentle `28%` unstuck nudge on `onRomIce` only when stalled (`vSpeed < 0.75 c/s`), preserving authentic `0%` steering on ice at normal speed (`>= 0.75 c/s`) while preventing permanent softlocks if a pyramid collision cancels velocity.
+  - Set `friction: 0.0`, `staticFriction: 0.0`, and `restitutionCombine: PhysicsMaterialCombineMode.MAXIMUM` on Level 6 `level6-pyramid-*` colliders so marbles deflect cleanly off pyramids on ice.
+- **Level 4 Authentic 68010 ROM Respawn Table (`0x1f568`), Piston Upward Launch & Arcade Magic Wand (`+10 SEC`)**:
+  - Decoded all **159 native Level 4 respawn checkpoints** from `roms/marble.zip` (`marble2/136033.401` + `136033.402`, pointer table `0x1ef1a[3]` → `0x1f568`) into `LEVEL4_ROM_RESPAWN_POINTS` (`src/remaster/level4/level4RomData.ts`), added `isNearLevel4PistonOrHammer` and `findNearestLevel4Respawn` (`src/remaster/level4/level4Mechanics.ts`), and snapped Level 4 `lastSafe` strictly to safe ROM checkpoints (zero respawns on pistons, hammers, or vacuums).
+  - Upgraded `evaluateLevel4PistonBump` (`level4Mechanics.ts`, `remasterSimulation.ts`) to launch the marble upward (`vy = 12.2` center / `8.4` off-center / `4.2` side graze) when chrome pistons pop up underneath it, matching the original arcade.
+  - Implemented the classic arcade **Magic Wand (`+10 SEC`)** (`remasterSimulation.ts`, `createRemasterScene.ts`, `createMagicWand.ts`, `createRemasterAudio.ts`): triggers once per course when `!timerFrozen && playElapsed >= 6 && remainingTime <= 15 && remainingTime > 2`, reuses `createMagicWand.ts` (black/ivory/gold wand waving diagonally with `createDizzyStars` tip sparkles) and the authentic 54-frame marble squash-and-stretch (`scaling.y` `0.75` / `1.5`), plays a sparkling chime arpeggio, displays the `+10 SEC` floating arcade badge, and grants `+10` seconds.
+- **Validation**: `npm run format && npm run check` (847/847 Vitest tests, ≥ 90% V8 coverage, ESLint, strict TS, Vite build), `npm run test:preview` (3/3 passed), `npx playwright test tests/browser/remaster.spec.ts` (7/7 passed), `npm run build:remaster`.
+
 ## Remaster Mobile/Tablet Support, TFMX Amiga Tracker Music, Orbital Rainbow Scroller & Level 5 Polish — November 28, 2026
 
 - **Mobile & Tablet Playability (iPhone, Android, iPad)** (`remasterTouch.ts`, `remasterTouch.test.ts`, `remaster.html`, `remaster.css`, `remaster.ts`):

@@ -37,6 +37,7 @@ import { createCameraOcclusion } from '../../rendering/createCameraOcclusion';
 import { createMarbleSuction } from '../../rendering/createMarbleSuction';
 import { createDizzyStars } from '../../rendering/createDizzyStars';
 import { createLivePracticeCamera } from '../../rendering/createLivePracticeCamera';
+import { createMagicWand } from '../../rendering/createMagicWand';
 import { createPracticeCatchUpLabel } from '../../rendering/createPracticeCatchUpLabel';
 import { createPracticeGoalMaterial } from '../../rendering/createPracticeGoal';
 import {
@@ -131,6 +132,27 @@ export function createRemasterScene(
     true,
     '+3',
   );
+  const magicWandBonusLabel = createPracticeCatchUpLabel(
+    scene,
+    'remaster-wand-bonus',
+    false,
+    true,
+  );
+  const firstWand = createMagicWand(scene, 'remaster-wand-1');
+  const secondWand = createMagicWand(scene, 'remaster-wand-2');
+  const wandLabelPos = { x: 0, y: 0, z: 0 };
+  const wandPoint = { x: 0, y: 0, z: 0 };
+  const wandMagic = { progress: 0, frame: 0, stretch: 1 };
+  const wandPose = {
+    x: 0,
+    z: 0,
+    height: 0,
+    screenX: 0,
+    screenY: 0,
+    life: 'active' as const,
+    marble: 'visible' as const,
+    magic: wandMagic,
+  };
   const firstDizzy = createDizzyStars(scene, 'remaster-dizzy-1');
   const secondDizzy = createDizzyStars(scene, 'remaster-dizzy-2');
   const firstBroom = createBroomSweep(scene, 'remaster-broom-1', false);
@@ -409,6 +431,49 @@ export function createRemasterScene(
       second.update(p2Pos);
       firstTrail.update(p1Pos, p1Pos && p1 ? p1.velocity : null, dtSeconds);
       secondTrail.update(p2Pos, p2Pos && p2 ? p2.velocity : null, dtSeconds);
+      if (snapshot.magicWand) {
+        const w = snapshot.magicWand;
+        const p = w.progress;
+        // Authentic arcade 54-frame magic wand animation (practicePose.ts + createMagicWand.ts)
+        const wandFrame = Math.min(53, Math.floor(p * 54));
+        const stretch =
+          wandFrame === 26 || wandFrame === 27
+            ? 0.75
+            : wandFrame === 28 || wandFrame === 29
+              ? 1.5
+              : 1;
+        wandMagic.progress = p;
+        wandMagic.frame = wandFrame;
+        wandMagic.stretch = stretch;
+        wandPoint.x = w.x;
+        wandPoint.y = w.y;
+        wandPoint.z = w.z;
+        if (w.player === 1) {
+          first.marble.scaling.y = stretch;
+          second.marble.scaling.y = 1;
+          firstWand(wandPose, wandPoint);
+          secondWand(undefined, null);
+        } else {
+          first.marble.scaling.y = 1;
+          second.marble.scaling.y = stretch;
+          firstWand(undefined, null);
+          secondWand(wandPose, wandPoint);
+        }
+        if (p >= 0.48) {
+          wandLabelPos.x = w.x;
+          wandLabelPos.y = w.y + 0.9 + (p - 0.48) * 1.4;
+          wandLabelPos.z = w.z;
+          magicWandBonusLabel(wandLabelPos, -10);
+        } else {
+          magicWandBonusLabel(null);
+        }
+      } else {
+        first.marble.scaling.y = 1;
+        second.marble.scaling.y = 1;
+        firstWand(undefined, null);
+        secondWand(undefined, null);
+        magicWandBonusLabel(null);
+      }
       if (isLevel2) setIntermediateBridgeStep(scene, snapshot.bridgePhase * 6);
       if (isLevel4 && snapshot.level4) {
         setLevel4VacuumExtensions(

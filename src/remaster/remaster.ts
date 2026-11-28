@@ -92,7 +92,7 @@ async function loadCourseTerrain(
               ? 'intermediate-terrain-pipes.json'
               : 'practice-complete-terrain.json';
   const candidates = [
-    `/__local-roms/${filename}`,
+    ...(import.meta.env.DEV ? [`/__local-roms/${filename}`] : []),
     `${import.meta.env.BASE_URL}beta-data/${filename}`,
   ];
   for (const url of candidates) {
@@ -119,7 +119,7 @@ async function loadCourseActors(): Promise<RollingActors | undefined> {
     // Fall through to JSON candidates.
   }
   const jsonCandidates = [
-    '/__local-roms/rolling-actors.json',
+    ...(import.meta.env.DEV ? ['/__local-roms/rolling-actors.json'] : []),
     `${import.meta.env.BASE_URL}beta-data/rolling-actors.json`,
   ];
   for (const url of jsonCandidates) {

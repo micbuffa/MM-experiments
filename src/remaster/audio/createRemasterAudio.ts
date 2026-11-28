@@ -182,11 +182,24 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     const localVgms = await listLocalVgms();
     const resolveTrackUrls = (stem: string) => {
       const urls: string[] = [];
-      if (localVgms.has(`${stem}.vgz`)) urls.push(`/__local-roms/${stem}.vgz`);
-      if (localVgms.has(`${stem}.vgm`)) urls.push(`/__local-roms/${stem}.vgm`);
-      if (!import.meta.env.DEV) urls.push(`${prefix}assets/audio/${stem}.vgz`);
+      if (import.meta.env.DEV) {
+        if (localVgms.has(`${stem}.vgz`))
+          urls.push(`/__local-roms/${stem}.vgz`);
+        if (localVgms.has(`${stem}.vgm`))
+          urls.push(`/__local-roms/${stem}.vgm`);
+      } else {
+        urls.push(`${prefix}assets/audio/${stem}.vgz`);
+      }
       urls.push(`${prefix}assets/audio/${stem}.vgm`);
       return urls;
+    };
+    const loadOptionalVgz = (name: string): Promise<ParsedVgm | null> => {
+      if (import.meta.env.DEV) {
+        return localVgms.has(name)
+          ? fetchFirstVgm([`/__local-roms/${name}`])
+          : Promise.resolve(null);
+      }
+      return fetchFirstVgm([`${prefix}assets/audio/${name}`]);
     };
 
     const [
@@ -206,47 +219,15 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
         () => null,
       ),
       fetchFirstVgm(resolveTrackUrls('level1-practice')),
-      localVgms.has('level2-beginner.vgz')
-        ? fetchFirstVgm(['/__local-roms/level2-beginner.vgz'])
-        : !import.meta.env.DEV
-          ? fetchFirstVgm([`${prefix}assets/audio/level2-beginner.vgz`])
-          : Promise.resolve(null),
-      localVgms.has('level3-intermediate.vgz')
-        ? fetchFirstVgm(['/__local-roms/level3-intermediate.vgz'])
-        : !import.meta.env.DEV
-          ? fetchFirstVgm([`${prefix}assets/audio/level3-intermediate.vgz`])
-          : Promise.resolve(null),
-      localVgms.has('level4-aerial.vgz')
-        ? fetchFirstVgm(['/__local-roms/level4-aerial.vgz'])
-        : !import.meta.env.DEV
-          ? fetchFirstVgm([`${prefix}assets/audio/level4-aerial.vgz`])
-          : Promise.resolve(null),
-      localVgms.has('level5-silly.vgz')
-        ? fetchFirstVgm(['/__local-roms/level5-silly.vgz'])
-        : !import.meta.env.DEV
-          ? fetchFirstVgm([`${prefix}assets/audio/level5-silly.vgz`])
-          : Promise.resolve(null),
-      localVgms.has('level6-ultimate.vgz')
-        ? fetchFirstVgm(['/__local-roms/level6-ultimate.vgz'])
-        : !import.meta.env.DEV
-          ? fetchFirstVgm([`${prefix}assets/audio/level6-ultimate.vgz`])
-          : Promise.resolve(null),
-      localVgms.has('congratulations.vgz')
-        ? fetchFirstVgm(['/__local-roms/congratulations.vgz'])
-        : !import.meta.env.DEV
-          ? fetchFirstVgm([`${prefix}assets/audio/congratulations.vgz`])
-          : Promise.resolve(null),
+      loadOptionalVgz('level2-beginner.vgz'),
+      loadOptionalVgz('level3-intermediate.vgz'),
+      loadOptionalVgz('level4-aerial.vgz'),
+      loadOptionalVgz('level5-silly.vgz'),
+      loadOptionalVgz('level6-ultimate.vgz'),
+      loadOptionalVgz('congratulations.vgz'),
       fetchFirstVgm(resolveTrackUrls('goal-fanfare')),
-      localVgms.has('goal-fanfare-p2.vgz')
-        ? fetchFirstVgm(['/__local-roms/goal-fanfare-p2.vgz'])
-        : !import.meta.env.DEV
-          ? fetchFirstVgm([`${prefix}assets/audio/goal-fanfare-p2.vgz`])
-          : Promise.resolve(null),
-      localVgms.has('game-over.vgz')
-        ? fetchFirstVgm(['/__local-roms/game-over.vgz'])
-        : !import.meta.env.DEV
-          ? fetchFirstVgm([`${prefix}assets/audio/game-over.vgz`])
-          : Promise.resolve(null),
+      loadOptionalVgz('goal-fanfare-p2.vgz'),
+      loadOptionalVgz('game-over.vgz'),
     ]);
     if (bankRes?.ok) {
       try {
@@ -295,9 +276,11 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
     await Promise.all(
       sfxNames.map(async (name) => {
         const urls: string[] = [];
-        if (localVgms.has(name)) urls.push(`/__local-roms/${name}`);
-        else if (!import.meta.env.DEV)
+        if (import.meta.env.DEV) {
+          if (localVgms.has(name)) urls.push(`/__local-roms/${name}`);
+        } else {
           urls.push(`${prefix}assets/audio/${name}`);
+        }
         if (urls.length === 0) return;
         const parsed = await fetchFirstVgm(urls);
         if (parsed) romSfx[name] = parsed;
@@ -659,6 +642,35 @@ export function createRemasterAudio(baseUrl = '/'): RemasterAudioController {
           [72, 66, 60].forEach((n, idx) => {
             window.setTimeout(() => triggerNote(5, n, 95), idx * 80);
           });
+        } else if (ev.type === 'magicWand') {
+          // Dedicated WebAudio shimmering harp/bell arpeggio for the arcade Magic Wand (+10 SEC),
+          // played directly on AudioContext so low-time countdown ticks never interrupt it.
+          if (ctx && !muted) {
+            const audioCtx = ctx;
+            const now = audioCtx.currentTime;
+            const notes = [84, 88, 91, 95, 96, 100, 103, 96, 100, 103, 108];
+            notes.forEach((midi, idx) => {
+              const start = now + idx * 0.095;
+              const freq = 440 * Math.pow(2, (midi - 69) / 12);
+              const osc = audioCtx.createOscillator();
+              const harm = audioCtx.createOscillator();
+              const gain = audioCtx.createGain();
+              osc.type = 'triangle';
+              harm.type = 'sine';
+              osc.frequency.setValueAtTime(freq, start);
+              harm.frequency.setValueAtTime(freq * 2, start);
+              gain.gain.setValueAtTime(0.0001, start);
+              gain.gain.linearRampToValueAtTime(0.22, start + 0.014);
+              gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.42);
+              osc.connect(gain);
+              harm.connect(gain);
+              gain.connect(audioCtx.destination);
+              osc.start(start);
+              harm.start(start);
+              osc.stop(start + 0.45);
+              harm.stop(start + 0.45);
+            });
+          }
         } else if (ev.type === 'countdownTick') {
           if (!playTriggerSfx('countdownTick', 'sfx-countdown.vgm')) {
             triggerNote(

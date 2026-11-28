@@ -15,6 +15,7 @@ import {
   LEVEL4_PISTON_STEPS,
   LEVEL4_PISTON_TICK_HZ,
   LEVEL4_PISTON_TRIGGER_ZONE,
+  LEVEL4_ROM_RESPAWN_POINTS,
   LEVEL4_VACUUM_SPECS,
 } from './level4RomData';
 
@@ -148,21 +149,28 @@ export function evaluateLevel4Pistons(
   return active;
 }
 
-/** Returns knockback impulse if a marble overlaps a raised piston (step >= 3). */
+/**
+ * Returns knockback + upward launch impulse if a marble overlaps a raised piston (step >= 2).
+ * In the original arcade Level 4, rising chrome pistons launch the marble straight into the air
+ * when they pop up underneath it, while side grazing kicks it outward with a smaller hop.
+ */
 export function evaluateLevel4PistonBump(
   cellX: number,
   cellZ: number,
   pistons: readonly Level4PistonPose[],
-): { x: number; z: number } | undefined {
+): { x: number; y: number; z: number } | undefined {
   for (const p of pistons) {
-    if (p.step < 3) continue;
+    if (p.step < 2) continue;
     const dx = cellX - (p.x + 0.5);
     const dz = cellZ - (p.z + 0.5);
     const dist = Math.hypot(dx, dz);
     if (dist < 0.85) {
       const nx = dist > 0.01 ? dx / dist : 1;
       const nz = dist > 0.01 ? dz / dist : 0;
-      return { x: nx * 8.5, z: nz * 8.5 };
+      const rising = p.step <= 7;
+      const launchY = rising ? (dist < 0.52 ? 12.2 : 8.4) : 4.2;
+      const radial = rising && dist < 0.45 ? 5.5 : 8.5;
+      return { x: nx * radial, y: launchY, z: nz * radial };
     }
   }
   return undefined;
@@ -276,6 +284,65 @@ export function evaluateLevel4HammerStrike(
     }
   }
   return undefined;
+}
+
+/** Returns true when (cellX, cellZ) overlaps a chrome piston shaft or swinging hammer lane. */
+export function isNearLevel4PistonOrHammer(
+  cellX: number,
+  cellZ: number,
+): boolean {
+  for (const p of LEVEL4_PISTON_SPECS) {
+    if (Math.hypot(cellX - (p.x + 0.5), cellZ - (p.z + 0.5)) < 1.15) {
+      return true;
+    }
+  }
+  for (const h of LEVEL4_HAMMERS) {
+    if (
+      cellX >= h.x - 1.6 &&
+      cellX <= h.x + 1.0 &&
+      Math.abs(cellZ - h.z) < 1.1
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export interface Level4RespawnCandidate {
+  readonly cellX: number;
+  readonly cellZ: number;
+  readonly y: number;
+}
+
+/**
+ * Select the nearest authentic 68010 ROM Level 4 respawn checkpoint (table 0x1f568)
+ * at the same elevation as the marble, strictly excluding vacuum/piston/hammer hazards.
+ */
+export function findNearestLevel4Respawn(
+  cellX: number,
+  cellZ: number,
+  groundY: number,
+  sampleHeightAtCell: (cx: number, cz: number) => number | null,
+): Level4RespawnCandidate | null {
+  let best: Level4RespawnCandidate | null = null;
+  let bestDistSq = Number.POSITIVE_INFINITY;
+  for (const [rx, rz] of LEVEL4_ROM_RESPAWN_POINTS) {
+    const cx = rx + 0.5;
+    const cz = rz + 0.5;
+    if (isNearLevel4Vacuum(cx, cz) || isNearLevel4PistonOrHammer(cx, cz)) {
+      continue;
+    }
+    const h = sampleHeightAtCell(cx, cz);
+    if (h === null || Math.abs(h - groundY) > 0.65) continue;
+    const dx = cx - cellX;
+    const dz = cz - cellZ;
+    const dSq = dx * dx + dz * dz;
+    if (dSq < bestDistSq) {
+      bestDistSq = dSq;
+      best = { cellX: cx, cellZ: cz, y: h };
+    }
+  }
+  return best;
 }
 
 /** Returns true when a marble enters the ROM 0x186ac zone 4/5 trigger for Level 4 pistons (0x400760). */

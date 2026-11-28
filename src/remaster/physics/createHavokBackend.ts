@@ -463,11 +463,17 @@ export async function createHavokBackend(
         PhysicsShapeType.MESH,
         {
           mass: 0,
-          friction: 0.1,
+          friction: 0.0,
           restitution: REMASTER_PHYSICS.wallRestitution,
         },
         scene,
       );
+      aggregate.shape.material = {
+        friction: 0.0,
+        staticFriction: 0.0,
+        restitution: REMASTER_PHYSICS.wallRestitution,
+        restitutionCombine: PhysicsMaterialCombineMode.MAXIMUM,
+      };
       ownedAggregates.push(aggregate);
     }
   }

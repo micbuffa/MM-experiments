@@ -76,8 +76,10 @@ import {
   evaluateLevel4Pistons,
   evaluateLevel4VacuumPull,
   evaluateLevel4Vacuums,
+  findNearestLevel4Respawn,
   isInLevel4PistonTriggerZone,
   isInsideLevel4CatapultCup,
+  isNearLevel4PistonOrHammer,
   isNearLevel4Vacuum,
   resolveLevel4HammerSeparation,
   type Level4MechanismSnapshot,
@@ -217,6 +219,11 @@ export type RemasterEvent =
       readonly penaltySeconds: number;
     }
   | {
+      readonly type: 'magicWand';
+      readonly player: 1 | 2;
+      readonly bonusSeconds: number;
+    }
+  | {
       readonly type: 'goal';
       readonly player: 1 | 2;
       readonly timeBonus: number;
@@ -256,6 +263,15 @@ export interface RemasterEnemyState {
 
 export type RemasterWormState = WormPose;
 
+export interface MagicWandSnapshot {
+  readonly player: 1 | 2;
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly progress: number;
+  readonly bonusSeconds: number;
+}
+
 export interface RemasterSnapshot {
   readonly phase: RemasterPhase;
   readonly openingProgress: number;
@@ -263,6 +279,7 @@ export interface RemasterSnapshot {
   readonly bridgePhase: number;
   readonly remainingTime: number;
   readonly twoPlayers: boolean;
+  readonly magicWand?: MagicWandSnapshot;
   readonly players: readonly RemasterPlayerState[];
   readonly enemies: readonly RemasterEnemyState[];
   readonly worms: readonly RemasterWormState[];
@@ -490,6 +507,11 @@ export function createRemasterSimulation(
   let level5State: Level5ActorsState | undefined =
     level.courseIndex === 5 ? createLevel5ActorsState(random) : undefined;
   let level6MazePhase: 0 | 1 | 2 | 3 = 0;
+  let magicWandUsed = false;
+  let magicWandState:
+    { playerIdx: 0 | 1; elapsed: number; awarded: boolean } | undefined;
+  const MAGIC_WAND_DURATION = 2.85;
+  const MAGIC_WAND_BONUS_SECONDS = 10;
 
   const players: MutablePlayer[] = twoPlayers
     ? [makePlayer(1, level.spawns.player1), makePlayer(2, level.spawns.player2)]
@@ -610,6 +632,21 @@ export function createRemasterSimulation(
           : undefined,
       level5Actors: level5State ? readLevel5ActorsSnapshot(level5State) : [],
       ...(level.courseIndex === 6 ? { level6MazePhase } : {}),
+      ...(magicWandState && players[magicWandState.playerIdx]
+        ? {
+            magicWand: {
+              player: players[magicWandState.playerIdx]!.id,
+              x: players[magicWandState.playerIdx]!.position.x,
+              y: players[magicWandState.playerIdx]!.position.y,
+              z: players[magicWandState.playerIdx]!.position.z,
+              progress: Math.min(
+                1,
+                magicWandState.elapsed / MAGIC_WAND_DURATION,
+              ),
+              bonusSeconds: MAGIC_WAND_BONUS_SECONDS,
+            },
+          }
+        : {}),
       goalOwner,
       events,
     };
@@ -1285,10 +1322,12 @@ export function createRemasterSimulation(
         const pistonBump = evaluateLevel4PistonBump(cellX, cellZ, pistons);
         if (pistonBump) {
           p.hazardBumpCooldown = 0.35;
+          p.catapultCooldown = Math.max(p.catapultCooldown, 0.45);
           p.velocity.x = pistonBump.x;
+          p.velocity.y = pistonBump.y;
           p.velocity.z = pistonBump.z;
           physics.setMarbleVelocity?.(idx, p.velocity);
-          events.push({ type: 'wallBounce', player: p.id, intensity: 0.9 });
+          events.push({ type: 'wallBounce', player: p.id, intensity: 0.95 });
         } else {
           const hammerHit = evaluateLevel4HammerStrike(cellX, cellZ, hammers);
           if (hammerHit) {
@@ -1635,6 +1674,8 @@ export function createRemasterSimulation(
       level5State =
         level.courseIndex === 5 ? createLevel5ActorsState(random) : undefined;
       level6MazePhase = 0;
+      magicWandUsed = false;
+      magicWandState = undefined;
       physics.setLevel6MazePhase?.(0);
       placePlayersAtSpawn();
       return snapshot([]);
@@ -1837,6 +1878,21 @@ export function createRemasterSimulation(
                 rfx,
                 rfz,
                 Boolean(input.boost),
+                agility,
+              );
+            }
+          } else if (onRomIce) {
+            // Anti-softlock on flat ice (e.g. stalled after hitting a Level 6 pyramid):
+            // allow a gentle unstuck nudge only when nearly stopped (< 0.75 c/s),
+            // preserving pure zero-steering arcade glide at normal speeds.
+            const vSpeed = Math.hypot(p.velocity.x, p.velocity.z);
+            if (vSpeed < 0.75) {
+              const nudge = accel * 0.28;
+              physics.applyPlayerForce(
+                i as 0 | 1,
+                nx * nudge,
+                nz * nudge,
+                false,
                 agility,
               );
             }
@@ -2167,10 +2223,14 @@ export function createRemasterSimulation(
               1.8,
             )) &&
           (level.courseIndex !== 4 ||
-            !isNearLevel4Vacuum(
+            (!isNearLevel4Vacuum(
               body.position.x + mainLayer.origin.x + mainLayer.columns / 2,
               body.position.z + mainLayer.origin.z + mainLayer.rows / 2,
-            ))
+            ) &&
+              !isNearLevel4PistonOrHammer(
+                body.position.x + mainLayer.origin.x + mainLayer.columns / 2,
+                body.position.z + mainLayer.origin.z + mainLayer.rows / 2,
+              )))
         ) {
           const bx = body.position.x;
           const bz = body.position.z;
@@ -2217,7 +2277,28 @@ export function createRemasterSimulation(
             Math.abs(hW - groundH) < flatTol &&
             Math.abs(hS - groundH) < flatTol &&
             Math.abs(hN - groundH) < flatTol;
-          if (level.courseIndex === 6 && groundH !== null) {
+          if (level.courseIndex === 4 && groundH !== null) {
+            // Level 4: snap lastSafe strictly to the nearest authentic 68010 ROM checkpoint
+            // (table 0x1f568) outside vacuum, piston, and hammer hazard zones.
+            const cp = findNearestLevel4Respawn(
+              bx + mainLayer.origin.x + mainLayer.columns / 2,
+              bz + mainLayer.origin.z + mainLayer.rows / 2,
+              groundH,
+              (cx, cz) =>
+                sampleLayerHeight(
+                  mainLayer,
+                  cx - mainLayer.origin.x - mainLayer.columns / 2,
+                  cz - mainLayer.origin.z - mainLayer.rows / 2,
+                ),
+            );
+            if (cp) {
+              p.lastSafe = {
+                x: cp.cellX - mainLayer.origin.x - mainLayer.columns / 2,
+                y: cp.y + 0.05,
+                z: cp.cellZ - mainLayer.origin.z - mainLayer.rows / 2,
+              };
+            }
+          } else if (level.courseIndex === 6 && groundH !== null) {
             // Level 6: snap lastSafe strictly to the nearest authentic 68010 ROM checkpoint
             // (table 0x1f98c) at the exact same elevation as the marble (zero corner/wrong-tier respawns).
             const cp = findNearestLevel6Respawn(
@@ -2768,6 +2849,54 @@ export function createRemasterSimulation(
             player: trailer.id,
             penaltySeconds: REMASTER_RULES.catchUpPenaltySeconds,
           });
+        }
+      }
+
+      // Classic arcade Magic Wand: once per course, when time runs low (<= 15 s)
+      // on an active marble (not frozen timer), the wand descends from above,
+      // taps the marble with sparkles, and grants +10 SEC!
+      if (
+        !timerFrozen &&
+        !magicWandUsed &&
+        !magicWandState &&
+        playElapsed >= 6
+      ) {
+        for (let i = 0; i < players.length; i++) {
+          const p = players[i]!;
+          if (
+            p.life === 'active' &&
+            p.remainingTime <= 15 &&
+            p.remainingTime > 2
+          ) {
+            magicWandUsed = true;
+            magicWandState = {
+              playerIdx: i as 0 | 1,
+              elapsed: 0,
+              awarded: false,
+            };
+            events.push({
+              type: 'magicWand',
+              player: p.id,
+              bonusSeconds: MAGIC_WAND_BONUS_SECONDS,
+            });
+            break;
+          }
+        }
+      }
+      if (magicWandState) {
+        magicWandState.elapsed += dt;
+        const target = players[magicWandState.playerIdx];
+        if (
+          target &&
+          !magicWandState.awarded &&
+          magicWandState.elapsed >= MAGIC_WAND_DURATION * 0.48
+        ) {
+          magicWandState.awarded = true;
+          target.remainingTime += MAGIC_WAND_BONUS_SECONDS;
+          remainingTime = Math.max(...players.map((pl) => pl.remainingTime));
+        }
+        if (magicWandState.elapsed >= MAGIC_WAND_DURATION) {
+          magicWandState = undefined;
         }
       }
 

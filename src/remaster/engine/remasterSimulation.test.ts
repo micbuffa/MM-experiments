@@ -1685,4 +1685,124 @@ describe('createRemasterSimulation', () => {
     sim.step(1 / 60, []);
     expect(sim.snapshot.players[0]!.lastSafe.z).toBeCloseTo(flatSafe.z, 2);
   });
+
+  it('prevents softlock when stalled on Level 6 cyan ice while keeping zero steering at speed', () => {
+    const cells = Array.from({ length: 100 }, () =>
+      Array.from({ length: 100 }, () => [0, 0, 0, 0] as const),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 6,
+      heightLayers: [
+        {
+          id: 'l6-ice',
+          columns: 100,
+          rows: 100,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      spawns: {
+        // Cell (72, 74) lies inside Level 6 cyan ice diamond (ROM tag 0x35)
+        player1: { x: 72.5 - 50, y: 0, z: 74.5 - 50 },
+        player2: { x: 73.5 - 50, y: 0, z: 74.5 - 50 },
+      },
+    };
+    const stub = makeStubPhysics();
+    const sim = createRemasterSimulation(level, stub, false);
+    sim.skipOpening();
+
+    // Stalled (v = 0) on ice: player input applies gentle unstuck nudge
+    const unstuck = sim.step(1 / 60, [{ x: 1, z: 0 }]);
+    expect(unstuck.players[0]!.velocity.x).toBeGreaterThan(0);
+
+    // Moving at normal speed (v = 4.0) on ice: steering input is ignored (pure glide)
+    stub.marbles[0] = {
+      ...stub.marbles[0]!,
+      velocity: { x: 0, y: 0, z: 4.0 },
+    };
+    sim.step(1 / 60, []);
+    const glide = sim.step(1 / 60, [{ x: 1, z: 0 }]);
+    expect(glide.players[0]!.velocity.x).toBeCloseTo(0, 4);
+  });
+
+  it('launches marble upward on Level 4 rising pistons and snaps Level 4 respawns to safe ROM checkpoints', () => {
+    const cells = Array.from({ length: 120 }, () =>
+      Array.from({ length: 120 }, () => [0, 0, 0, 0] as const),
+    );
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      courseIndex: 4,
+      heightLayers: [
+        {
+          id: 'l4-rom-respawn',
+          columns: 120,
+          rows: 120,
+          origin: { x: 0, z: 0 },
+          cells,
+          defaultSurface: 'stone',
+        },
+      ],
+      spawns: {
+        // Near Level 4 hammers (105, 104) -> safe ROM respawn must snap to zone 10 (x=100..101), never on hammers!
+        player1: { x: 100.5 - 60, y: 0, z: 104.5 - 60 },
+        player2: { x: 101.5 - 60, y: 0, z: 104.5 - 60 },
+      },
+    };
+    const stub = makeStubPhysics();
+    const sim = createRemasterSimulation(level, stub, false, () => 0);
+    sim.skipOpening();
+    // Stand on safe zone 10 deck before hammers
+    sim.step(1 / 60, []);
+    const safeCellX = sim.snapshot.players[0]!.lastSafe.x + 60;
+    expect(safeCellX).toBeLessThanOrEqual(102);
+
+    // Move directly onto hammer lane (105, 104): must NOT overwrite lastSafe onto the hammer!
+    stub.teleportMarble(0, { x: 105 - 60, y: 0, z: 104 - 60 });
+    sim.step(1 / 60, []);
+    expect(sim.snapshot.players[0]!.lastSafe.x + 60).toBeLessThanOrEqual(102);
+
+    // Trigger pistons and place marble on top of rising piston 0 (x=69, z=55) -> upward launch!
+    stub.teleportMarble(0, { x: 69.5 - 60, y: 0, z: 55.5 - 60 });
+    let launchedUp = false;
+    for (let i = 0; i < 180; i++) {
+      const s = sim.step(1 / 30, []);
+      if (s.players[0]!.velocity.y > 4) {
+        launchedUp = true;
+        break;
+      }
+      stub.teleportMarble(0, { x: 69.5 - 60, y: 0, z: 55.5 - 60 });
+    }
+    expect(launchedUp).toBe(true);
+  });
+
+  it('activates the Magic Wand once per course when time drops below 15 s and awards +10 SEC', () => {
+    const level: RemasterLevelV1 = {
+      ...makeFlatLevel(),
+      timerSeconds: 22,
+    };
+    const stub = makeStubPhysics();
+    const sim = createRemasterSimulation(level, stub, false);
+    sim.skipOpening();
+
+    let sawWand = false;
+    let sawEvent = false;
+    let maxTimeJump = 0;
+    for (let i = 0; i < 650; i++) {
+      const prevTime = sim.snapshot.players[0]!.remainingTime;
+      const snap = sim.step(1 / 60, []);
+      if (snap.magicWand) sawWand = true;
+      if (snap.events.some((e) => e.type === 'magicWand')) {
+        sawEvent = true;
+      }
+      maxTimeJump = Math.max(
+        maxTimeJump,
+        snap.players[0]!.remainingTime - prevTime,
+      );
+    }
+    expect(sawWand).toBe(true);
+    expect(sawEvent).toBe(true);
+    expect(maxTimeJump).toBeGreaterThan(9.5);
+  });
 });

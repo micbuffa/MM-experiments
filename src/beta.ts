@@ -726,6 +726,11 @@ async function bootBeta() {
         }
         event.preventDefault();
         unlockAudio();
+        try {
+          stage.setPointerCapture(event.pointerId);
+        } catch {
+          // Ignore synthetic pointers.
+        }
         touchTrackball.pointerDown(
           event.pointerId,
           event.clientX,
@@ -733,7 +738,7 @@ async function bootBeta() {
         );
         syncBoost();
       },
-      { signal, passive: false },
+      { signal, passive: false, capture: true },
     );
 
     stage.addEventListener(
@@ -750,6 +755,22 @@ async function bootBeta() {
           session.pushTouchMotion?.(delta.dx, delta.dy);
         }
       },
+      { signal, passive: false, capture: true },
+    );
+
+    // Prevent iOS Safari from hijacking 3D canvas touch drags as page scroll/pan.
+    stage.addEventListener(
+      'touchmove',
+      (event) => {
+        if (phase !== 'playing') return;
+        if (
+          event.target instanceof Element &&
+          event.target.closest('button, input, select, label, nav, aside')
+        ) {
+          return;
+        }
+        event.preventDefault();
+      },
       { signal, passive: false },
     );
 
@@ -758,8 +779,11 @@ async function bootBeta() {
       touchTrackball.pointerUp(event.pointerId);
       syncBoost();
     };
-    stage.addEventListener('pointerup', endTouch, { signal });
-    stage.addEventListener('pointercancel', endTouch, { signal });
+    stage.addEventListener('pointerup', endTouch, { signal, capture: true });
+    stage.addEventListener('pointercancel', endTouch, {
+      signal,
+      capture: true,
+    });
 
     window.addEventListener('blur', resetTouchAndBoost, { signal });
     document.addEventListener(

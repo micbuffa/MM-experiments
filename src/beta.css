@@ -49,6 +49,7 @@ body {
   justify-content: center;
   overflow: hidden;
   background: #020305;
+  touch-action: none;
 }
 
 /* Identical 4:3 CRT frame in both panes so Original and 3D align pixel-for-pixel */
@@ -59,6 +60,7 @@ body {
   aspect-ratio: 4 / 3;
   overflow: hidden;
   border-radius: 6px;
+  touch-action: none;
 }
 
 #beta-stage[data-mode='compare'] .viewport-frame {
@@ -173,6 +175,7 @@ body {
   height: 100%;
   display: block;
   outline: none;
+  touch-action: none;
 }
 
 .practice-hud {

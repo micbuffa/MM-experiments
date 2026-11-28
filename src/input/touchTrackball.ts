@@ -16,8 +16,10 @@ export interface TouchTrackballController {
   reset(): void;
 }
 
-const DEFAULT_TOUCH_GAIN = 1.65;
-const MAX_STEP_DELTA = 96;
+const DEFAULT_TOUCH_GAIN = 3.4;
+const MAX_STEP_DELTA = 180;
+const FLICK_CURVE_PIXELS = 24;
+const MAX_FLICK_BOOST = 1.85;
 
 function clampDelta(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -59,10 +61,22 @@ export function createTouchTrackball(
       y: number,
     ): TouchTrackballDelta | null {
       if (pointerId !== primaryId) return null;
-      const dx = clampDelta((x - lastX) * gain);
-      const dy = clampDelta((y - lastY) * gain);
+      const rawX = x - lastX;
+      const rawY = y - lastY;
       lastX = x;
       lastY = y;
+      if (!Number.isFinite(rawX) || !Number.isFinite(rawY)) return null;
+      const dist = Math.hypot(rawX, rawY);
+      if (dist === 0) return null;
+      // Snappy arcade trackball feel on small phone screens: precise on slow drifts,
+      // progressive acceleration on fast thumb flicks.
+      const flickBoost = Math.min(
+        MAX_FLICK_BOOST,
+        1 + dist / FLICK_CURVE_PIXELS,
+      );
+      const scale = gain * flickBoost;
+      const dx = clampDelta(rawX * scale);
+      const dy = clampDelta(rawY * scale);
       if (dx === 0 && dy === 0) return null;
       return { dx, dy };
     },

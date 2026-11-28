@@ -82,14 +82,17 @@ body {
 
 #beta-stage[data-mode='modern'] #arcade-pane {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
+  inset: 0;
+  z-index: 1;
+  opacity: 1;
   pointer-events: none;
 }
 
 #beta-stage[data-mode='modern'] #modern-pane {
+  position: relative;
+  z-index: 2;
   flex: 1 1 100%;
+  background: #020305;
 }
 
 #beta-stage[data-mode='compare'] #arcade-pane {
